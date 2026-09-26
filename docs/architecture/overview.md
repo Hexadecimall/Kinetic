@@ -29,10 +29,11 @@ boundary. Keystroke, text-layout, and per-glyph rendering hot paths stay within 
 
 ## Current editor slice
 
-The current macOS preview has a custom text surface, tab and dirty-state presentation, custom
-folder/file browser, UTF-8 open/save flow, mouse caret placement and drag selection, editing
-shortcuts, bounded undo/redo history, a custom editor context menu, central shortcut router, and a
-frame-driven cubic tween engine. AppKit supplies the window/event bridge, pasteboard access, and
+The current macOS preview has a custom text surface, retained multi-document tabs with independent
+editing state, dirty-state presentation, persisted recent projects, a custom folder/file browser,
+UTF-8 open/save flow, mouse caret placement and drag selection, editing shortcuts, bounded undo/redo
+history, a custom editor context menu, central shortcut router, and a frame-driven cubic tween
+engine. AppKit supplies the window/event bridge, pasteboard access, and
 compositor backdrop sampling; controls, browser rows, selection presentation, text presentation,
 menus, and transitions are Kinetic-owned.
 
@@ -42,6 +43,9 @@ settings and plugin registries are live; no section is a permanent hard-coded li
 
 Opening a workspace folder populates an expandable file tree without using a native outline view.
 The dedicated Settings page exposes only controls already connected to editor behavior.
+
+See [`tabs-and-recents.md`](tabs-and-recents.md) for document retention, tab switching, closing, and
+recent-project persistence behavior.
 
 Values embedded during this phase are defaults pending the settings registry. They must migrate to
 typed settings without changing their established behavior. Plugins will reach supported behavior

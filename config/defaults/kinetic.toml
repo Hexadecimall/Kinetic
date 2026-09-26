@@ -23,6 +23,8 @@ showScrollIndicators = true
 naturalScrolling = true
 showLineNumbers = true
 showDirtyIndicator = true
+tabMinimumWidth = 92.0
+tabMaximumWidth = 148.0
 mouseCaretPlacement = true
 mouseDragSelection = true
 shiftClickExtendsSelection = true
@@ -43,6 +45,11 @@ showSearch = true
 showSourceControl = true
 showPlugins = true
 showSettings = true
+
+[recent]
+persistProjects = true
+maximumProjects = 8
+showParentPath = true
 
 [fileBrowser]
 rowHeight = 30.0
@@ -65,6 +72,8 @@ moveWordRight = "option-right"
 deleteWordBackward = "option-backspace"
 deleteWordForward = "option-delete"
 closeTab = "cmd-w"
+previousTab = "shift-cmd-["
+nextTab = "shift-cmd-]"
 minimizeWindow = "cmd-m"
 hideApplication = "cmd-h"
 quitApplication = "cmd-q"

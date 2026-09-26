@@ -2,10 +2,13 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.7.2 - Unreleased
+## 0.8.0 - Unreleased
 
 ### Added
 
+- Retained multi-document tabs with independent text, selection, undo history, scrolling, file URL,
+  save state, direct tab activation and closing, and previous/next tab shortcuts.
+- Persisted recent workspace folders with custom Home rows that reopen the selected project.
 - Custom translucent macOS window chrome, traffic controls, File menu, and branded Home screen.
 - Custom editable text surface with tabs, dirty-state indication, line numbers, caret navigation,
   vertical and horizontal scrolling, and overflow indicators.
@@ -30,6 +33,8 @@ All notable Kinetic changes are recorded here. Versions use `main.feature.patch`
 
 ### Fixed
 
+- Enabled Open Folder in the custom File menu and renamed its close action from Close Window to
+  Close Tab so the visible command matches its behavior.
 - Kept activity-panel content visible during its closing animation and added compact section header
   strips and dividers for clearer hierarchy without heavy accordion styling.
 - Clipped activity-panel text, aligned plugin content, added real panel buttons, and kept the arrow

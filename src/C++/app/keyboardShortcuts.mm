@@ -30,6 +30,12 @@ KineticShortcutCommand kineticShortcutCommandForEvent(NSEvent* event) {
     if (matches(event, @"s", NSEventModifierFlagCommand)) {
         return KineticShortcutCommandSaveFile;
     }
+    if (matches(event, @"[", NSEventModifierFlagCommand | NSEventModifierFlagShift)) {
+        return KineticShortcutCommandPreviousTab;
+    }
+    if (matches(event, @"]", NSEventModifierFlagCommand | NSEventModifierFlagShift)) {
+        return KineticShortcutCommandNextTab;
+    }
     if (matches(event, @"q", NSEventModifierFlagCommand)) {
         return KineticShortcutCommandQuit;
     }

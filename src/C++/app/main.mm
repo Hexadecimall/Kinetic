@@ -27,6 +27,12 @@
     case KineticShortcutCommandSaveFile:
         [(id<KineticCommandHandler>)self.delegate saveFile];
         return;
+    case KineticShortcutCommandPreviousTab:
+        [(id<KineticCommandHandler>)self.delegate selectPreviousTab];
+        return;
+    case KineticShortcutCommandNextTab:
+        [(id<KineticCommandHandler>)self.delegate selectNextTab];
+        return;
     case KineticShortcutCommandQuit:
         [self terminate:nil];
         return;
@@ -103,14 +109,19 @@
 @property(nonatomic, strong) KineticHomeView* home;
 @property(nonatomic, strong) KineticTrafficBar* trafficBar;
 @property(nonatomic, strong) KineticEditorView* editor;
+@property(nonatomic, strong) NSMutableArray<KineticEditorView*>* editors;
 @property(nonatomic, strong) KineticFileDialog* fileDialog;
 @property(nonatomic, strong) NSURL* workspaceUrl;
+@property(nonatomic) NSUInteger untitledCounter;
 @end
 
 @implementation KineticApplicationDelegate
 
 - (void)applicationDidFinishLaunching:(NSNotification*)notification {
     (void)notification;
+
+    self.editors = [NSMutableArray array];
+    self.untitledCounter = 0;
 
     id<MTLDevice> device = MTLCreateSystemDefaultDevice();
     if (device == nil) {
@@ -150,6 +161,7 @@
                                                              device:device];
     self.home = [[KineticHomeView alloc] initWithFrame:self.content.bounds];
     self.home.commandHandler = self;
+    self.home.recentProjects = [self persistedRecentProjects];
     const CGFloat trafficBarHeight = [KineticTrafficBar preferredHeight];
     self.trafficBar = [[KineticTrafficBar alloc]
         initWithFrame:NSMakeRect(0.0, NSHeight(self.content.bounds) - trafficBarHeight,
@@ -165,21 +177,74 @@
     [NSApp activateIgnoringOtherApps:YES];
 }
 
-- (void)openEditorWithContents:(NSString*)contents fileUrl:(NSURL*)fileUrl {
+- (NSArray<NSURL*>*)persistedRecentProjects {
+    NSArray<NSString*>* paths =
+        [NSUserDefaults.standardUserDefaults stringArrayForKey:@"kinetic.recentProjects"];
+    NSMutableArray<NSURL*>* projects = [NSMutableArray array];
+    for (NSString* path in paths ?: @[]) {
+        BOOL directory = NO;
+        if ([NSFileManager.defaultManager fileExistsAtPath:path isDirectory:&directory] &&
+            directory) {
+            [projects addObject:[NSURL fileURLWithPath:path isDirectory:YES]];
+        }
+    }
+    return projects;
+}
+
+- (void)recordRecentProject:(NSURL*)projectUrl {
+    NSMutableArray<NSString*>* paths = [NSMutableArray arrayWithObject:projectUrl.path];
+    for (NSURL* existing in [self persistedRecentProjects]) {
+        if (![existing.path isEqualToString:projectUrl.path]) {
+            [paths addObject:existing.path];
+        }
+        if (paths.count >= 8) {
+            break;
+        }
+    }
+    [NSUserDefaults.standardUserDefaults setObject:paths forKey:@"kinetic.recentProjects"];
+    self.home.recentProjects = [self persistedRecentProjects];
+}
+
+- (void)updateTabMetadata {
+    NSMutableArray<NSString*>* titles = [NSMutableArray arrayWithCapacity:self.editors.count];
+    NSMutableIndexSet* dirtyIndexes = [NSMutableIndexSet indexSet];
+    for (NSUInteger index = 0; index < self.editors.count; ++index) {
+        KineticEditorView* editor = self.editors[index];
+        [titles addObject:editor.documentTitle];
+        if (editor.dirty) {
+            [dirtyIndexes addIndex:index];
+        }
+    }
+    NSUInteger activeIndex =
+        self.editor == nil ? NSNotFound : [self.editors indexOfObject:self.editor];
+    for (KineticEditorView* editor in self.editors) {
+        editor.tabTitles = titles;
+        editor.dirtyTabIndexes = dirtyIndexes;
+        editor.activeTabIndex = activeIndex == NSNotFound ? 0 : activeIndex;
+    }
+}
+
+- (void)activateTabAtIndex:(NSUInteger)index {
+    if (index >= self.editors.count) {
+        return;
+    }
+    KineticEditorView* nextEditor = self.editors[index];
     KineticEditorView* previousEditor = self.editor;
-    self.editor = [[KineticEditorView alloc] initWithFrame:self.content.bounds
-                                                  contents:contents
-                                                   fileUrl:fileUrl];
-    self.editor.commandHandler = self;
-    self.editor.workspaceUrl = self.workspaceUrl;
+    self.editor = nextEditor;
+    [self updateTabMetadata];
+    if (previousEditor == nextEditor && nextEditor.superview != nil) {
+        [self.window makeFirstResponder:nextEditor];
+        return;
+    }
+
     NSRect finalFrame = self.content.bounds;
-    self.editor.frame = NSOffsetRect(finalFrame, 0.0, -8.0);
-    self.editor.alphaValue = 0.0;
-    [self.content addSubview:self.editor positioned:NSWindowBelow relativeTo:self.trafficBar];
-    [KineticTween animateView:self.editor
+    nextEditor.frame = NSOffsetRect(finalFrame, 0.0, -5.0);
+    nextEditor.alphaValue = 0.0;
+    [self.content addSubview:nextEditor positioned:NSWindowBelow relativeTo:self.trafficBar];
+    [KineticTween animateView:nextEditor
                       toFrame:finalFrame
                       toAlpha:1.0
-                     duration:0.18
+                     duration:previousEditor == nil ? 0.18 : 0.11
                    completion:nil];
 
     if (!self.home.hidden) {
@@ -192,7 +257,7 @@
                          self.home.alphaValue = 1.0;
                        }];
     }
-    if (previousEditor != nil) {
+    if (previousEditor != nil && previousEditor != nextEditor) {
         [KineticTween animateView:previousEditor
                           toFrame:NSOffsetRect(previousEditor.frame, 0.0, 5.0)
                           toAlpha:0.0
@@ -201,7 +266,47 @@
                          [previousEditor removeFromSuperview];
                        }];
     }
-    [self.window makeFirstResponder:self.editor];
+    [self.window makeFirstResponder:nextEditor];
+}
+
+- (void)selectPreviousTab {
+    if (self.editors.count < 2 || self.editor == nil) {
+        return;
+    }
+    NSUInteger index = [self.editors indexOfObject:self.editor];
+    [self activateTabAtIndex:index == 0 ? self.editors.count - 1 : index - 1];
+}
+
+- (void)selectNextTab {
+    if (self.editors.count < 2 || self.editor == nil) {
+        return;
+    }
+    NSUInteger index = [self.editors indexOfObject:self.editor];
+    [self activateTabAtIndex:(index + 1) % self.editors.count];
+}
+
+- (void)openEditorWithContents:(NSString*)contents fileUrl:(NSURL*)fileUrl {
+    if (fileUrl != nil) {
+        for (NSUInteger index = 0; index < self.editors.count; ++index) {
+            if ([self.editors[index].fileUrl.path isEqualToString:fileUrl.path]) {
+                [self activateTabAtIndex:index];
+                return;
+            }
+        }
+    }
+
+    KineticEditorView* editor = [[KineticEditorView alloc] initWithFrame:self.content.bounds
+                                                                contents:contents
+                                                                 fileUrl:fileUrl];
+    editor.commandHandler = self;
+    editor.workspaceUrl = self.workspaceUrl;
+    if (fileUrl == nil) {
+        self.untitledCounter += 1;
+        editor.documentTitle =
+            [NSString stringWithFormat:@"Untitled-%lu", (unsigned long)self.untitledCounter];
+    }
+    [self.editors addObject:editor];
+    [self activateTabAtIndex:self.editors.count - 1];
 }
 
 - (void)newTextFile {
@@ -236,6 +341,7 @@
     }
     self.editor.fileUrl = fileUrl;
     [self.editor markSaved];
+    [self updateTabMetadata];
     return YES;
 }
 
@@ -292,11 +398,14 @@
             return;
         }
         self.workspaceUrl = fileUrl;
+        [self recordRecentProject:fileUrl];
         [self dismissFileDialog];
         if (self.editor == nil) {
             [self openEditorWithContents:@"" fileUrl:nil];
         } else {
-            self.editor.workspaceUrl = fileUrl;
+            for (KineticEditorView* editor in self.editors) {
+                editor.workspaceUrl = fileUrl;
+            }
         }
         return;
     }
@@ -344,9 +453,31 @@
     if (self.editor == nil) {
         return NO;
     }
+    NSUInteger activeIndex = [self.editors indexOfObject:self.editor];
+    return [self closeTabAtIndex:activeIndex];
+}
 
-    KineticEditorView* closingEditor = self.editor;
+- (BOOL)closeTabAtIndex:(NSUInteger)index {
+    if (index >= self.editors.count) {
+        return NO;
+    }
+
+    KineticEditorView* closingEditor = self.editors[index];
+    BOOL closesActiveEditor = closingEditor == self.editor;
+    [self.editors removeObjectAtIndex:index];
+    if (!closesActiveEditor) {
+        [self updateTabMetadata];
+        return YES;
+    }
+
     self.editor = nil;
+    if (self.editors.count > 0) {
+        NSUInteger nextIndex = MIN(index, self.editors.count - 1);
+        [closingEditor removeFromSuperview];
+        [self activateTabAtIndex:nextIndex];
+        return YES;
+    }
+
     self.home.hidden = NO;
     self.home.alphaValue = 0.0;
     NSRect homeFrame = self.home.frame;
@@ -361,6 +492,23 @@
                    }];
     [self.window makeFirstResponder:self.home];
     return YES;
+}
+
+- (void)openRecentProjectAtUrl:(NSURL*)projectUrl {
+    BOOL directory = NO;
+    if (![NSFileManager.defaultManager fileExistsAtPath:projectUrl.path isDirectory:&directory] ||
+        !directory) {
+        self.home.recentProjects = [self persistedRecentProjects];
+        return;
+    }
+    self.workspaceUrl = projectUrl;
+    [self recordRecentProject:projectUrl];
+    for (KineticEditorView* editor in self.editors) {
+        editor.workspaceUrl = projectUrl;
+    }
+    if (self.editor == nil) {
+        [self openEditorWithContents:@"" fileUrl:nil];
+    }
 }
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication*)sender {

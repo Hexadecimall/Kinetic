@@ -41,8 +41,7 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
     self = [super initWithFrame:frame];
     if (self) {
         _owner = owner;
-        _titles =
-            @[ @"New File", @"Open File…", @"Open Folder…", @"", @"Save", @"", @"Close Window" ];
+        _titles = @[ @"New File", @"Open File…", @"Open Folder…", @"", @"Save", @"", @"Close Tab" ];
         _shortcuts = @[ @"⌘N", @"⌘O", @"", @"", @"⌘S", @"", @"⌘W" ];
         _rowRects = [[NSMutableArray alloc] init];
         _hoveredRow = kNoHit;
@@ -66,7 +65,7 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
 }
 
 - (BOOL)isCommandEnabledAtIndex:(NSInteger)index {
-    return index == 0 || index == 1 || index == 4 || index == 6;
+    return index == 0 || index == 1 || index == 2 || index == 4 || index == 6;
 }
 
 - (BOOL)isSeparatorAtIndex:(NSInteger)index {
@@ -193,12 +192,17 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
     } else if (row == 1) {
         [_owner closeMenu];
         [_owner.commandHandler openFile];
+    } else if (row == 2) {
+        [_owner closeMenu];
+        [_owner.commandHandler openFolder];
     } else if (row == 4) {
         [_owner closeMenu];
         [_owner.commandHandler saveFile];
     } else if (row == 6) {
         [_owner closeMenu];
-        [self.window performClose:nil];
+        if (![_owner.commandHandler closeActiveTab]) {
+            [self.window performClose:nil];
+        }
     } else if (!NSPointInRect(point, _menuFrame)) {
         [_owner closeMenu];
     }
@@ -213,12 +217,17 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
     } else if (event.keyCode == 36 && _selectedRow == 1) {
         [_owner closeMenu];
         [_owner.commandHandler openFile];
+    } else if (event.keyCode == 36 && _selectedRow == 2) {
+        [_owner closeMenu];
+        [_owner.commandHandler openFolder];
     } else if (event.keyCode == 36 && _selectedRow == 4) {
         [_owner closeMenu];
         [_owner.commandHandler saveFile];
     } else if (event.keyCode == 36 && _selectedRow == 6) {
         [_owner closeMenu];
-        [self.window performClose:nil];
+        if (![_owner.commandHandler closeActiveTab]) {
+            [self.window performClose:nil];
+        }
     } else {
         [super keyDown:event];
     }

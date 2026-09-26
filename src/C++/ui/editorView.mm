@@ -10,6 +10,10 @@ constexpr CGFloat kContextMenuWidth = 196.0;
 constexpr CGFloat kContextMenuRowHeight = 27.0;
 constexpr CGFloat kContextMenuPadding = 8.0;
 constexpr CGFloat kContextMenuSeparatorHeight = 7.0;
+constexpr CGFloat kTabBarY = 34.0;
+constexpr CGFloat kTabBarHeight = 34.0;
+constexpr CGFloat kPreferredTabWidth = 148.0;
+constexpr CGFloat kMinimumTabWidth = 92.0;
 
 enum class EditorMenuCommand : NSInteger {
     undo,
@@ -34,7 +38,8 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     NSUInteger _caretIndex;
     NSUInteger _selectionAnchor;
     NSTrackingArea* _trackingArea;
-    BOOL _closeHovered;
+    NSInteger _hoveredTabIndex;
+    NSInteger _hoveredTabCloseIndex;
     BOOL _draggingSelection;
     BOOL _contextMenuVisible;
     NSInteger _contextMenuHoveredIndex;
@@ -52,6 +57,10 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     BOOL _settingsVisible;
     NSInteger _settingsHoveredControl;
     NSURL* _workspaceUrl;
+    NSString* _documentTitle;
+    NSArray<NSString*>* _tabTitles;
+    NSIndexSet* _dirtyTabIndexes;
+    NSUInteger _activeTabIndex;
 }
 @end
 
@@ -72,13 +81,18 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
         _redoStack = [NSMutableArray array];
         _caretIndex = 0;
         _selectionAnchor = 0;
-        _closeHovered = NO;
+        _hoveredTabIndex = -1;
+        _hoveredTabCloseIndex = -1;
         _draggingSelection = NO;
         _contextMenuVisible = NO;
         _contextMenuHoveredIndex = -1;
         _contextMenuFrame = NSZeroRect;
         _dirty = NO;
         _fileUrl = fileUrl;
+        _documentTitle = fileUrl.lastPathComponent ?: @"Untitled-1";
+        _tabTitles = @[ _documentTitle ];
+        _dirtyTabIndexes = [NSIndexSet indexSet];
+        _activeTabIndex = 0;
         _verticalScroll = 0.0;
         _horizontalScroll = 0.0;
         _fontSize = 13.0;
@@ -93,7 +107,7 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
             initWithFrame:NSMakeRect(0.0, 68.0, KineticActivityBar.railWidth,
                                      MAX(0.0, NSHeight(frameRect) - 68.0))];
         _activityBar.delegate = self;
-        _activityBar.documentTitle = fileUrl.lastPathComponent ?: @"Untitled-1";
+        _activityBar.documentTitle = _documentTitle;
         [self addSubview:_activityBar];
     }
     return self;
@@ -109,8 +123,47 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
 
 - (void)setFileUrl:(NSURL*)fileUrl {
     _fileUrl = fileUrl;
-    _activityBar.documentTitle = fileUrl.lastPathComponent ?: @"Untitled-1";
+    if (fileUrl != nil) {
+        self.documentTitle = fileUrl.lastPathComponent;
+    }
     self.needsDisplay = YES;
+}
+
+- (void)setDocumentTitle:(NSString*)documentTitle {
+    _documentTitle = [documentTitle copy];
+    _activityBar.documentTitle = _documentTitle;
+    self.needsDisplay = YES;
+}
+
+- (NSString*)documentTitle {
+    return _documentTitle;
+}
+
+- (void)setTabTitles:(NSArray<NSString*>*)tabTitles {
+    _tabTitles = [tabTitles copy];
+    self.needsDisplay = YES;
+}
+
+- (NSArray<NSString*>*)tabTitles {
+    return _tabTitles;
+}
+
+- (void)setDirtyTabIndexes:(NSIndexSet*)dirtyTabIndexes {
+    _dirtyTabIndexes = [dirtyTabIndexes copy];
+    self.needsDisplay = YES;
+}
+
+- (NSIndexSet*)dirtyTabIndexes {
+    return _dirtyTabIndexes;
+}
+
+- (void)setActiveTabIndex:(NSUInteger)activeTabIndex {
+    _activeTabIndex = activeTabIndex;
+    self.needsDisplay = YES;
+}
+
+- (NSUInteger)activeTabIndex {
+    return _activeTabIndex;
 }
 
 - (NSURL*)workspaceUrl {
@@ -144,8 +197,23 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     return YES;
 }
 
-- (NSRect)closeRect {
-    return NSMakeRect(100.0, 41.0, 20.0, 20.0);
+- (NSUInteger)visibleTabCount {
+    return _tabTitles.count + (_settingsVisible ? 1 : 0);
+}
+
+- (CGFloat)tabWidth {
+    NSUInteger count = MAX((NSUInteger)1, [self visibleTabCount]);
+    CGFloat available = MAX(kMinimumTabWidth, NSWidth(self.bounds) - 12.0);
+    return MAX(kMinimumTabWidth, MIN(kPreferredTabWidth, floor(available / count)));
+}
+
+- (NSRect)tabRectAtIndex:(NSUInteger)index {
+    return NSMakeRect(index * [self tabWidth], kTabBarY, [self tabWidth], kTabBarHeight);
+}
+
+- (NSRect)closeRectAtIndex:(NSUInteger)index {
+    NSRect tabRect = [self tabRectAtIndex:index];
+    return NSMakeRect(NSMaxX(tabRect) - 27.0, NSMinY(tabRect) + 7.0, 20.0, 20.0);
 }
 
 - (NSDictionary<NSAttributedStringKey, id>*)editorTextAttributes {
@@ -767,41 +835,66 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     NSRectFill(self.bounds);
 
     [editorColor(42, 51, 64, 0.9) setFill];
-    NSRectFill(NSMakeRect(0.0, 34.0, NSWidth(self.bounds), 34.0));
-    [editorColor(47, 57, 71, 0.9) setFill];
-    NSRect tabRect = NSMakeRect(0.0, 34.0, 126.0, 34.0);
-    NSRectFill(tabRect);
-    [editorColor(77, 141, 255) setFill];
-    NSRectFill(NSMakeRect(0.0, 66.0, NSWidth(tabRect), 2.0));
+    NSRectFill(NSMakeRect(0.0, kTabBarY, NSWidth(self.bounds), kTabBarHeight));
 
     NSDictionary* tabAttributes = @{
         NSFontAttributeName : [NSFont systemFontOfSize:12.0 weight:NSFontWeightMedium],
         NSForegroundColorAttributeName : editorColor(220, 228, 239),
     };
-    NSString* tabTitle =
-        _settingsVisible ? @"Settings" : (_fileUrl.lastPathComponent ?: @"Untitled-1");
-    [tabTitle drawAtPoint:NSMakePoint(12.0, 43.0) withAttributes:tabAttributes];
+    NSMutableParagraphStyle* tabStyle = [[NSMutableParagraphStyle alloc] init];
+    tabStyle.lineBreakMode = NSLineBreakByTruncatingTail;
+    NSMutableDictionary* truncatingTabAttributes = [tabAttributes mutableCopy];
+    truncatingTabAttributes[NSParagraphStyleAttributeName] = tabStyle;
 
-    NSRect closeRect = [self closeRect];
-    if (_closeHovered) {
-        [editorColor(77, 141, 255, 0.18) setFill];
-        [[NSBezierPath bezierPathWithRoundedRect:closeRect xRadius:3.0 yRadius:3.0] fill];
-    }
-    if (_dirty && !_closeHovered) {
-        [editorColor(255, 145, 92) setFill];
-        [[NSBezierPath bezierPathWithOvalInRect:NSMakeRect(NSMidX(closeRect) - 3.0,
-                                                           NSMidY(closeRect) - 3.0, 6.0, 6.0)]
-            fill];
-    } else {
-        NSBezierPath* closeIcon = [NSBezierPath bezierPath];
-        closeIcon.lineWidth = 1.15;
-        closeIcon.lineCapStyle = NSLineCapStyleRound;
-        [closeIcon moveToPoint:NSMakePoint(NSMidX(closeRect) - 3.0, NSMidY(closeRect) - 3.0)];
-        [closeIcon lineToPoint:NSMakePoint(NSMidX(closeRect) + 3.0, NSMidY(closeRect) + 3.0)];
-        [closeIcon moveToPoint:NSMakePoint(NSMidX(closeRect) + 3.0, NSMidY(closeRect) - 3.0)];
-        [closeIcon lineToPoint:NSMakePoint(NSMidX(closeRect) - 3.0, NSMidY(closeRect) + 3.0)];
-        [editorColor(171, 184, 201) setStroke];
-        [closeIcon stroke];
+    NSUInteger tabCount = [self visibleTabCount];
+    for (NSUInteger index = 0; index < tabCount; ++index) {
+        BOOL settingsTab = _settingsVisible && index == _tabTitles.count;
+        BOOL active = settingsTab || (!_settingsVisible && index == _activeTabIndex);
+        NSRect tabRect = [self tabRectAtIndex:index];
+        if (active) {
+            [editorColor(47, 57, 71, 0.94) setFill];
+            NSRectFill(tabRect);
+            [editorColor(77, 141, 255) setFill];
+            NSRectFill(NSMakeRect(NSMinX(tabRect), NSMaxY(tabRect) - 2.0, NSWidth(tabRect), 2.0));
+        } else if (_hoveredTabIndex == (NSInteger)index) {
+            [editorColor(58, 69, 84, 0.62) setFill];
+            NSRectFill(tabRect);
+        }
+        if (index > 0) {
+            [editorColor(71, 84, 103, 0.34) setFill];
+            NSRectFill(
+                NSMakeRect(NSMinX(tabRect), NSMinY(tabRect) + 7.0, 1.0, NSHeight(tabRect) - 14.0));
+        }
+
+        NSString* tabTitle = settingsTab ? @"Settings" : _tabTitles[index];
+        [tabTitle drawInRect:NSMakeRect(NSMinX(tabRect) + 12.0, NSMinY(tabRect) + 9.0,
+                                        NSWidth(tabRect) - 43.0, 18.0)
+              withAttributes:truncatingTabAttributes];
+
+        NSRect closeRect = [self closeRectAtIndex:index];
+        BOOL closeHovered = _hoveredTabCloseIndex == (NSInteger)index;
+        if (closeHovered) {
+            [editorColor(77, 141, 255, 0.18) setFill];
+            [[NSBezierPath bezierPathWithRoundedRect:closeRect xRadius:3.0 yRadius:3.0] fill];
+        }
+        BOOL dirty = !settingsTab &&
+                     (index == _activeTabIndex ? _dirty : [_dirtyTabIndexes containsIndex:index]);
+        if (dirty && !closeHovered) {
+            [editorColor(255, 145, 92) setFill];
+            [[NSBezierPath bezierPathWithOvalInRect:NSMakeRect(NSMidX(closeRect) - 3.0,
+                                                               NSMidY(closeRect) - 3.0, 6.0, 6.0)]
+                fill];
+        } else {
+            NSBezierPath* closeIcon = [NSBezierPath bezierPath];
+            closeIcon.lineWidth = 1.15;
+            closeIcon.lineCapStyle = NSLineCapStyleRound;
+            [closeIcon moveToPoint:NSMakePoint(NSMidX(closeRect) - 3.0, NSMidY(closeRect) - 3.0)];
+            [closeIcon lineToPoint:NSMakePoint(NSMidX(closeRect) + 3.0, NSMidY(closeRect) + 3.0)];
+            [closeIcon moveToPoint:NSMakePoint(NSMidX(closeRect) + 3.0, NSMidY(closeRect) - 3.0)];
+            [closeIcon lineToPoint:NSMakePoint(NSMidX(closeRect) - 3.0, NSMidY(closeRect) + 3.0)];
+            [editorColor(171, 184, 201) setStroke];
+            [closeIcon stroke];
+        }
     }
 
     if (_settingsVisible) {
@@ -918,15 +1011,30 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
             return;
         }
     }
-    if (NSPointInRect(point, [self closeRect])) {
-        if (_settingsVisible) {
-            _settingsVisible = NO;
-            [_activityBar deactivateSection];
-            self.needsDisplay = YES;
-            return;
+    if (point.y >= kTabBarY && point.y < kTabBarY + kTabBarHeight) {
+        for (NSUInteger index = 0; index < [self visibleTabCount]; ++index) {
+            if (NSPointInRect(point, [self closeRectAtIndex:index])) {
+                BOOL settingsTab = _settingsVisible && index == _tabTitles.count;
+                if (settingsTab) {
+                    _settingsVisible = NO;
+                    [_activityBar deactivateSection];
+                    self.needsDisplay = YES;
+                } else {
+                    [self.commandHandler closeTabAtIndex:index];
+                }
+                return;
+            }
+            if (NSPointInRect(point, [self tabRectAtIndex:index])) {
+                if (index < _tabTitles.count) {
+                    if (_settingsVisible) {
+                        _settingsVisible = NO;
+                        [_activityBar deactivateSection];
+                    }
+                    [self.commandHandler activateTabAtIndex:index];
+                }
+                return;
+            }
         }
-        [self.commandHandler closeActiveTab];
-        return;
     }
     [self.window makeFirstResponder:self];
     if (_settingsVisible) {
@@ -1063,16 +1171,30 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
         _contextMenuHoveredIndex = menuIndex;
         self.needsDisplay = YES;
     }
-    BOOL hovered = NSPointInRect(point, [self closeRect]);
-    if (hovered != _closeHovered) {
-        _closeHovered = hovered;
+    NSInteger hoveredTab = -1;
+    NSInteger hoveredClose = -1;
+    for (NSUInteger index = 0; index < [self visibleTabCount]; ++index) {
+        if (NSPointInRect(point, [self closeRectAtIndex:index])) {
+            hoveredClose = (NSInteger)index;
+            hoveredTab = (NSInteger)index;
+            break;
+        }
+        if (NSPointInRect(point, [self tabRectAtIndex:index])) {
+            hoveredTab = (NSInteger)index;
+            break;
+        }
+    }
+    if (hoveredTab != _hoveredTabIndex || hoveredClose != _hoveredTabCloseIndex) {
+        _hoveredTabIndex = hoveredTab;
+        _hoveredTabCloseIndex = hoveredClose;
         self.needsDisplay = YES;
     }
 }
 
 - (void)mouseExited:(NSEvent*)event {
     (void)event;
-    _closeHovered = NO;
+    _hoveredTabIndex = -1;
+    _hoveredTabCloseIndex = -1;
     _settingsHoveredControl = -1;
     self.needsDisplay = YES;
 }

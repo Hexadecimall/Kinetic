@@ -10,6 +10,7 @@
     "animations": { "$ref": "#/$defs/animations" },
     "editor": { "$ref": "#/$defs/editor" },
     "activityBar": { "$ref": "#/$defs/activityBar" },
+    "recent": { "$ref": "#/$defs/recent" },
     "fileBrowser": { "$ref": "#/$defs/fileBrowser" },
     "shortcuts": { "$ref": "#/$defs/shortcuts" }
   },
@@ -49,6 +50,8 @@
         "naturalScrolling": { "type": "boolean" },
         "showLineNumbers": { "type": "boolean" },
         "showDirtyIndicator": { "type": "boolean" },
+        "tabMinimumWidth": { "type": "number", "minimum": 48.0 },
+        "tabMaximumWidth": { "type": "number", "minimum": 72.0 },
         "mouseCaretPlacement": { "type": "boolean" },
         "mouseDragSelection": { "type": "boolean" },
         "shiftClickExtendsSelection": { "type": "boolean" },
@@ -75,6 +78,15 @@
         "showSourceControl": { "type": "boolean" },
         "showPlugins": { "type": "boolean" },
         "showSettings": { "type": "boolean" }
+      }
+    },
+    "recent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "persistProjects": { "type": "boolean" },
+        "maximumProjects": { "type": "integer", "minimum": 0, "maximum": 50 },
+        "showParentPath": { "type": "boolean" }
       }
     },
     "fileBrowser": {

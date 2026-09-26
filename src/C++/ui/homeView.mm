@@ -16,8 +16,10 @@ NSColor* homeColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0
 @interface KineticHomeView () {
     NSArray<NSString*>* _actionTitles;
     NSMutableArray<NSValue*>* _actionRects;
+    NSMutableArray<NSValue*>* _recentRects;
     NSTrackingArea* _trackingArea;
     NSInteger _hoveredAction;
+    NSInteger _hoveredRecent;
 }
 @end
 
@@ -28,10 +30,18 @@ NSColor* homeColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0
     if (self) {
         _actionTitles = @[ @"New Text File", @"Open File…", @"Open Folder…" ];
         _actionRects = [[NSMutableArray alloc] init];
+        _recentRects = [[NSMutableArray alloc] init];
+        _recentProjects = @[];
         _hoveredAction = -1;
+        _hoveredRecent = -1;
         self.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     }
     return self;
+}
+
+- (void)setRecentProjects:(NSArray<NSURL*>*)recentProjects {
+    _recentProjects = [recentProjects copy];
+    self.needsDisplay = YES;
 }
 
 - (BOOL)isFlipped {
@@ -58,6 +68,17 @@ NSColor* homeColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0
         [_actionRects
             addObject:[NSValue valueWithRect:NSMakeRect(x, y, kColumnWidth, kActionHeight)]];
         y += kActionHeight + 4.0;
+    }
+}
+
+- (void)rebuildRecentRects {
+    [_recentRects removeAllObjects];
+    CGFloat x = [self contentX] + kColumnWidth + kColumnGap;
+    CGFloat y = [self contentY] + 106.0;
+    NSUInteger count = MIN((NSUInteger)6, _recentProjects.count);
+    for (NSUInteger index = 0; index < count; ++index) {
+        [_recentRects addObject:[NSValue valueWithRect:NSMakeRect(x, y, kColumnWidth, 42.0)]];
+        y += 46.0;
     }
 }
 
@@ -100,6 +121,7 @@ NSColor* homeColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0
     [homeColor(47, 57, 71, 0.9) setFill];
     NSRectFill(self.bounds);
     [self rebuildActionRects];
+    [self rebuildRecentRects];
 
     CGFloat x = [self contentX];
     CGFloat y = [self contentY];
@@ -161,28 +183,61 @@ NSColor* homeColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0
 
     CGFloat rightX = x + kColumnWidth + kColumnGap;
     [@"Recent" drawAtPoint:NSMakePoint(rightX, y + 76.0) withAttributes:headingAttributes];
-    NSRect emptyRect = NSMakeRect(rightX, y + 106.0, kColumnWidth, 58.0);
-    [homeColor(53, 64, 79, 0.58) setFill];
-    [[NSBezierPath bezierPathWithRoundedRect:emptyRect xRadius:3.0 yRadius:3.0] fill];
+    if (_recentProjects.count == 0) {
+        NSRect emptyRect = NSMakeRect(rightX, y + 106.0, kColumnWidth, 58.0);
+        [homeColor(53, 64, 79, 0.58) setFill];
+        [[NSBezierPath bezierPathWithRoundedRect:emptyRect xRadius:3.0 yRadius:3.0] fill];
 
-    NSPoint clockCenter = NSMakePoint(NSMinX(emptyRect) + 22.0, NSMidY(emptyRect));
-    NSBezierPath* clock = [NSBezierPath
-        bezierPathWithOvalInRect:NSMakeRect(clockCenter.x - 7.0, clockCenter.y - 7.0, 14.0, 14.0)];
-    [clock moveToPoint:clockCenter];
-    [clock lineToPoint:NSMakePoint(clockCenter.x, clockCenter.y - 4.0)];
-    [clock moveToPoint:clockCenter];
-    [clock lineToPoint:NSMakePoint(clockCenter.x + 3.5, clockCenter.y + 1.5)];
-    clock.lineWidth = 1.15;
-    clock.lineCapStyle = NSLineCapStyleRound;
-    [homeColor(122, 139, 160) setStroke];
-    [clock stroke];
+        NSPoint clockCenter = NSMakePoint(NSMinX(emptyRect) + 22.0, NSMidY(emptyRect));
+        NSBezierPath* clock =
+            [NSBezierPath bezierPathWithOvalInRect:NSMakeRect(clockCenter.x - 7.0,
+                                                              clockCenter.y - 7.0, 14.0, 14.0)];
+        [clock moveToPoint:clockCenter];
+        [clock lineToPoint:NSMakePoint(clockCenter.x, clockCenter.y - 4.0)];
+        [clock moveToPoint:clockCenter];
+        [clock lineToPoint:NSMakePoint(clockCenter.x + 3.5, clockCenter.y + 1.5)];
+        clock.lineWidth = 1.15;
+        clock.lineCapStyle = NSLineCapStyleRound;
+        [homeColor(122, 139, 160) setStroke];
+        [clock stroke];
 
-    NSDictionary* emptyAttributes = @{
-        NSFontAttributeName : [NSFont systemFontOfSize:12.0 weight:NSFontWeightRegular],
-        NSForegroundColorAttributeName : homeColor(148, 161, 178),
-    };
-    [@"No recent projects" drawAtPoint:NSMakePoint(rightX + 41.0, y + 125.0)
-                        withAttributes:emptyAttributes];
+        NSDictionary* emptyAttributes = @{
+            NSFontAttributeName : [NSFont systemFontOfSize:12.0 weight:NSFontWeightRegular],
+            NSForegroundColorAttributeName : homeColor(148, 161, 178),
+        };
+        [@"No recent projects" drawAtPoint:NSMakePoint(rightX + 41.0, y + 125.0)
+                            withAttributes:emptyAttributes];
+    } else {
+        NSMutableParagraphStyle* truncatingStyle = [[NSMutableParagraphStyle alloc] init];
+        truncatingStyle.lineBreakMode = NSLineBreakByTruncatingMiddle;
+        NSDictionary* recentTitleAttributes = @{
+            NSFontAttributeName : [NSFont systemFontOfSize:12.0 weight:NSFontWeightMedium],
+            NSForegroundColorAttributeName : homeColor(215, 226, 240),
+        };
+        NSDictionary* recentPathAttributes = @{
+            NSFontAttributeName : [NSFont systemFontOfSize:9.5 weight:NSFontWeightRegular],
+            NSForegroundColorAttributeName : homeColor(132, 146, 166),
+            NSParagraphStyleAttributeName : truncatingStyle,
+        };
+        for (NSUInteger index = 0; index < _recentRects.count; ++index) {
+            NSRect rect = _recentRects[index].rectValue;
+            [homeColor(53, 64, 79, _hoveredRecent == (NSInteger)index ? 0.94 : 0.58) setFill];
+            [[NSBezierPath bezierPathWithRoundedRect:rect xRadius:3.0 yRadius:3.0] fill];
+            if (_hoveredRecent == (NSInteger)index) {
+                [homeColor(77, 141, 255, 0.16) setFill];
+                [[NSBezierPath bezierPathWithRoundedRect:rect xRadius:3.0 yRadius:3.0] fill];
+            }
+            [self drawActionIconAtIndex:2 inRect:rect color:homeColor(112, 166, 255)];
+            NSURL* projectUrl = _recentProjects[index];
+            [projectUrl.lastPathComponent
+                   drawAtPoint:NSMakePoint(NSMinX(rect) + 31.0, NSMinY(rect) + 6.0)
+                withAttributes:recentTitleAttributes];
+            [projectUrl.path.stringByDeletingLastPathComponent
+                    drawInRect:NSMakeRect(NSMinX(rect) + 31.0, NSMinY(rect) + 23.0,
+                                          NSWidth(rect) - 40.0, 14.0)
+                withAttributes:recentPathAttributes];
+        }
+    }
 }
 
 - (void)updateTrackingAreas {
@@ -208,8 +263,19 @@ NSColor* homeColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0
             break;
         }
     }
+    NSInteger hoveredRecent = -1;
+    for (NSUInteger index = 0; index < _recentRects.count; ++index) {
+        if (NSPointInRect(point, _recentRects[index].rectValue)) {
+            hoveredRecent = (NSInteger)index;
+            break;
+        }
+    }
     if (hovered != _hoveredAction) {
         _hoveredAction = hovered;
+        self.needsDisplay = YES;
+    }
+    if (hoveredRecent != _hoveredRecent) {
+        _hoveredRecent = hoveredRecent;
         self.needsDisplay = YES;
     }
 }
@@ -217,6 +283,7 @@ NSColor* homeColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0
 - (void)mouseExited:(NSEvent*)event {
     (void)event;
     _hoveredAction = -1;
+    _hoveredRecent = -1;
     self.needsDisplay = YES;
 }
 
@@ -234,6 +301,12 @@ NSColor* homeColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0
             [self.commandHandler openFolder];
         }
         return;
+    }
+    for (NSUInteger index = 0; index < _recentRects.count; ++index) {
+        if (NSPointInRect(point, _recentRects[index].rectValue)) {
+            [self.commandHandler openRecentProjectAtUrl:_recentProjects[index]];
+            return;
+        }
     }
 }
 
