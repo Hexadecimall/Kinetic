@@ -39,13 +39,16 @@ warning = "#FFB454"
 success = "#4ED6A4"
 
 [syntax]
-comment = "#68758A"
-keyword = "#76A7FF"
-function = "#74D3FF"
-type = "#FFB06E"
-string = "#A9D980"
-number = "#D39BFF"
-constant = "#FF8E77"
+comment = "#8595A9"
+keyword = "#76AAFA"
+function = "#D0DDF6"
+type = "#73C7D1"
+string = "#A7D3AC"
+number = "#F5A970"
+constant = "#CAABE9"
+variable = "#F7B786"
+key = "#8EBEF8"
+directive = "#76AAFA"
 operator = "#AAB8CC"
 
 [metrics]

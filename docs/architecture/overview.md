@@ -32,13 +32,14 @@ boundary. Keystroke, text-layout, and per-glyph rendering hot paths stay within 
 The current macOS preview has a custom text surface, retained multi-document tabs with independent
 editing state, dirty-state presentation, persisted recent projects, a custom folder/file browser,
 UTF-8 open/save flow, mouse caret placement and drag selection, editing shortcuts, bounded undo/redo
-history, a custom editor context menu, central shortcut router, and a frame-driven cubic tween
-engine. AppKit supplies the window/event bridge, pasteboard access, and
+history, basic syntax highlighting, a custom editor context menu, central shortcut router, and a
+frame-driven cubic tween engine. AppKit supplies the window/event bridge, pasteboard access, and
 compositor backdrop sampling; controls, browser rows, selection presentation, text presentation,
 menus, and transitions are Kinetic-owned.
 
-The editor activity rail and its Explorer, Search, Source Control/GitHub, Plugins, and Settings
-panels are also Kinetic-owned. Sections may be hidden, reordered, replaced, or extended once the
+The editor activity rail and its Explorer, Source Control/GitHub, Plugins, and Settings panels are
+also Kinetic-owned. File and project search share a top-right editor dropdown. Sections may be
+hidden, reordered, replaced, or extended once the
 settings and plugin registries are live; no section is a permanent hard-coded limit.
 
 Opening a workspace folder populates an expandable file tree without using a native outline view.

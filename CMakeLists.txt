@@ -56,6 +56,7 @@ add_executable(
                               src/C++/ui/fileDialog.mm
                               src/C++/ui/homeView.mm
                               src/C++/ui/searchPopover.mm
+                              src/C++/ui/syntaxHighlight.mm
                               src/C++/ui/trafficBar.mm src/C++/ui/tween.mm
                               "${KINETIC_APP_ICON}")
 target_include_directories(Kinetic PRIVATE src/C++/app src/C++/bridge src/C++/ui)
@@ -96,3 +97,10 @@ target_include_directories(kineticWorkspaceSearchTests PRIVATE src/C++/app)
 target_compile_options(kineticWorkspaceSearchTests PRIVATE "-fobjc-arc")
 target_link_libraries(kineticWorkspaceSearchTests PRIVATE "-framework Foundation")
 add_test(NAME kineticWorkspaceSearch COMMAND kineticWorkspaceSearchTests)
+
+add_executable(kineticSyntaxHighlightTests tests/syntaxHighlightTests.mm
+                                          src/C++/ui/syntaxHighlight.mm)
+target_include_directories(kineticSyntaxHighlightTests PRIVATE src/C++/ui)
+target_compile_options(kineticSyntaxHighlightTests PRIVATE "-fobjc-arc")
+target_link_libraries(kineticSyntaxHighlightTests PRIVATE "-framework Foundation")
+add_test(NAME kineticSyntaxHighlight COMMAND kineticSyntaxHighlightTests)

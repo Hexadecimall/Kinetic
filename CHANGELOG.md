@@ -2,7 +2,17 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.11.0 - Unreleased
+## 0.12.0 - Unreleased
+
+### Added
+
+- Added built-in syntax highlighting for shell, Python, C/C++, Rust, Go, Java, JavaScript,
+  TypeScript, Swift, Zig, C#, Kotlin, JSON/JSONC, TOML/YAML, HTML/XML, and CSS. Extensionless shell
+  and Python scripts are recognized by shebang. Multiline comments and Python triple-quoted strings
+  retain their color across lines.
+- Added a live Syntax Highlighting switch to the custom Settings page and lexical regression tests.
+
+## 0.11.0
 
 ### Added
 

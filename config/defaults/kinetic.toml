@@ -22,6 +22,7 @@ horizontalScrolling = true
 showScrollIndicators = true
 naturalScrolling = true
 showLineNumbers = true
+syntaxHighlighting = true
 showDirtyIndicator = true
 tabMinimumWidth = 92.0
 tabMaximumWidth = 148.0

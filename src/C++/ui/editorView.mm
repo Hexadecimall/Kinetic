@@ -1,6 +1,7 @@
 #import "editorView.h"
 
 #import "activityBar.h"
+#import "syntaxHighlight.h"
 #import "tween.h"
 
 #include "workspaceSearch.h"
@@ -32,6 +33,30 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     return [NSColor colorWithSRGBRed:red / 255.0 green:green / 255.0 blue:blue / 255.0 alpha:alpha];
 }
 
+NSColor* syntaxColor(KineticSyntaxKind kind) {
+    switch (kind) {
+    case KineticSyntaxKindKeyword:
+    case KineticSyntaxKindDirective:
+        return editorColor(118, 170, 250);
+    case KineticSyntaxKindString:
+        return editorColor(167, 211, 172);
+    case KineticSyntaxKindComment:
+        return editorColor(133, 149, 169);
+    case KineticSyntaxKindNumber:
+        return editorColor(245, 169, 112);
+    case KineticSyntaxKindConstant:
+        return editorColor(202, 171, 233);
+    case KineticSyntaxKindType:
+        return editorColor(115, 199, 209);
+    case KineticSyntaxKindFunction:
+        return editorColor(208, 221, 246);
+    case KineticSyntaxKindVariable:
+        return editorColor(247, 183, 134);
+    case KineticSyntaxKindKey:
+        return editorColor(142, 190, 248);
+    }
+}
+
 } // namespace
 
 @interface KineticEditorView () <KineticActivityBarDelegate, KineticSearchPopoverDelegate> {
@@ -61,6 +86,9 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     CGFloat _horizontalScroll;
     CGFloat _fontSize;
     CGFloat _lineHeight;
+    NSArray<NSArray<NSDictionary<NSString*, id>*>*>* _syntaxTokens;
+    BOOL _syntaxNeedsUpdate;
+    BOOL _syntaxHighlighting;
     BOOL _showLineNumbers;
     BOOL _showScrollIndicators;
     BOOL _naturalScrolling;
@@ -107,6 +135,8 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
         _horizontalScroll = 0.0;
         _fontSize = 13.0;
         _lineHeight = 20.0;
+        _syntaxNeedsUpdate = YES;
+        _syntaxHighlighting = YES;
         _showLineNumbers = YES;
         _showScrollIndicators = YES;
         _naturalScrolling = YES;
@@ -140,6 +170,7 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
 
 - (void)setFileUrl:(NSURL*)fileUrl {
     _fileUrl = fileUrl;
+    _syntaxNeedsUpdate = YES;
     if (fileUrl != nil) {
         self.documentTitle = fileUrl.lastPathComponent;
     }
@@ -148,6 +179,7 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
 
 - (void)setDocumentTitle:(NSString*)documentTitle {
     _documentTitle = [documentTitle copy];
+    _syntaxNeedsUpdate = YES;
     _activityBar.documentTitle = _documentTitle;
     self.needsDisplay = YES;
 }
@@ -432,6 +464,18 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     return [_text componentsSeparatedByString:@"\n"];
 }
 
+- (NSArray<NSArray<NSDictionary<NSString*, id>*>*>*)syntaxTokensForLines:
+    (NSArray<NSString*>*)lines {
+    if (!_syntaxHighlighting) {
+        return @[];
+    }
+    if (_syntaxNeedsUpdate) {
+        _syntaxTokens = kineticSyntaxTokens(lines, _fileUrl.lastPathComponent ?: _documentTitle);
+        _syntaxNeedsUpdate = NO;
+    }
+    return _syntaxTokens;
+}
+
 - (NSRange)selectionRange {
     NSUInteger start = MIN(_selectionAnchor, _caretIndex);
     NSUInteger end = MAX(_selectionAnchor, _caretIndex);
@@ -440,6 +484,7 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
 
 - (void)updateDirtyState {
     _dirty = ![_text isEqualToString:_savedText];
+    _syntaxNeedsUpdate = YES;
     if (_searchOpen && _searchPopover.scope == KineticSearchScopeFile) {
         [self refreshFileSearch];
     }
@@ -911,7 +956,7 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     if (NSPointInRect(point, [self settingsPlusRectForRow:1])) {
         return 3;
     }
-    for (NSInteger row = 2; row <= 4; ++row) {
+    for (NSInteger row = 2; row <= 5; ++row) {
         if (NSPointInRect(point, [self settingsToggleRectForRow:row])) {
             return row + 2;
         }
@@ -941,6 +986,9 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
         break;
     case 6:
         _naturalScrolling = !_naturalScrolling;
+        break;
+    case 7:
+        _syntaxHighlighting = !_syntaxHighlighting;
         break;
     default:
         return;
@@ -999,11 +1047,13 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
                                                withAttributes:subtitleAttributes];
 
     NSArray<NSString*>* titles = @[
-        @"Font Size", @"Line Height", @"Line Numbers", @"Scroll Indicators", @"Natural Scrolling"
+        @"Font Size", @"Line Height", @"Line Numbers", @"Scroll Indicators", @"Natural Scrolling",
+        @"Syntax Highlighting"
     ];
     NSArray<NSString*>* details = @[
         @"Editor text size", @"Distance between text rows", @"Show the editor gutter numbers",
-        @"Show horizontal and vertical position markers", @"Match trackpad content direction"
+        @"Show horizontal and vertical position markers", @"Match trackpad content direction",
+        @"Color recognized code, comments, strings, and values"
     ];
     for (NSInteger row = 0; row < (NSInteger)titles.count; ++row) {
         NSRect rowRect = [self settingsRowRect:row];
@@ -1027,8 +1077,10 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
             [value drawInRect:NSMakeRect(NSMaxX(rowRect) - 82.0, NSMinY(rowRect) + 13.0, 46.0, 18.0)
                 withAttributes:rowTitleAttributes];
         } else {
-            BOOL enabled = row == 2 ? _showLineNumbers
-                                    : (row == 3 ? _showScrollIndicators : _naturalScrolling);
+            BOOL enabled = row == 2   ? _showLineNumbers
+                           : row == 3 ? _showScrollIndicators
+                           : row == 4 ? _naturalScrolling
+                                      : _syntaxHighlighting;
             [self drawSettingsToggle:enabled
                               inRect:[self settingsToggleRectForRow:row]
                              hovered:_settingsHoveredControl == row + 2];
@@ -1133,6 +1185,8 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     };
 
     NSArray<NSString*>* lines = [self documentLines];
+    NSArray<NSArray<NSDictionary<NSString*, id>*>*>* syntaxTokens =
+        [self syntaxTokensForLines:lines];
     CGFloat contentX = [self editorContentX];
     CGFloat textOriginX = [self editorTextOriginX];
     NSRect contentRect =
@@ -1202,8 +1256,23 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
             [editorColor(77, 141, 255, 0.34) setFill];
             NSRectFill(NSMakeRect(floor(selectionX), y, MAX(1.5, selectionWidth), _lineHeight));
         }
-        [line drawAtPoint:NSMakePoint(textOriginX - _horizontalScroll, y)
-            withAttributes:textAttributes];
+        if (index < syntaxTokens.count && syntaxTokens[index].count > 0) {
+            NSMutableAttributedString* highlightedLine =
+                [[NSMutableAttributedString alloc] initWithString:line attributes:textAttributes];
+            for (NSDictionary<NSString*, id>* token in syntaxTokens[index]) {
+                NSRange range = [token[@"range"] rangeValue];
+                if (NSMaxRange(range) <= line.length) {
+                    [highlightedLine
+                        addAttribute:NSForegroundColorAttributeName
+                               value:syntaxColor((KineticSyntaxKind)[token[@"kind"] integerValue])
+                               range:range];
+                }
+            }
+            [highlightedLine drawAtPoint:NSMakePoint(textOriginX - _horizontalScroll, y)];
+        } else {
+            [line drawAtPoint:NSMakePoint(textOriginX - _horizontalScroll, y)
+                withAttributes:textAttributes];
+        }
     }
 
     NSString* beforeCaret = [_text substringToIndex:_caretIndex];

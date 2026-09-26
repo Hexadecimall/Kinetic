@@ -50,6 +50,7 @@
         "showScrollIndicators": { "type": "boolean" },
         "naturalScrolling": { "type": "boolean" },
         "showLineNumbers": { "type": "boolean" },
+        "syntaxHighlighting": { "type": "boolean" },
         "showDirtyIndicator": { "type": "boolean" },
         "tabMinimumWidth": { "type": "number", "minimum": 48.0 },
         "tabMaximumWidth": { "type": "number", "minimum": 72.0 },

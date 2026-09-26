@@ -8,6 +8,7 @@ visible control on the current page changes real editor behavior immediately:
 - Line Numbers: visible or hidden.
 - Scroll Indicators: visible or hidden.
 - Natural Scrolling: enabled or disabled.
+- Syntax Highlighting: enabled or disabled for recognized source files.
 
 The page intentionally omits settings that are only planned. The values mirror the typed settings
 contract in `config/defaults/kinetic.toml` and `config/schemas/settings.schema.json`. Persistence and
