@@ -230,6 +230,9 @@
     }
     KineticEditorView* nextEditor = self.editors[index];
     KineticEditorView* previousEditor = self.editor;
+    if (previousEditor != nil && previousEditor != nextEditor) {
+        [nextEditor setActivitySection:previousEditor.activeActivitySection animated:NO];
+    }
     self.editor = nextEditor;
     [self updateTabMetadata];
     if (previousEditor == nextEditor && nextEditor.superview != nil) {
@@ -473,6 +476,8 @@
     self.editor = nil;
     if (self.editors.count > 0) {
         NSUInteger nextIndex = MIN(index, self.editors.count - 1);
+        [self.editors[nextIndex] setActivitySection:closingEditor.activeActivitySection
+                                           animated:NO];
         [closingEditor removeFromSuperview];
         [self activateTabAtIndex:nextIndex];
         return YES;

@@ -1,5 +1,6 @@
 #pragma once
 
+#import "activityBar.h"
 #import "kineticCommands.h"
 #import <AppKit/AppKit.h>
 
@@ -16,5 +17,7 @@
 @property(nonatomic, copy) NSIndexSet* dirtyTabIndexes;
 @property(nonatomic) NSUInteger activeTabIndex;
 @property(nonatomic, readonly) BOOL dirty;
+@property(nonatomic, readonly) KineticActivitySection activeActivitySection;
+- (void)setActivitySection:(KineticActivitySection)section animated:(BOOL)animated;
 - (void)markSaved;
 @end

@@ -40,6 +40,7 @@ defaultSection = "none"
 animationMilliseconds = 150
 collapseAnimationMilliseconds = 150
 sectionHeaders = true
+preserveSectionAcrossTabs = true
 showExplorer = true
 showSearch = true
 showSourceControl = true

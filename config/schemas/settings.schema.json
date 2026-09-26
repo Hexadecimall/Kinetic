@@ -73,6 +73,7 @@
         "animationMilliseconds": { "type": "integer", "minimum": 0 },
         "collapseAnimationMilliseconds": { "type": "integer", "minimum": 0 },
         "sectionHeaders": { "type": "boolean" },
+        "preserveSectionAcrossTabs": { "type": "boolean" },
         "showExplorer": { "type": "boolean" },
         "showSearch": { "type": "boolean" },
         "showSourceControl": { "type": "boolean" },

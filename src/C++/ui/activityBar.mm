@@ -74,6 +74,44 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
     return _activeSection;
 }
 
+- (void)activateSection:(KineticActivitySection)section animated:(BOOL)animated {
+    if (section == KineticActivitySectionNone) {
+        if (animated) {
+            [self deactivateSection];
+        } else {
+            _activeSection = KineticActivitySectionNone;
+            _displayedSection = KineticActivitySectionNone;
+            _animating = NO;
+            NSRect targetFrame = self.frame;
+            targetFrame.size.width = kRailWidth;
+            self.frame = targetFrame;
+            self.needsDisplay = YES;
+        }
+        return;
+    }
+
+    _activeSection = section;
+    BOOL opensPanel = section != KineticActivitySectionSettings;
+    _displayedSection = opensPanel ? section : KineticActivitySectionNone;
+    NSRect targetFrame = self.frame;
+    targetFrame.size.width = opensPanel ? kRailWidth + kPanelWidth : kRailWidth;
+    if (animated && fabs(NSWidth(self.frame) - NSWidth(targetFrame)) > 0.5) {
+        _animating = YES;
+        [KineticTween animateView:self
+                          toFrame:targetFrame
+                          toAlpha:1.0
+                         duration:0.15
+                       completion:^{
+                         self->_animating = NO;
+                         self.needsDisplay = YES;
+                       }];
+    } else {
+        self.frame = targetFrame;
+        _animating = NO;
+    }
+    self.needsDisplay = YES;
+}
+
 - (void)deactivateSection {
     _activeSection = KineticActivitySectionNone;
     if (NSWidth(self.frame) <= kRailWidth + 0.5) {

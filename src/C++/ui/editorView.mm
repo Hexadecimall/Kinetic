@@ -179,6 +179,16 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     return _dirty;
 }
 
+- (KineticActivitySection)activeActivitySection {
+    return _activityBar.activeSection;
+}
+
+- (void)setActivitySection:(KineticActivitySection)section animated:(BOOL)animated {
+    _settingsVisible = section == KineticActivitySectionSettings;
+    [_activityBar activateSection:section animated:animated];
+    self.needsDisplay = YES;
+}
+
 - (void)markSaved {
     _savedText = [_text copy];
     _dirty = NO;

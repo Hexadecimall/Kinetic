@@ -2,7 +2,7 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.8.0 - Unreleased
+## 0.8.1 - Unreleased
 
 ### Added
 
@@ -33,6 +33,7 @@ All notable Kinetic changes are recorded here. Versions use `main.feature.patch`
 
 ### Fixed
 
+- Preserved the active Explorer or activity-panel section when opening, switching, or closing tabs.
 - Enabled Open Folder in the custom File menu and renamed its close action from Close Window to
   Close Tab so the visible command matches its behavior.
 - Kept activity-panel content visible during its closing animation and added compact section header
