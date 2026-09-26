@@ -183,6 +183,14 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     return _activityBar.activeSection;
 }
 
+- (NSDictionary*)workspaceUiState {
+    return _activityBar.workspaceUiState;
+}
+
+- (void)applyWorkspaceUiState:(NSDictionary*)state {
+    [_activityBar applyWorkspaceUiState:state];
+}
+
 - (void)setActivitySection:(KineticActivitySection)section animated:(BOOL)animated {
     _settingsVisible = section == KineticActivitySectionSettings;
     [_activityBar activateSection:section animated:animated];

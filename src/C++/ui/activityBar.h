@@ -26,7 +26,9 @@ typedef NS_ENUM(NSInteger, KineticActivitySection) {
 @property(nonatomic, copy) NSString* documentTitle;
 @property(nonatomic, strong) NSURL* workspaceUrl;
 @property(nonatomic, readonly) KineticActivitySection activeSection;
+@property(nonatomic, readonly, copy) NSDictionary* workspaceUiState;
 + (CGFloat)railWidth;
+- (void)applyWorkspaceUiState:(NSDictionary*)state;
 - (void)activateSection:(KineticActivitySection)section animated:(BOOL)animated;
 - (void)deactivateSection;
 @end

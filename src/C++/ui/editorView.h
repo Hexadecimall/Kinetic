@@ -18,6 +18,8 @@
 @property(nonatomic) NSUInteger activeTabIndex;
 @property(nonatomic, readonly) BOOL dirty;
 @property(nonatomic, readonly) KineticActivitySection activeActivitySection;
+@property(nonatomic, readonly, copy) NSDictionary* workspaceUiState;
+- (void)applyWorkspaceUiState:(NSDictionary*)state;
 - (void)setActivitySection:(KineticActivitySection)section animated:(BOOL)animated;
 - (void)markSaved;
 @end

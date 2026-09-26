@@ -74,6 +74,27 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
     return _activeSection;
 }
 
+- (NSDictionary*)workspaceUiState {
+    return @{
+        @"expandedPaths" : _expandedPaths.allObjects,
+        @"treeScrollOffset" : @(_treeScrollOffset),
+    };
+}
+
+- (void)applyWorkspaceUiState:(NSDictionary*)state {
+    NSArray<NSString*>* expandedPaths = state[@"expandedPaths"];
+    NSNumber* treeScrollOffset = state[@"treeScrollOffset"];
+    [_expandedPaths removeAllObjects];
+    if ([expandedPaths isKindOfClass:NSArray.class]) {
+        [_expandedPaths addObjectsFromArray:expandedPaths];
+    }
+    [self reloadTreeEntries];
+    if ([treeScrollOffset isKindOfClass:NSNumber.class]) {
+        _treeScrollOffset = MIN(treeScrollOffset.doubleValue, [self maximumTreeScroll]);
+    }
+    self.needsDisplay = YES;
+}
+
 - (void)activateSection:(KineticActivitySection)section animated:(BOOL)animated {
     if (section == KineticActivitySectionNone) {
         if (animated) {
@@ -144,6 +165,7 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
 - (void)setWorkspaceUrl:(NSURL*)workspaceUrl {
     _workspaceUrl = workspaceUrl;
     [_expandedPaths removeAllObjects];
+    _treeScrollOffset = 0.0;
     [self reloadTreeEntries];
 }
 

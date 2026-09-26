@@ -112,6 +112,8 @@
 @property(nonatomic, strong) NSMutableArray<KineticEditorView*>* editors;
 @property(nonatomic, strong) KineticFileDialog* fileDialog;
 @property(nonatomic, strong) NSURL* workspaceUrl;
+@property(nonatomic, copy) NSDictionary* workspaceUiState;
+@property(nonatomic) KineticActivitySection activitySection;
 @property(nonatomic) NSUInteger untitledCounter;
 @end
 
@@ -121,6 +123,8 @@
     (void)notification;
 
     self.editors = [NSMutableArray array];
+    self.workspaceUiState = @{};
+    self.activitySection = KineticActivitySectionNone;
     self.untitledCounter = 0;
 
     id<MTLDevice> device = MTLCreateSystemDefaultDevice();
@@ -230,9 +234,12 @@
     }
     KineticEditorView* nextEditor = self.editors[index];
     KineticEditorView* previousEditor = self.editor;
-    if (previousEditor != nil && previousEditor != nextEditor) {
-        [nextEditor setActivitySection:previousEditor.activeActivitySection animated:NO];
+    if (previousEditor != nil) {
+        self.workspaceUiState = previousEditor.workspaceUiState;
+        self.activitySection = previousEditor.activeActivitySection;
     }
+    [nextEditor applyWorkspaceUiState:self.workspaceUiState];
+    [nextEditor setActivitySection:self.activitySection animated:NO];
     self.editor = nextEditor;
     [self updateTabMetadata];
     if (previousEditor == nextEditor && nextEditor.superview != nil) {
@@ -303,6 +310,8 @@
                                                                  fileUrl:fileUrl];
     editor.commandHandler = self;
     editor.workspaceUrl = self.workspaceUrl;
+    [editor applyWorkspaceUiState:self.workspaceUiState];
+    [editor setActivitySection:self.activitySection animated:NO];
     if (fileUrl == nil) {
         self.untitledCounter += 1;
         editor.documentTitle =
@@ -404,11 +413,13 @@
         [self recordRecentProject:fileUrl];
         [self dismissFileDialog];
         if (self.editor == nil) {
+            self.workspaceUiState = @{};
             [self openEditorWithContents:@"" fileUrl:nil];
         } else {
             for (KineticEditorView* editor in self.editors) {
                 editor.workspaceUrl = fileUrl;
             }
+            self.workspaceUiState = self.editor.workspaceUiState;
         }
         return;
     }
@@ -466,6 +477,9 @@
     }
 
     KineticEditorView* closingEditor = self.editors[index];
+    KineticEditorView* stateOwner = self.editor ?: closingEditor;
+    self.workspaceUiState = stateOwner.workspaceUiState;
+    self.activitySection = stateOwner.activeActivitySection;
     BOOL closesActiveEditor = closingEditor == self.editor;
     [self.editors removeObjectAtIndex:index];
     if (!closesActiveEditor) {
@@ -476,8 +490,6 @@
     self.editor = nil;
     if (self.editors.count > 0) {
         NSUInteger nextIndex = MIN(index, self.editors.count - 1);
-        [self.editors[nextIndex] setActivitySection:closingEditor.activeActivitySection
-                                           animated:NO];
         [closingEditor removeFromSuperview];
         [self activateTabAtIndex:nextIndex];
         return YES;
@@ -510,6 +522,11 @@
     [self recordRecentProject:projectUrl];
     for (KineticEditorView* editor in self.editors) {
         editor.workspaceUrl = projectUrl;
+    }
+    if (self.editor != nil) {
+        self.workspaceUiState = self.editor.workspaceUiState;
+    } else {
+        self.workspaceUiState = @{};
     }
     if (self.editor == nil) {
         [self openEditorWithContents:@"" fileUrl:nil];

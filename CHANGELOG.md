@@ -2,7 +2,7 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.8.2 - Unreleased
+## 0.8.3 - Unreleased
 
 ### Added
 
@@ -33,6 +33,8 @@ All notable Kinetic changes are recorded here. Versions use `main.feature.patch`
 
 ### Fixed
 
+- Moved Explorer folder expansion, tree scrolling, and active-panel state to the window-level project
+  session so document tabs never own or reset the workspace.
 - Reflowed the editor viewport, gutter, caret, selections, scrolling, and mouse hit testing around
   the activity panel's live width instead of rendering document text underneath Explorer.
 - Preserved the active Explorer or activity-panel section when opening, switching, or closing tabs.

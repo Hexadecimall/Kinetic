@@ -3,8 +3,10 @@
 Each open document owns a retained editor view. Text, selection, caret, undo and redo stacks,
 scroll position, file URL, and dirty state remain intact when another tab becomes active. Opening a
 file already present in the tab set activates the existing document instead of creating a duplicate.
-The active activity-bar section is workspace state: opening, closing, or switching documents carries
-Explorer and the other workspace panels forward instead of collapsing them with the old tab.
+The active activity-bar section and Explorer tree are window-level workspace state. Opening,
+closing, or switching documents carries the project folder, expanded directories, tree scroll
+position, and active panel forward instead of attaching them to the old tab. Closing the final
+document retains that project state for the next document opened in the same window.
 
 Tabs are drawn by Kinetic. Clicking a tab activates it, its close control removes that document, and
 closing the active tab selects the nearest remaining document. Closing the final tab returns to
