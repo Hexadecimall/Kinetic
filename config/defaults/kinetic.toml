@@ -42,10 +42,16 @@ collapseAnimationMilliseconds = 150
 sectionHeaders = true
 preserveSectionAcrossTabs = true
 showExplorer = true
-showSearch = true
 showSourceControl = true
 showPlugins = true
 showSettings = true
+
+[search]
+showButton = true
+defaultScope = "file"
+popoverWidth = 354.0
+maximumResults = 300
+animationMilliseconds = 180
 
 [recent]
 persistProjects = true
@@ -62,6 +68,8 @@ showHiddenFiles = false
 newTextFile = "cmd-n"
 openFile = "cmd-o"
 saveFile = "cmd-s"
+searchFile = "cmd-f"
+searchProject = "shift-cmd-f"
 cut = "cmd-x"
 copy = "cmd-c"
 paste = "cmd-v"

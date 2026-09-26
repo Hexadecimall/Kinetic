@@ -2,7 +2,21 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.10.0 - Unreleased
+## 0.11.0 - Unreleased
+
+### Added
+
+- Added a compact top-right Search dropdown with in-file matching, result navigation, match-case
+  toggle, and animated opening and closing. Command-F opens file search; Command-Shift-F switches to
+  project search in the same control.
+- Highlighted in-file matches in the editor and made result rows identify both line and column.
+
+### Changed
+
+- Moved project search out of the activity rail and into the top-right dropdown, preserving
+  project-wide search and its shared state across document tabs.
+
+## 0.10.0
 
 ### Added
 

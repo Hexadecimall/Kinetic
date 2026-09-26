@@ -10,6 +10,7 @@
     "animations": { "$ref": "#/$defs/animations" },
     "editor": { "$ref": "#/$defs/editor" },
     "activityBar": { "$ref": "#/$defs/activityBar" },
+    "search": { "$ref": "#/$defs/search" },
     "recent": { "$ref": "#/$defs/recent" },
     "fileBrowser": { "$ref": "#/$defs/fileBrowser" },
     "shortcuts": { "$ref": "#/$defs/shortcuts" }
@@ -68,17 +69,27 @@
         "railWidth": { "type": "number", "minimum": 28.0 },
         "panelWidth": { "type": "number", "minimum": 140.0 },
         "defaultSection": {
-          "enum": ["none", "explorer", "search", "sourceControl", "plugins", "settings"]
+          "enum": ["none", "explorer", "sourceControl", "plugins", "settings"]
         },
         "animationMilliseconds": { "type": "integer", "minimum": 0 },
         "collapseAnimationMilliseconds": { "type": "integer", "minimum": 0 },
         "sectionHeaders": { "type": "boolean" },
         "preserveSectionAcrossTabs": { "type": "boolean" },
         "showExplorer": { "type": "boolean" },
-        "showSearch": { "type": "boolean" },
         "showSourceControl": { "type": "boolean" },
         "showPlugins": { "type": "boolean" },
         "showSettings": { "type": "boolean" }
+      }
+    },
+    "search": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "showButton": { "type": "boolean" },
+        "defaultScope": { "enum": ["file", "project"] },
+        "popoverWidth": { "type": "number", "minimum": 220.0 },
+        "maximumResults": { "type": "integer", "minimum": 1 },
+        "animationMilliseconds": { "type": "integer", "minimum": 0 }
       }
     },
     "recent": {

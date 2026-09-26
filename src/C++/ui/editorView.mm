@@ -1,6 +1,9 @@
 #import "editorView.h"
 
 #import "activityBar.h"
+#import "tween.h"
+
+#include "workspaceSearch.h"
 
 namespace {
 
@@ -14,6 +17,7 @@ constexpr CGFloat kTabBarY = 34.0;
 constexpr CGFloat kTabBarHeight = 34.0;
 constexpr CGFloat kPreferredTabWidth = 148.0;
 constexpr CGFloat kMinimumTabWidth = 92.0;
+constexpr CGFloat kSearchPopoverWidth = 354.0;
 
 enum class EditorMenuCommand : NSInteger {
     undo,
@@ -30,7 +34,7 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
 
 } // namespace
 
-@interface KineticEditorView () <KineticActivityBarDelegate> {
+@interface KineticEditorView () <KineticActivityBarDelegate, KineticSearchPopoverDelegate> {
     NSMutableString* _text;
     NSString* _savedText;
     NSMutableArray<NSDictionary*>* _undoStack;
@@ -45,6 +49,12 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     NSInteger _contextMenuHoveredIndex;
     NSRect _contextMenuFrame;
     KineticActivityBar* _activityBar;
+    KineticSearchPopover* _searchPopover;
+    BOOL _searchOpen;
+    BOOL _searchAnimating;
+    BOOL _searchClosePending;
+    BOOL _searchReopenPending;
+    BOOL _searchHovered;
     BOOL _dirty;
     NSURL* _fileUrl;
     CGFloat _verticalScroll;
@@ -109,6 +119,13 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
         _activityBar.delegate = self;
         _activityBar.documentTitle = _documentTitle;
         [self addSubview:_activityBar];
+        _searchPopover = [[KineticSearchPopover alloc]
+            initWithFrame:NSMakeRect(MAX(8.0, NSWidth(frameRect) - kSearchPopoverWidth - 12.0),
+                                     72.0, kSearchPopoverWidth, 165.0)];
+        _searchPopover.delegate = self;
+        _searchPopover.hidden = YES;
+        _searchPopover.autoresizingMask = NSViewMinXMargin;
+        [self addSubview:_searchPopover];
     }
     return self;
 }
@@ -173,6 +190,7 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
 - (void)setWorkspaceUrl:(NSURL*)workspaceUrl {
     _workspaceUrl = workspaceUrl;
     _activityBar.workspaceUrl = workspaceUrl;
+    _searchPopover.projectAvailable = workspaceUrl != nil;
 }
 
 - (BOOL)dirty {
@@ -187,18 +205,145 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     return _activityBar.workspaceUiState;
 }
 
+- (NSDictionary*)searchUiState {
+    NSMutableDictionary* state = [_searchPopover.searchState mutableCopy];
+    state[@"open"] = @(_searchOpen);
+    return state;
+}
+
+- (KineticSearchScope)searchScope {
+    return _searchPopover.scope;
+}
+
 - (void)applyWorkspaceUiState:(NSDictionary*)state {
     [_activityBar applyWorkspaceUiState:state];
+}
+
+- (void)applySearchUiState:(NSDictionary*)state {
+    [_searchPopover applySearchState:state];
+    _searchPopover.projectAvailable = _workspaceUrl != nil;
+    _searchOpen = [state[@"open"] boolValue];
+    _searchPopover.hidden = !_searchOpen;
+    _searchPopover.alphaValue = 1.0;
+    _searchPopover.frame = NSMakeRect(MAX(8.0, NSWidth(self.bounds) - kSearchPopoverWidth - 12.0),
+                                      72.0, kSearchPopoverWidth, _searchPopover.preferredHeight);
+    if (_searchPopover.scope == KineticSearchScopeFile) {
+        [self refreshFileSearch];
+    }
+    self.needsDisplay = YES;
 }
 
 - (void)applySearchResults:(NSArray<NSDictionary*>*)results
                    loading:(BOOL)loading
                  truncated:(BOOL)truncated {
-    [_activityBar applySearchResults:results loading:loading truncated:truncated];
+    [_searchPopover applyResults:results loading:loading truncated:truncated];
+    [self resizeSearchPopover];
 }
 
 - (void)focusWorkspaceSearch {
-    [_activityBar focusSearch];
+    [_searchPopover selectScope:KineticSearchScopeProject];
+    [self openSearch];
+}
+
+- (void)focusFileSearch {
+    [_searchPopover selectScope:KineticSearchScopeFile];
+    [self openSearch];
+}
+
+- (void)focusSearchQuery {
+    if (_searchOpen) {
+        [_searchPopover focusQuery];
+    }
+}
+
+- (void)refreshFileSearch {
+    if (_searchPopover.scope != KineticSearchScopeFile) {
+        return;
+    }
+    BOOL truncated = NO;
+    NSArray<NSDictionary*>* results =
+        kineticSearchText(_text, _searchPopover.query, _searchPopover.matchCase, 300, &truncated);
+    [_searchPopover applyResults:results loading:NO truncated:truncated];
+    [self resizeSearchPopover];
+}
+
+- (void)resizeSearchPopover {
+    if (!_searchOpen || _searchAnimating) {
+        return;
+    }
+    NSRect frame = _searchPopover.frame;
+    frame.size.height = _searchPopover.preferredHeight;
+    _searchPopover.frame = frame;
+}
+
+- (NSRect)searchButtonRect {
+    return NSMakeRect(NSWidth(self.bounds) - 43.0, kTabBarY + 3.0, 34.0, kTabBarHeight - 6.0);
+}
+
+- (void)openSearch {
+    if (_searchAnimating) {
+        if (_searchOpen) {
+            _searchClosePending = NO;
+        } else {
+            _searchReopenPending = YES;
+        }
+        return;
+    }
+    if (!_searchOpen && !_searchAnimating) {
+        _searchOpen = YES;
+        _searchAnimating = YES;
+        NSRect finalFrame = NSMakeRect(MAX(8.0, NSWidth(self.bounds) - kSearchPopoverWidth - 12.0),
+                                       72.0, kSearchPopoverWidth, _searchPopover.preferredHeight);
+        _searchPopover.frame = NSMakeRect(NSMinX(finalFrame), 67.0, NSWidth(finalFrame), 26.0);
+        _searchPopover.alphaValue = 0.0;
+        _searchPopover.hidden = NO;
+        [KineticTween animateView:_searchPopover
+                          toFrame:finalFrame
+                          toAlpha:1.0
+                         duration:0.18
+                       completion:^{
+                         self->_searchAnimating = NO;
+                         [self resizeSearchPopover];
+                         if (self->_searchClosePending) {
+                             self->_searchClosePending = NO;
+                             [self closeSearch];
+                         }
+                       }];
+    }
+    [_searchPopover focusQuery];
+    self.needsDisplay = YES;
+}
+
+- (void)closeSearch {
+    if (_searchAnimating) {
+        if (_searchOpen) {
+            _searchClosePending = YES;
+        } else {
+            _searchReopenPending = NO;
+        }
+        return;
+    }
+    if (!_searchOpen) {
+        return;
+    }
+    _searchOpen = NO;
+    _searchAnimating = YES;
+    NSRect closingFrame =
+        NSMakeRect(NSMinX(_searchPopover.frame), 67.0, NSWidth(_searchPopover.frame), 26.0);
+    [KineticTween animateView:_searchPopover
+                      toFrame:closingFrame
+                      toAlpha:0.0
+                     duration:0.15
+                   completion:^{
+                     self->_searchPopover.hidden = YES;
+                     self->_searchAnimating = NO;
+                     if (self->_searchReopenPending) {
+                         self->_searchReopenPending = NO;
+                         [self openSearch];
+                     }
+                   }];
+    [self.window makeFirstResponder:self];
+    self.needsDisplay = YES;
 }
 
 - (void)revealLine:(NSUInteger)line column:(NSUInteger)column length:(NSUInteger)length {
@@ -250,7 +395,7 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
 
 - (CGFloat)tabWidth {
     NSUInteger count = MAX((NSUInteger)1, [self visibleTabCount]);
-    CGFloat available = MAX(kMinimumTabWidth, NSWidth(self.bounds) - 12.0);
+    CGFloat available = MAX(kMinimumTabWidth, NSWidth(self.bounds) - 56.0);
     return MAX(kMinimumTabWidth, MIN(kPreferredTabWidth, floor(available / count)));
 }
 
@@ -295,6 +440,9 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
 
 - (void)updateDirtyState {
     _dirty = ![_text isEqualToString:_savedText];
+    if (_searchOpen && _searchPopover.scope == KineticSearchScopeFile) {
+        [self refreshFileSearch];
+    }
 }
 
 - (NSDictionary*)editorState {
@@ -956,6 +1104,21 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
         }
     }
 
+    NSRect searchButton = [self searchButtonRect];
+    if (_searchOpen || _searchHovered) {
+        [editorColor(77, 141, 255, _searchOpen ? 0.19 : 0.10) setFill];
+        [[NSBezierPath bezierPathWithRoundedRect:searchButton xRadius:5.0 yRadius:5.0] fill];
+    }
+    NSBezierPath* searchIcon = [NSBezierPath bezierPath];
+    searchIcon.lineWidth = 1.35;
+    [searchIcon appendBezierPathWithOvalInRect:NSMakeRect(NSMidX(searchButton) - 6.0,
+                                                          NSMidY(searchButton) - 6.0, 10.0, 10.0)];
+    [searchIcon moveToPoint:NSMakePoint(NSMidX(searchButton) + 2.5, NSMidY(searchButton) + 2.5)];
+    [searchIcon lineToPoint:NSMakePoint(NSMidX(searchButton) + 7.0, NSMidY(searchButton) + 7.0)];
+    [editorColor(_searchOpen ? 130 : 174, _searchOpen ? 178 : 190, _searchOpen ? 255 : 211)
+        setStroke];
+    [searchIcon stroke];
+
     if (_settingsVisible) {
         [self drawSettingsPage];
         return;
@@ -990,6 +1153,31 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
             NSSize numberSize = [lineNumber sizeWithAttributes:lineNumberAttributes];
             [lineNumber drawAtPoint:NSMakePoint(textOriginX - 16.0 - numberSize.width, y)
                      withAttributes:lineNumberAttributes];
+        }
+        if (_searchOpen && _searchPopover.scope == KineticSearchScopeFile) {
+            for (NSDictionary* result in _searchPopover.results) {
+                NSUInteger resultLine = [result[@"line"] unsignedIntegerValue];
+                if (resultLine < index + 1) {
+                    continue;
+                }
+                if (resultLine > index + 1) {
+                    break;
+                }
+                NSUInteger column = [result[@"column"] unsignedIntegerValue] - 1;
+                NSUInteger length = [result[@"length"] unsignedIntegerValue];
+                if (column >= line.length) {
+                    continue;
+                }
+                length = MIN(length, line.length - column);
+                CGFloat beforeWidth =
+                    [[line substringToIndex:column] sizeWithAttributes:textAttributes].width;
+                CGFloat matchWidth = [[line substringWithRange:NSMakeRange(column, length)]
+                                         sizeWithAttributes:textAttributes]
+                                         .width;
+                [editorColor(255, 145, 92, 0.21) setFill];
+                NSRectFill(NSMakeRect(floor(textOriginX - _horizontalScroll + beforeWidth), y,
+                                      MAX(2.0, matchWidth), _lineHeight));
+            }
         }
         NSRange selection = [self selectionRange];
         NSUInteger lineEnd = currentLineStart + line.length;
@@ -1063,6 +1251,17 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
 
 - (void)mouseDown:(NSEvent*)event {
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+    if (NSPointInRect(point, [self searchButtonRect])) {
+        if (_searchOpen) {
+            [self closeSearch];
+        } else {
+            [self focusFileSearch];
+        }
+        return;
+    }
+    if (_searchOpen) {
+        [self closeSearch];
+    }
     if (_contextMenuVisible) {
         NSInteger menuIndex = [self contextMenuIndexAtPoint:point];
         [self hideContextMenu];
@@ -1203,24 +1402,36 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
 }
 
 - (void)activityBar:(KineticActivityBar*)activityBar
-    didChangeSearchQuery:(NSString*)query
-               matchCase:(BOOL)matchCase {
-    (void)activityBar;
-    [self.commandHandler searchWorkspaceForQuery:query matchCase:matchCase];
-}
-
-- (void)activityBar:(KineticActivityBar*)activityBar
-    didRequestOpenSearchResult:(NSDictionary*)result {
-    (void)activityBar;
-    [self.commandHandler openSearchResult:result];
-}
-
-- (void)activityBar:(KineticActivityBar*)activityBar
     didActivateSection:(KineticActivitySection)section {
     (void)activityBar;
     _settingsVisible = section == KineticActivitySectionSettings;
     [self.window invalidateCursorRectsForView:self];
     self.needsDisplay = YES;
+}
+
+- (void)searchPopoverDidChange:(KineticSearchPopover*)popover {
+    if (popover.scope == KineticSearchScopeFile) {
+        [self refreshFileSearch];
+    } else {
+        [self.commandHandler searchWorkspaceForQuery:popover.query matchCase:popover.matchCase];
+    }
+}
+
+- (void)searchPopover:(KineticSearchPopover*)popover didSelectResult:(NSDictionary*)result {
+    BOOL projectResult = popover.scope == KineticSearchScopeProject;
+    [self closeSearch];
+    if (projectResult) {
+        [self.commandHandler openSearchResult:result];
+    } else {
+        [self revealLine:[result[@"line"] unsignedIntegerValue]
+                  column:[result[@"column"] unsignedIntegerValue]
+                  length:[result[@"length"] unsignedIntegerValue]];
+    }
+}
+
+- (void)searchPopoverDidRequestClose:(KineticSearchPopover*)popover {
+    (void)popover;
+    [self closeSearch];
 }
 
 - (void)updateTrackingAreas {
@@ -1239,6 +1450,11 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
 
 - (void)mouseMoved:(NSEvent*)event {
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+    BOOL searchHovered = NSPointInRect(point, [self searchButtonRect]);
+    if (_searchHovered != searchHovered) {
+        _searchHovered = searchHovered;
+        self.needsDisplay = YES;
+    }
     NSInteger settingsControl = _settingsVisible ? [self settingsControlAtPoint:point] : -1;
     if (settingsControl != _settingsHoveredControl) {
         _settingsHoveredControl = settingsControl;

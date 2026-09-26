@@ -31,6 +31,9 @@
     case KineticShortcutCommandSearchWorkspace:
         [(id<KineticCommandHandler>)self.delegate focusWorkspaceSearch];
         return;
+    case KineticShortcutCommandSearchFile:
+        [(id<KineticCommandHandler>)self.delegate focusFileSearch];
+        return;
     case KineticShortcutCommandPreviousTab:
         [(id<KineticCommandHandler>)self.delegate selectPreviousTab];
         return;
@@ -117,6 +120,7 @@
 @property(nonatomic, strong) KineticFileDialog* fileDialog;
 @property(nonatomic, strong) NSURL* workspaceUrl;
 @property(nonatomic, copy) NSDictionary* workspaceUiState;
+@property(nonatomic, copy) NSDictionary* searchUiState;
 @property(nonatomic) KineticActivitySection activitySection;
 @property(nonatomic) NSUInteger untitledCounter;
 @property(nonatomic) NSUInteger searchGeneration;
@@ -129,6 +133,7 @@
 
     self.editors = [NSMutableArray array];
     self.workspaceUiState = @{};
+    self.searchUiState = @{};
     self.activitySection = KineticActivitySectionNone;
     self.untitledCounter = 0;
 
@@ -241,14 +246,17 @@
     KineticEditorView* previousEditor = self.editor;
     if (previousEditor != nil) {
         self.workspaceUiState = previousEditor.workspaceUiState;
+        self.searchUiState = previousEditor.searchUiState;
         self.activitySection = previousEditor.activeActivitySection;
     }
     [nextEditor applyWorkspaceUiState:self.workspaceUiState];
+    [nextEditor applySearchUiState:self.searchUiState];
     [nextEditor setActivitySection:self.activitySection animated:NO];
     self.editor = nextEditor;
     [self updateTabMetadata];
     if (previousEditor == nextEditor && nextEditor.superview != nil) {
         [self.window makeFirstResponder:nextEditor];
+        [nextEditor focusSearchQuery];
         return;
     }
 
@@ -282,6 +290,7 @@
                        }];
     }
     [self.window makeFirstResponder:nextEditor];
+    [nextEditor focusSearchQuery];
 }
 
 - (void)selectPreviousTab {
@@ -316,6 +325,7 @@
     editor.commandHandler = self;
     editor.workspaceUrl = self.workspaceUrl;
     [editor applyWorkspaceUiState:self.workspaceUiState];
+    [editor applySearchUiState:self.searchUiState];
     [editor setActivitySection:self.activitySection animated:NO];
     if (fileUrl == nil) {
         self.untitledCounter += 1;
@@ -349,12 +359,12 @@
     NSURL* workspaceUrl = self.workspaceUrl;
     if (self.editor == nil || workspaceUrl == nil || query.length == 0) {
         [self.editor applySearchResults:@[] loading:NO truncated:NO];
-        self.workspaceUiState = self.editor.workspaceUiState ?: @{};
+        self.searchUiState = self.editor.searchUiState ?: @{};
         return;
     }
 
     [self.editor applySearchResults:@[] loading:YES truncated:NO];
-    self.workspaceUiState = self.editor.workspaceUiState;
+    self.searchUiState = self.editor.searchUiState;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.18 * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
                      if (generation != self.searchGeneration ||
@@ -373,12 +383,13 @@
                        NSArray<NSDictionary*>* results = kineticSearchWorkspace(
                            workspaceUrl, query, matchCase, openDocuments, 300, &truncated);
                        dispatch_async(dispatch_get_main_queue(), ^{
-                         if (generation != self.searchGeneration ||
+                         if (generation != self.searchGeneration || self.editor == nil ||
+                             self.editor.searchScope != KineticSearchScopeProject ||
                              ![workspaceUrl.path isEqualToString:self.workspaceUrl.path]) {
                              return;
                          }
                          [self.editor applySearchResults:results loading:NO truncated:truncated];
-                         self.workspaceUiState = self.editor.workspaceUiState;
+                         self.searchUiState = self.editor.searchUiState;
                        });
                      });
                    });
@@ -388,9 +399,16 @@
     if (self.editor == nil) {
         return;
     }
-    self.activitySection = KineticActivitySectionSearch;
-    [self.editor setActivitySection:KineticActivitySectionSearch animated:YES];
     [self.editor focusWorkspaceSearch];
+    self.searchUiState = self.editor.searchUiState;
+}
+
+- (void)focusFileSearch {
+    if (self.editor == nil) {
+        return;
+    }
+    [self.editor focusFileSearch];
+    self.searchUiState = self.editor.searchUiState;
 }
 
 - (void)openSearchResult:(NSDictionary*)result {
@@ -513,6 +531,7 @@
         }
         ++self.searchGeneration;
         self.workspaceUrl = fileUrl;
+        self.searchUiState = @{};
         [self recordRecentProject:fileUrl];
         [self dismissFileDialog];
         if (self.editor == nil) {
@@ -521,6 +540,7 @@
         } else {
             for (KineticEditorView* editor in self.editors) {
                 editor.workspaceUrl = fileUrl;
+                [editor applySearchUiState:@{}];
             }
             self.workspaceUiState = self.editor.workspaceUiState;
         }
@@ -582,6 +602,7 @@
     KineticEditorView* closingEditor = self.editors[index];
     KineticEditorView* stateOwner = self.editor ?: closingEditor;
     self.workspaceUiState = stateOwner.workspaceUiState;
+    self.searchUiState = stateOwner.searchUiState;
     self.activitySection = stateOwner.activeActivitySection;
     BOOL closesActiveEditor = closingEditor == self.editor;
     [self.editors removeObjectAtIndex:index];
@@ -623,9 +644,11 @@
     }
     ++self.searchGeneration;
     self.workspaceUrl = projectUrl;
+    self.searchUiState = @{};
     [self recordRecentProject:projectUrl];
     for (KineticEditorView* editor in self.editors) {
         editor.workspaceUrl = projectUrl;
+        [editor applySearchUiState:@{}];
     }
     if (self.editor != nil) {
         self.workspaceUiState = self.editor.workspaceUiState;

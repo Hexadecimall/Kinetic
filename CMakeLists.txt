@@ -55,6 +55,7 @@ add_executable(
                               src/C++/ui/activityBar.mm src/C++/ui/editorView.mm
                               src/C++/ui/fileDialog.mm
                               src/C++/ui/homeView.mm
+                              src/C++/ui/searchPopover.mm
                               src/C++/ui/trafficBar.mm src/C++/ui/tween.mm
                               "${KINETIC_APP_ICON}")
 target_include_directories(Kinetic PRIVATE src/C++/app src/C++/bridge src/C++/ui)

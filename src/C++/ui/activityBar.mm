@@ -10,8 +10,6 @@ constexpr CGFloat kButtonSize = 30.0;
 constexpr CGFloat kButtonGap = 5.0;
 constexpr CGFloat kTreeRowHeight = 23.0;
 constexpr CGFloat kTreeStartY = 218.0;
-constexpr CGFloat kSearchResultsY = 149.0;
-constexpr CGFloat kSearchRowHeight = 52.0;
 
 NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
     return [NSColor colorWithSRGBRed:red / 255.0 green:green / 255.0 blue:blue / 255.0 alpha:alpha];
@@ -37,14 +35,6 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
     NSArray<KineticActivityTreeEntry*>* _treeEntries;
     NSInteger _hoveredPanelAction;
     CGFloat _treeScrollOffset;
-    NSMutableString* _searchQuery;
-    NSArray<NSDictionary*>* _searchResults;
-    CGFloat _searchScrollOffset;
-    BOOL _searchLoading;
-    BOOL _searchTruncated;
-    BOOL _searchMatchCase;
-    BOOL _searchEditing;
-    BOOL _searchSelectAll;
     BOOL _animating;
 }
 @end
@@ -66,9 +56,6 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
         _treeEntries = @[];
         _hoveredPanelAction = -1;
         _treeScrollOffset = 0.0;
-        _searchQuery = [NSMutableString string];
-        _searchResults = @[];
-        _searchScrollOffset = 0.0;
         _animating = NO;
         self.autoresizingMask = NSViewHeightSizable;
     }
@@ -83,17 +70,6 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
     return NO;
 }
 
-- (BOOL)acceptsFirstResponder {
-    return YES;
-}
-
-- (BOOL)resignFirstResponder {
-    _searchEditing = NO;
-    _searchSelectAll = NO;
-    self.needsDisplay = YES;
-    return [super resignFirstResponder];
-}
-
 - (KineticActivitySection)activeSection {
     return _activeSection;
 }
@@ -102,12 +78,6 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
     return @{
         @"expandedPaths" : _expandedPaths.allObjects,
         @"treeScrollOffset" : @(_treeScrollOffset),
-        @"searchQuery" : [_searchQuery copy],
-        @"searchResults" : _searchResults,
-        @"searchScrollOffset" : @(_searchScrollOffset),
-        @"searchLoading" : @(_searchLoading),
-        @"searchTruncated" : @(_searchTruncated),
-        @"searchMatchCase" : @(_searchMatchCase),
     };
 }
 
@@ -122,33 +92,6 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
     if ([treeScrollOffset isKindOfClass:NSNumber.class]) {
         _treeScrollOffset = MIN(treeScrollOffset.doubleValue, [self maximumTreeScroll]);
     }
-    NSString* query = state[@"searchQuery"];
-    [_searchQuery setString:[query isKindOfClass:NSString.class] ? query : @""];
-    NSArray<NSDictionary*>* results = state[@"searchResults"];
-    _searchResults = [results isKindOfClass:NSArray.class] ? [results copy] : @[];
-    _searchLoading = [state[@"searchLoading"] boolValue];
-    _searchTruncated = [state[@"searchTruncated"] boolValue];
-    _searchMatchCase = [state[@"searchMatchCase"] boolValue];
-    _searchScrollOffset =
-        MIN([state[@"searchScrollOffset"] doubleValue], [self maximumSearchScroll]);
-    _searchEditing = NO;
-    _searchSelectAll = NO;
-    self.needsDisplay = YES;
-}
-
-- (void)applySearchResults:(NSArray<NSDictionary*>*)results
-                   loading:(BOOL)loading
-                 truncated:(BOOL)truncated {
-    _searchResults = [results copy];
-    _searchLoading = loading;
-    _searchTruncated = truncated;
-    _searchScrollOffset = MIN(_searchScrollOffset, [self maximumSearchScroll]);
-    self.needsDisplay = YES;
-}
-
-- (void)focusSearch {
-    _searchEditing = YES;
-    [self.window makeFirstResponder:self];
     self.needsDisplay = YES;
 }
 
@@ -250,32 +193,7 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
     _workspaceUrl = workspaceUrl;
     [_expandedPaths removeAllObjects];
     _treeScrollOffset = 0.0;
-    [_searchQuery setString:@""];
-    _searchResults = @[];
-    _searchScrollOffset = 0.0;
-    _searchLoading = NO;
-    _searchTruncated = NO;
-    _searchEditing = NO;
     [self reloadTreeEntries];
-}
-
-- (CGFloat)maximumSearchScroll {
-    CGFloat viewportHeight = MAX(1.0, NSHeight(self.bounds) - kSearchResultsY);
-    return MAX(0.0, _searchResults.count * kSearchRowHeight - viewportHeight);
-}
-
-- (NSRect)searchInputRect {
-    return NSMakeRect(kRailWidth + 12.0, 80.0, kPanelWidth - 58.0, 30.0);
-}
-
-- (NSRect)searchCaseButtonRect {
-    return NSMakeRect(kRailWidth + kPanelWidth - 40.0, 80.0, 28.0, 30.0);
-}
-
-- (NSRect)searchResultRectAtIndex:(NSUInteger)index {
-    return NSMakeRect(kRailWidth + 5.0,
-                      kSearchResultsY + index * kSearchRowHeight - _searchScrollOffset,
-                      kPanelWidth - 10.0, kSearchRowHeight);
 }
 
 - (void)appendDirectory:(NSURL*)directory
@@ -360,8 +278,6 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
     switch (section) {
     case KineticActivitySectionExplorer:
         return @"EXPLORER";
-    case KineticActivitySectionSearch:
-        return @"SEARCH";
     case KineticActivitySectionSourceControl:
         return @"SOURCE CONTROL / GITHUB";
     case KineticActivitySectionPlugins:
@@ -392,11 +308,6 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
         [icon closePath];
         break;
     }
-    case KineticActivitySectionSearch:
-        [icon appendBezierPathWithOvalInRect:NSMakeRect(centerX - 6.5, centerY - 7.0, 12.0, 12.0)];
-        [icon moveToPoint:NSMakePoint(centerX + 3.0, centerY + 3.0)];
-        [icon lineToPoint:NSMakePoint(centerX + 7.5, centerY + 7.5)];
-        break;
     case KineticActivitySectionSourceControl:
         [icon appendBezierPathWithOvalInRect:NSMakeRect(centerX - 7.0, centerY - 7.0, 4.0, 4.0)];
         [icon appendBezierPathWithOvalInRect:NSMakeRect(centerX + 3.0, centerY - 1.5, 4.0, 4.0)];
@@ -596,106 +507,6 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
     [NSGraphicsContext restoreGraphicsState];
 }
 
-- (void)drawSearchWithHeadingAttributes:(NSDictionary*)headingAttributes
-                         bodyAttributes:(NSDictionary*)bodyAttributes
-                        mutedAttributes:(NSDictionary*)mutedAttributes {
-    [self drawSectionHeader:@"WORKSPACE SEARCH" atY:45.0 attributes:headingAttributes];
-    NSRect inputRect = [self searchInputRect];
-    [activityColor(30, 38, 50, 0.95) setFill];
-    [[NSBezierPath bezierPathWithRoundedRect:inputRect xRadius:4.0 yRadius:4.0] fill];
-    [activityColor(_searchEditing ? 77 : 75, _searchEditing ? 141 : 89, _searchEditing ? 255 : 109,
-                   0.66) setStroke];
-    [[NSBezierPath bezierPathWithRoundedRect:inputRect xRadius:4.0 yRadius:4.0] stroke];
-
-    NSDictionary* queryAttributes = @{
-        NSFontAttributeName : [NSFont systemFontOfSize:12.0 weight:NSFontWeightRegular],
-        NSForegroundColorAttributeName : activityColor(225, 234, 245),
-    };
-    NSString* visibleQuery = [_searchQuery copy];
-    CGFloat availableWidth = NSWidth(inputRect) - 17.0;
-    while (visibleQuery.length > 0 &&
-           [visibleQuery sizeWithAttributes:queryAttributes].width > availableWidth) {
-        NSRange first = [visibleQuery rangeOfComposedCharacterSequenceAtIndex:0];
-        visibleQuery = [visibleQuery substringFromIndex:NSMaxRange(first)];
-    }
-    NSPoint queryPoint = NSMakePoint(NSMinX(inputRect) + 8.0, NSMinY(inputRect) + 7.0);
-    if (_searchQuery.length == 0) {
-        [@"Search project" drawAtPoint:queryPoint withAttributes:mutedAttributes];
-    } else {
-        if (_searchSelectAll && _searchEditing) {
-            [activityColor(77, 141, 255, 0.35) setFill];
-            NSRectFill(NSMakeRect(queryPoint.x - 1.0, queryPoint.y - 1.0,
-                                  [visibleQuery sizeWithAttributes:queryAttributes].width + 2.0,
-                                  17.0));
-        }
-        [visibleQuery drawAtPoint:queryPoint withAttributes:queryAttributes];
-    }
-    if (_searchEditing && !_searchSelectAll) {
-        CGFloat caretX = queryPoint.x + [visibleQuery sizeWithAttributes:queryAttributes].width;
-        [activityColor(111, 166, 255) setFill];
-        NSRectFill(NSMakeRect(caretX, queryPoint.y, 1.5, 16.0));
-    }
-
-    NSRect caseRect = [self searchCaseButtonRect];
-    if (_searchMatchCase || _hoveredPanelAction == 3) {
-        [activityColor(77, 141, 255, _searchMatchCase ? 0.24 : 0.12) setFill];
-        [[NSBezierPath bezierPathWithRoundedRect:caseRect xRadius:4.0 yRadius:4.0] fill];
-    }
-    NSDictionary* caseAttributes = @{
-        NSFontAttributeName : [NSFont systemFontOfSize:11.5 weight:NSFontWeightSemibold],
-        NSForegroundColorAttributeName : _searchMatchCase ? activityColor(111, 166, 255)
-                                                          : activityColor(151, 165, 184),
-    };
-    [@"Aa" drawAtPoint:NSMakePoint(NSMinX(caseRect) + 6.0, NSMinY(caseRect) + 7.0)
-        withAttributes:caseAttributes];
-
-    NSString* status = @"Type to search files and text.";
-    if (_workspaceUrl == nil) {
-        status = @"Open a folder to search.";
-    } else if (_searchLoading) {
-        status = @"Searching…";
-    } else if (_searchQuery.length > 0) {
-        status =
-            _searchResults.count == 0
-                ? @"No matches"
-                : [NSString stringWithFormat:@"%lu%@ results", (unsigned long)_searchResults.count,
-                                             _searchTruncated ? @"+" : @""];
-    }
-    [status drawInRect:NSMakeRect(kRailWidth + 14.0, 120.0, kPanelWidth - 28.0, 18.0)
-        withAttributes:mutedAttributes];
-
-    NSRect resultsClip = NSMakeRect(kRailWidth + 1.0, kSearchResultsY, kPanelWidth - 1.0,
-                                    MAX(0.0, NSHeight(self.bounds) - kSearchResultsY));
-    [NSGraphicsContext saveGraphicsState];
-    [[NSBezierPath bezierPathWithRect:resultsClip] addClip];
-    for (NSUInteger index = 0; index < _searchResults.count; ++index) {
-        NSRect rowRect = [self searchResultRectAtIndex:index];
-        if (NSMinY(rowRect) >= NSHeight(self.bounds)) {
-            break;
-        }
-        if (NSMaxY(rowRect) <= kSearchResultsY) {
-            continue;
-        }
-        if (_hoveredPanelAction == (NSInteger)index + 1000) {
-            [activityColor(77, 141, 255, 0.11) setFill];
-            [[NSBezierPath bezierPathWithRoundedRect:rowRect xRadius:4.0 yRadius:4.0] fill];
-        }
-        NSDictionary* result = _searchResults[index];
-        NSString* title = result[@"relativePath"];
-        NSUInteger line = [result[@"line"] unsignedIntegerValue];
-        if (line > 0) {
-            title = [title stringByAppendingFormat:@":%lu", (unsigned long)line];
-        }
-        [title drawInRect:NSMakeRect(NSMinX(rowRect) + 9.0, NSMinY(rowRect) + 7.0,
-                                     NSWidth(rowRect) - 18.0, 17.0)
-            withAttributes:bodyAttributes];
-        [result[@"preview"] drawInRect:NSMakeRect(NSMinX(rowRect) + 9.0, NSMinY(rowRect) + 26.0,
-                                                  NSWidth(rowRect) - 18.0, 17.0)
-                        withAttributes:mutedAttributes];
-    }
-    [NSGraphicsContext restoreGraphicsState];
-}
-
 - (void)drawPanel {
     if (_displayedSection == KineticActivitySectionNone || NSWidth(self.bounds) <= kRailWidth) {
         return;
@@ -739,11 +550,6 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
         [self drawExplorerWithHeadingAttributes:headingAttributes
                                  bodyAttributes:bodyAttributes
                                 mutedAttributes:mutedAttributes];
-        break;
-    case KineticActivitySectionSearch:
-        [self drawSearchWithHeadingAttributes:headingAttributes
-                               bodyAttributes:bodyAttributes
-                              mutedAttributes:mutedAttributes];
         break;
     case KineticActivitySectionSourceControl:
         [self drawSectionHeader:@"REPOSITORY" atY:45.0 attributes:headingAttributes];
@@ -808,10 +614,6 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
 
         _activeSection = section;
         [self.delegate activityBar:self didActivateSection:section];
-        if (section == KineticActivitySectionSearch) {
-            _searchEditing = YES;
-            [self.window makeFirstResponder:self];
-        }
         BOOL opensPanel = section != KineticActivitySectionSettings;
         if (opensPanel) {
             _displayedSection = section;
@@ -878,29 +680,6 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
             }
             return;
         }
-    } else if (_activeSection == KineticActivitySectionSearch) {
-        if (NSPointInRect(point, [self searchInputRect])) {
-            _searchEditing = YES;
-            _searchSelectAll = NO;
-            [self.window makeFirstResponder:self];
-            self.needsDisplay = YES;
-            return;
-        }
-        if (NSPointInRect(point, [self searchCaseButtonRect])) {
-            _searchMatchCase = !_searchMatchCase;
-            [self.delegate activityBar:self
-                  didChangeSearchQuery:[_searchQuery copy]
-                             matchCase:_searchMatchCase];
-            self.needsDisplay = YES;
-            return;
-        }
-        for (NSUInteger index = 0; point.y >= kSearchResultsY && index < _searchResults.count;
-             ++index) {
-            if (NSPointInRect(point, [self searchResultRectAtIndex:index])) {
-                [self.delegate activityBar:self didRequestOpenSearchResult:_searchResults[index]];
-                return;
-            }
-        }
     }
 }
 
@@ -913,78 +692,8 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
     if (_activeSection == KineticActivitySectionExplorer && _workspaceUrl != nil) {
         _treeScrollOffset =
             MIN([self maximumTreeScroll], MAX(0.0, _treeScrollOffset - event.scrollingDeltaY));
-    } else if (_activeSection == KineticActivitySectionSearch) {
-        _searchScrollOffset =
-            MIN([self maximumSearchScroll], MAX(0.0, _searchScrollOffset - event.scrollingDeltaY));
     }
     self.needsDisplay = YES;
-}
-
-- (void)updateSearchQueryWithText:(NSString*)text {
-    if (_searchSelectAll) {
-        [_searchQuery setString:@""];
-        _searchSelectAll = NO;
-    }
-    if (text.length > 0 && _searchQuery.length + text.length <= 200) {
-        [_searchQuery appendString:text];
-    }
-    _searchScrollOffset = 0.0;
-    [self.delegate activityBar:self
-          didChangeSearchQuery:[_searchQuery copy]
-                     matchCase:_searchMatchCase];
-    self.needsDisplay = YES;
-}
-
-- (void)keyDown:(NSEvent*)event {
-    if (!_searchEditing || _activeSection != KineticActivitySectionSearch) {
-        [super keyDown:event];
-        return;
-    }
-    BOOL command = (event.modifierFlags & NSEventModifierFlagCommand) != 0;
-    NSString* key = event.charactersIgnoringModifiers.lowercaseString;
-    if (event.keyCode == 53) {
-        [self.window makeFirstResponder:self.superview];
-        return;
-    }
-    if (command && [key isEqualToString:@"a"]) {
-        _searchSelectAll = YES;
-        self.needsDisplay = YES;
-        return;
-    }
-    if (command && [key isEqualToString:@"v"]) {
-        NSString* pasted = [NSPasteboard.generalPasteboard stringForType:NSPasteboardTypeString];
-        NSString* oneLine = [[(
-            pasted ?: @"") componentsSeparatedByCharactersInSet:NSCharacterSet.newlineCharacterSet]
-            componentsJoinedByString:@" "];
-        [self updateSearchQueryWithText:oneLine];
-        return;
-    }
-    if (event.keyCode == 51 || event.keyCode == 117) {
-        if (_searchSelectAll) {
-            [_searchQuery setString:@""];
-            _searchSelectAll = NO;
-        } else if (_searchQuery.length > 0) {
-            NSRange last =
-                [_searchQuery rangeOfComposedCharacterSequenceAtIndex:_searchQuery.length - 1];
-            [_searchQuery deleteCharactersInRange:last];
-        }
-        [self updateSearchQueryWithText:@""];
-        return;
-    }
-    if (event.keyCode == 36 || event.keyCode == 76) {
-        [self.delegate activityBar:self
-              didChangeSearchQuery:[_searchQuery copy]
-                         matchCase:_searchMatchCase];
-        return;
-    }
-    if (command) {
-        [super keyDown:event];
-        return;
-    }
-    NSString* characters = event.characters;
-    if (characters.length > 0 && [characters characterAtIndex:0] >= 0x20) {
-        [self updateSearchQueryWithText:characters];
-    }
 }
 
 - (void)updateTrackingAreas {
@@ -1017,18 +726,6 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
                  ++index) {
                 if (NSPointInRect(point, [self treeRowRectAtIndex:index])) {
                     panelAction = (NSInteger)index + 100;
-                    break;
-                }
-            }
-        }
-    } else if (_activeSection == KineticActivitySectionSearch) {
-        if (NSPointInRect(point, [self searchCaseButtonRect])) {
-            panelAction = 3;
-        } else {
-            for (NSUInteger index = 0; point.y >= kSearchResultsY && index < _searchResults.count;
-                 ++index) {
-                if (NSPointInRect(point, [self searchResultRectAtIndex:index])) {
-                    panelAction = (NSInteger)index + 1000;
                     break;
                 }
             }

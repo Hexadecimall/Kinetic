@@ -33,6 +33,9 @@ KineticShortcutCommand kineticShortcutCommandForEvent(NSEvent* event) {
     if (matches(event, @"f", NSEventModifierFlagCommand | NSEventModifierFlagShift)) {
         return KineticShortcutCommandSearchWorkspace;
     }
+    if (matches(event, @"f", NSEventModifierFlagCommand)) {
+        return KineticShortcutCommandSearchFile;
+    }
     if (matches(event, @"[", NSEventModifierFlagCommand | NSEventModifierFlagShift)) {
         return KineticShortcutCommandPreviousTab;
     }

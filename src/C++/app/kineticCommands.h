@@ -10,6 +10,7 @@
 - (void)createFolder;
 - (void)searchWorkspaceForQuery:(NSString*)query matchCase:(BOOL)matchCase;
 - (void)focusWorkspaceSearch;
+- (void)focusFileSearch;
 - (void)openSearchResult:(NSDictionary*)result;
 - (void)openRecentProjectAtUrl:(NSURL*)projectUrl;
 - (void)saveFile;

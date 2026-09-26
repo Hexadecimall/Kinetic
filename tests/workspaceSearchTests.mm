@@ -60,6 +60,15 @@ int main() {
             require(results.count == 1, @"searches unsaved open document text");
             results = kineticSearchWorkspace(rootUrl, @"line", NO, @{}, 1, &truncated);
             require(results.count == 1 && truncated, @"result cap");
+            results = kineticSearchText(@"test test\nTEST", @"test", NO, 10, &truncated);
+            require(results.count == 3 && !truncated, @"all in-file occurrences");
+            require([results[1][@"line"] unsignedIntegerValue] == 1 &&
+                        [results[1][@"column"] unsignedIntegerValue] == 6,
+                    @"second occurrence position");
+            results = kineticSearchText(@"test test\nTEST", @"test", YES, 10, nullptr);
+            require(results.count == 2, @"in-file match case");
+            results = kineticSearchText(@"test test\nTEST", @"test", NO, 2, &truncated);
+            require(results.count == 2 && truncated, @"in-file result cap");
         } @finally {
             [manager removeItemAtURL:rootUrl error:nil];
         }

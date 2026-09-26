@@ -2,6 +2,7 @@
 
 #import "activityBar.h"
 #import "kineticCommands.h"
+#import "searchPopover.h"
 #import <AppKit/AppKit.h>
 
 @interface KineticEditorView : NSView
@@ -19,11 +20,16 @@
 @property(nonatomic, readonly) BOOL dirty;
 @property(nonatomic, readonly) KineticActivitySection activeActivitySection;
 @property(nonatomic, readonly, copy) NSDictionary* workspaceUiState;
+@property(nonatomic, readonly, copy) NSDictionary* searchUiState;
+@property(nonatomic, readonly) KineticSearchScope searchScope;
 - (void)applyWorkspaceUiState:(NSDictionary*)state;
+- (void)applySearchUiState:(NSDictionary*)state;
 - (void)applySearchResults:(NSArray<NSDictionary*>*)results
                    loading:(BOOL)loading
                  truncated:(BOOL)truncated;
 - (void)focusWorkspaceSearch;
+- (void)focusFileSearch;
+- (void)focusSearchQuery;
 - (void)revealLine:(NSUInteger)line column:(NSUInteger)column length:(NSUInteger)length;
 - (void)revealCreatedFolderAtUrl:(NSURL*)url;
 - (void)setActivitySection:(KineticActivitySection)section animated:(BOOL)animated;

@@ -43,6 +43,51 @@ NSDictionary* searchResult(NSURL* url, NSString* relativePath, NSUInteger line, 
 
 } // namespace
 
+NSArray<NSDictionary*>* kineticSearchText(NSString* contents, NSString* query, BOOL matchCase,
+                                          NSUInteger maximumResults, BOOL* truncated) {
+    if (truncated != nullptr) {
+        *truncated = NO;
+    }
+    if (contents == nil || query.length == 0 || maximumResults == 0) {
+        return @[];
+    }
+    NSMutableArray<NSDictionary*>* results = [NSMutableArray array];
+    NSStringCompareOptions options = matchCase ? 0 : NSCaseInsensitiveSearch;
+    __block NSUInteger lineNumber = 0;
+    [contents enumerateLinesUsingBlock:^(NSString* line, BOOL* stop) {
+      ++lineNumber;
+      NSUInteger cursor = 0;
+      while (cursor < line.length) {
+          NSRange range = [line rangeOfString:query
+                                      options:options
+                                        range:NSMakeRange(cursor, line.length - cursor)];
+          if (range.location == NSNotFound) {
+              break;
+          }
+          NSString* preview =
+              [line stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+          if (preview.length > 160) {
+              preview = [[preview substringToIndex:160] stringByAppendingString:@"…"];
+          }
+          [results addObject:@{
+              @"line" : @(lineNumber),
+              @"column" : @(range.location + 1),
+              @"length" : @(range.length),
+              @"preview" : preview,
+          }];
+          if (results.count >= maximumResults) {
+              if (truncated != nullptr) {
+                  *truncated = YES;
+              }
+              *stop = YES;
+              break;
+          }
+          cursor = NSMaxRange(range);
+      }
+    }];
+    return results;
+}
+
 NSArray<NSDictionary*>* kineticSearchWorkspace(NSURL* rootUrl, NSString* query, BOOL matchCase,
                                                NSDictionary<NSString*, NSString*>* openDocuments,
                                                NSUInteger maximumResults, BOOL* truncated) {
