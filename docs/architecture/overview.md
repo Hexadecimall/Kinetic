@@ -32,7 +32,8 @@ boundary. Keystroke, text-layout, and per-glyph rendering hot paths stay within 
 The current macOS preview has a custom text surface, retained multi-document tabs with independent
 editing state, dirty-state presentation, persisted recent projects, a custom folder/file browser,
 UTF-8 open/save flow, mouse caret placement and drag selection, editing shortcuts, bounded undo/redo
-history, basic syntax highlighting, a custom editor context menu, central shortcut router, and a
+history, basic syntax highlighting, indentation and delimiter assists, a custom editor context menu,
+central shortcut router, and a
 frame-driven cubic tween engine. AppKit supplies the window/event bridge, pasteboard access, and
 compositor backdrop sampling; controls, browser rows, selection presentation, text presentation,
 menus, and transitions are Kinetic-owned.

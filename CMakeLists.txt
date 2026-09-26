@@ -53,6 +53,7 @@ add_executable(
     Kinetic MACOSX_BUNDLE src/C++/app/main.mm src/C++/app/keyboardShortcuts.mm
                               src/C++/app/workspaceSearch.mm
                               src/C++/ui/activityBar.mm src/C++/ui/editorView.mm
+                              src/C++/ui/editorStructure.mm
                               src/C++/ui/fileDialog.mm
                               src/C++/ui/homeView.mm
                               src/C++/ui/searchPopover.mm
@@ -104,3 +105,10 @@ target_include_directories(kineticSyntaxHighlightTests PRIVATE src/C++/ui)
 target_compile_options(kineticSyntaxHighlightTests PRIVATE "-fobjc-arc")
 target_link_libraries(kineticSyntaxHighlightTests PRIVATE "-framework Foundation")
 add_test(NAME kineticSyntaxHighlight COMMAND kineticSyntaxHighlightTests)
+
+add_executable(kineticEditorStructureTests tests/editorStructureTests.mm
+                                           src/C++/ui/editorStructure.mm)
+target_include_directories(kineticEditorStructureTests PRIVATE src/C++/ui)
+target_compile_options(kineticEditorStructureTests PRIVATE "-fobjc-arc")
+target_link_libraries(kineticEditorStructureTests PRIVATE "-framework Foundation")
+add_test(NAME kineticEditorStructure COMMAND kineticEditorStructureTests)

@@ -9,6 +9,12 @@ visible control on the current page changes real editor behavior immediately:
 - Scroll Indicators: visible or hidden.
 - Natural Scrolling: enabled or disabled.
 - Syntax Highlighting: enabled or disabled for recognized source files.
+- Tab Width: 1 through 16 spaces per tab stop.
+- Auto Indent: preserve existing spaces or tabs on Return and indent inside blocks.
+- Auto Pairs: insert matching brackets and quotes, skip existing closing characters, and remove
+  empty pairs with Backspace.
+
+The settings list scrolls in shorter windows.
 
 The page intentionally omits settings that are only planned. The values mirror the typed settings
 contract in `config/defaults/kinetic.toml` and `config/schemas/settings.schema.json`. Persistence and

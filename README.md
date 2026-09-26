@@ -7,8 +7,9 @@
 </p>
 
 > [!IMPORTANT]
-> Kinetic `0.12.0` is an early functional preview. Editing, retained multi-document tabs, persisted
-> recent projects, mouse selection, undo/redo, basic syntax highlighting, custom context menus,
+> Kinetic `0.13.0` is an early functional preview. Editing, retained multi-document tabs, persisted
+> recent projects, mouse selection, undo/redo, basic syntax highlighting, auto-indentation,
+> matching delimiters, custom context menus,
 > in-file and project search,
 > the activity bar, file browsing, folder creation, opening, saving, scrolling, shortcuts, and the
 > macOS shell work, but production editor features are still under active development.

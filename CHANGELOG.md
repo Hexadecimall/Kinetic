@@ -2,7 +2,18 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.12.0 - Unreleased
+## 0.13.0 - Unreleased
+
+### Added
+
+- Added automatic indentation on Return, including preservation of existing spaces or tabs,
+  block indentation for braces and Python or shell control lines, and a blank indented line when
+  splitting an empty bracket pair.
+- Added configurable tab stops, Shift-Tab outdent, matching bracket and quote insertion, selection
+  wrapping, closer skipping, paired Backspace, and closing-brace outdent.
+- Added live Tab Width, Auto Indent, and Auto Pairs controls on the custom scrolling Settings page.
+
+## 0.12.0
 
 ### Added
 
