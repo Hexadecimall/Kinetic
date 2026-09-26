@@ -1,0 +1,34 @@
+#!/bin/sh
+
+set -eu
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+. "$SCRIPT_DIR/lib/common.sh"
+
+PROFILE=debug
+if [ "${1:-}" = "--release" ] || [ "${1:-}" = "release" ]; then
+    PROFILE=release
+elif [ "${1:-}" = "--debug" ] || [ "${1:-}" = "debug" ] || [ "$#" -eq 0 ]; then
+    PROFILE=debug
+else
+    kinetic_die "usage: ./scripts/build [--debug|--release]"
+fi
+
+BUILD_DIR=$(kinetic_build_dir "$PROFILE")
+CLANG=$(xcrun --find clang)
+CLANGXX=$(xcrun --find clang++)
+if [ "$PROFILE" = "release" ]; then
+    CMAKE_BUILD_TYPE=Release
+else
+    CMAKE_BUILD_TYPE=Debug
+fi
+
+cmake -S "$KINETIC_ROOT" -B "$BUILD_DIR" \
+    -DCMAKE_BUILD_TYPE="$CMAKE_BUILD_TYPE" \
+    -DCMAKE_C_COMPILER="$CLANG" \
+    -DCMAKE_CXX_COMPILER="$CLANGXX" \
+    -DCMAKE_OBJCXX_COMPILER="$CLANGXX" \
+    -DCMAKE_OSX_ARCHITECTURES=arm64 \
+    -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0
+cmake --build "$BUILD_DIR" --parallel
+
+printf 'Built %s\n' "$BUILD_DIR/Kinetic.app"

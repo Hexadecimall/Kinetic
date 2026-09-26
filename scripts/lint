@@ -1,0 +1,21 @@
+#!/bin/sh
+
+set -eu
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+. "$SCRIPT_DIR/lib/common.sh"
+
+"$SCRIPT_DIR/format" --check
+"$SCRIPT_DIR/version" check
+"$SCRIPT_DIR/generate-macports" --check-template
+CARGO_TARGET_DIR="$KINETIC_ROOT/build/cargo-lint" cargo clippy --workspace --all-targets -- -D warnings
+CLANG=$(xcrun --find clang)
+CLANGXX=$(xcrun --find clang++)
+cmake -S "$KINETIC_ROOT" -B "$KINETIC_ROOT/build/lint" \
+    -DCMAKE_BUILD_TYPE=Debug \
+    -DCMAKE_C_COMPILER="$CLANG" \
+    -DCMAKE_CXX_COMPILER="$CLANGXX" \
+    -DCMAKE_OBJCXX_COMPILER="$CLANGXX" \
+    -DCMAKE_OSX_ARCHITECTURES=arm64 \
+    -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
+    -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Werror"
+cmake --build "$KINETIC_ROOT/build/lint" --parallel

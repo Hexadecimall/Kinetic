@@ -1,0 +1,35 @@
+#!/bin/sh
+
+set -eu
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+. "$SCRIPT_DIR/lib/common.sh"
+
+kinetic_require ditto
+kinetic_require hdiutil
+
+"$SCRIPT_DIR/version" check
+"$SCRIPT_DIR/audit-public"
+"$SCRIPT_DIR/test"
+"$SCRIPT_DIR/build" --release
+
+APP="$KINETIC_ROOT/build/release/Kinetic.app"
+DIST="$KINETIC_ROOT/dist"
+VERSION=$("$APP/Contents/Resources/bin/kinetic" --version | awk '{print $2}')
+STAGING="$KINETIC_ROOT/build/package/Kinetic"
+
+mkdir -p "$DIST" "$STAGING"
+ditto "$APP" "$STAGING/Kinetic.app"
+
+ditto -c -k --sequesterRsrc --keepParent "$APP" "$DIST/Kinetic-$VERSION-macos-arm64.zip"
+hdiutil create -quiet -volname Kinetic -srcfolder "$STAGING" -ov -format UDZO \
+    "$DIST/Kinetic-$VERSION-macos-arm64.dmg"
+
+"$SCRIPT_DIR/generate-macports"
+
+(
+    cd "$DIST"
+    shasum -a 256 "Kinetic-$VERSION-macos-arm64.zip" \
+        "Kinetic-$VERSION-macos-arm64.dmg" > SHA256SUMS
+)
+
+printf 'Packaged Kinetic %s in %s\n' "$VERSION" "$DIST"

@@ -1,0 +1,24 @@
+# macOS packaging
+
+`Kinetic.app` is the canonical product. It contains the GUI executable and the matching `kinetic`
+command-line client at `Contents/Resources/bin/kinetic`.
+
+The installer creates a symlink to that embedded CLI rather than copying it, ensuring the app and
+CLI always share a version. The default user installation uses:
+
+- Application: `$HOME/Applications/Kinetic.app`
+- CLI link: `$HOME/.local/bin/kinetic`
+
+Homebrew, MacPorts, and system installations choose their own managed prefixes. Release packaging
+produces a DMG, a compressed archive, and a MacPorts Portfile generated from that archive's exact
+version, hashes, and size. Signing and notarization are enabled only when explicit release
+credentials are supplied; developer builds remain ad hoc and local.
+
+Bundle identifier: `top.frameworksdev.kinetic`
+
+`VERSION` is the release source of truth. Packaging refuses inconsistent version metadata, runs the
+test suite and public-source audit, and names archives with the embedded CLI version.
+
+MacPorts installs the canonical bundle in its application directory and links `${prefix}/bin/kinetic`
+to `Kinetic.app/Contents/Resources/bin/kinetic`, preserving the app/CLI version lockstep. See
+[`packaging/macports/README.md`](../../packaging/macports/README.md) for generation and publication.

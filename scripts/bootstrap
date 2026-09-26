@@ -1,0 +1,22 @@
+#!/bin/sh
+
+set -eu
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+. "$SCRIPT_DIR/lib/common.sh"
+
+kinetic_require cmake
+kinetic_require cargo
+kinetic_require clang++
+kinetic_require xcrun
+
+ARCH=$(uname -m)
+[ "$ARCH" = "arm64" ] || kinetic_die "Kinetic currently requires Apple Silicon"
+
+xcrun --find metal >/dev/null 2>&1 || kinetic_die "Metal tools were not found in the active Xcode toolchain"
+
+printf 'Kinetic prerequisites are available.\n'
+printf '  architecture: %s\n' "$ARCH"
+printf '  cmake:        %s\n' "$(cmake --version | sed -n '1s/^cmake version //p')"
+printf '  rust:         %s\n' "$(rustc --version)"
+printf '  clang:        %s\n' "$(clang++ --version | sed -n '1p')"
+

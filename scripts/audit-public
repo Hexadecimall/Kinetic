@@ -1,0 +1,13 @@
+#!/bin/sh
+
+set -eu
+scriptDir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+. "$scriptDir/lib/common.sh"
+
+if rg -n --hidden --glob '!build/**' --glob '!dist/**' --glob '!.git/**' \
+    --glob '!scripts/audit-public' \
+    '(/Users/|/opt/Projects/|/Volumes/|AI-generated|Claude|Codex)' "$KINETIC_ROOT"; then
+    kinetic_die "public-source audit found private paths or agent references"
+fi
+
+printf 'Public-source audit passed\n'

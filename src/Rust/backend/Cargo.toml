@@ -1,0 +1,18 @@
+[package]
+name = "kinetic-backend"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "kinetic_backend"
+crate-type = ["rlib", "staticlib"]
+
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+all = "deny"
+pedantic = "deny"

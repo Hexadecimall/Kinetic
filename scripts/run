@@ -1,0 +1,18 @@
+#!/bin/sh
+
+set -eu
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+. "$SCRIPT_DIR/lib/common.sh"
+
+PROFILE=debug
+BUILD_ARG=--debug
+if [ "${1:-}" = "--release" ] || [ "${1:-}" = "release" ]; then
+    PROFILE=release
+    BUILD_ARG=--release
+elif [ "${1:-}" != "" ] && [ "${1:-}" != "--debug" ] && [ "${1:-}" != "debug" ]; then
+    kinetic_die "usage: ./scripts/run [--debug|--release]"
+fi
+
+"$SCRIPT_DIR/build" "$BUILD_ARG"
+open "$(kinetic_build_dir "$PROFILE")/Kinetic.app"
+

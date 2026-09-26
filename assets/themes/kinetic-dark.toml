@@ -1,0 +1,50 @@
+name = "Kinetic Dark"
+variant = "dark"
+
+[colors]
+background = "#2F3947"
+surface = "#2F3947"
+surfaceRaised = "#3D4A5C"
+trafficBar = "#35404F"
+trafficControl = "#35404F"
+trafficControlHoverClose = "#FF5C70"
+trafficControlHoverMinimize = "#FFB454"
+trafficControlHoverZoom = "#4D8DFF"
+border = "#273247"
+text = "#ECF3FF"
+textMuted = "#91A0B8"
+accent = "#4D8DFF"
+accentHover = "#6EA3FF"
+energy = "#FF7A3D"
+energyHover = "#FF9A63"
+selection = "#274F8FCC"
+contextMenu = "#232B37FA"
+contextMenuBorder = "#4B5A6FBF"
+contextMenuHover = "#4D8DFF33"
+activityBar = "#2C3542EB"
+activityPanel = "#2A3340FA"
+activityBorder = "#45526561"
+activitySection = "#303B4AB8"
+activitySectionBorder = "#4B596D57"
+activityHover = "#7C91AE14"
+activityActive = "#4D8DFF1C"
+error = "#FF5C70"
+warning = "#FFB454"
+success = "#4ED6A4"
+
+[syntax]
+comment = "#68758A"
+keyword = "#76A7FF"
+function = "#74D3FF"
+type = "#FFB06E"
+string = "#A9D980"
+number = "#D39BFF"
+constant = "#FF8E77"
+operator = "#AAB8CC"
+
+[metrics]
+cornerRadius = 7
+borderWidth = 1
+uiDensity = "comfortable"
+trafficBarHeight = 34
+trafficControlSize = 20

@@ -1,0 +1,71 @@
+schemaVersion = 1
+
+[window]
+opacity = 0.90
+backdropBlur = true
+minimumWidth = 720
+minimumHeight = 480
+
+[animations]
+enabled = true
+easing = "easeOutCubic"
+editorEnterMilliseconds = 180
+editorExitMilliseconds = 140
+modalMilliseconds = 140
+
+[editor]
+fontSize = 13.0
+lineHeight = 20.0
+tabWidth = 4
+verticalScrolling = true
+horizontalScrolling = true
+showScrollIndicators = true
+naturalScrolling = true
+showLineNumbers = true
+showDirtyIndicator = true
+mouseCaretPlacement = true
+mouseDragSelection = true
+shiftClickExtendsSelection = true
+contextMenu = true
+undoHistoryLimit = 256
+optionWordNavigation = true
+
+[activityBar]
+visible = true
+railWidth = 38.0
+panelWidth = 224.0
+defaultSection = "none"
+animationMilliseconds = 150
+collapseAnimationMilliseconds = 150
+sectionHeaders = true
+showExplorer = true
+showSearch = true
+showSourceControl = true
+showPlugins = true
+showSettings = true
+
+[fileBrowser]
+rowHeight = 30.0
+naturalScrolling = true
+foldersFirst = true
+showHiddenFiles = false
+
+[shortcuts]
+newTextFile = "cmd-n"
+openFile = "cmd-o"
+saveFile = "cmd-s"
+cut = "cmd-x"
+copy = "cmd-c"
+paste = "cmd-v"
+selectAll = "cmd-a"
+undo = "cmd-z"
+redo = "shift-cmd-z"
+moveWordLeft = "option-left"
+moveWordRight = "option-right"
+deleteWordBackward = "option-backspace"
+deleteWordForward = "option-delete"
+closeTab = "cmd-w"
+minimizeWindow = "cmd-m"
+hideApplication = "cmd-h"
+quitApplication = "cmd-q"
+toggleFullscreen = "fn-f"

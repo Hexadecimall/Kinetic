@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 260" role="img" aria-labelledby="title desc">
+  <title id="title">Kinetic</title>
+  <desc id="desc">Kinetic's blue and orange mark beside its wordmark.</desc>
+  <defs>
+    <linearGradient id="blue" x1="92" y1="54" x2="390" y2="250" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6EA3FF"/>
+      <stop offset="1" stop-color="#4D8DFF"/>
+    </linearGradient>
+    <linearGradient id="orange" x1="192" y1="250" x2="424" y2="446" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF9A63"/>
+      <stop offset="1" stop-color="#FF7A3D"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(24 18) scale(.44)">
+    <rect x="70" y="54" width="80" height="404" rx="22" fill="url(#blue)"/>
+    <path fill="url(#blue)" d="M150 225 323 54c8-8 18-12 30-12h71c17 0 25 20 13 32L246 250c-7 6-15 8-24 8h-72v-33Z"/>
+    <path fill="url(#orange)" d="m178 254 68-16 191 193c12 13 3 35-15 35h-70c-12 0-22-4-30-13L178 290v-36Z"/>
+  </g>
+  <text x="282" y="184" fill="#ECF3FF" font-family="Inter, SF Pro Display, Helvetica Neue, sans-serif" font-size="154" font-weight="650" letter-spacing="-7">Kinetic</text>
+</svg>

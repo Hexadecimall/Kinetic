@@ -1,0 +1,44 @@
+# Changelog
+
+All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
+
+## 0.7.1 - Unreleased
+
+### Added
+
+- Custom translucent macOS window chrome, traffic controls, File menu, and branded Home screen.
+- Custom editable text surface with tabs, dirty-state indication, line numbers, caret navigation,
+  vertical and horizontal scrolling, and overflow indicators.
+- Mouse caret placement, shift-click extension, drag selection, selection-aware editing, and an
+  editor I-beam cursor.
+- Kinetic-drawn editor context menu with live Undo, Redo, Cut, Copy, Paste, and Select All states.
+- Standard editing shortcuts plus Command line/document navigation, Option word navigation and
+  deletion, Shift selection extension, and bounded undo/redo history.
+- Compact editor-only Kinetic activity rail with refined Explorer, Search, Source Control/GitHub,
+  Plugins, and Settings icons, animated panels, and a working Explorer Open File action.
+- Real Open Folder workflow with a sorted, expandable, scrollable Explorer file tree.
+- Dedicated Settings page with live font size, line height, line-number, scroll-indicator, and
+  natural-scrolling controls.
+- Custom folder-and-file browser for opening and saving UTF-8 documents.
+- Central keyboard shortcut routing for new, open, save, close, minimize, hide, quit, and fullscreen.
+- Custom ease-out-cubic tween engine for Home, editor, and modal transitions.
+- Embedded command-line client, application packaging, installation, icon generation, and release
+  checksum automation.
+- MacPorts release packaging with generated checksums, app-bundle installation, and an embedded CLI
+  symlink.
+- Version consistency and public-source audit scripts.
+
+### Fixed
+
+- Kept activity-panel content visible during its closing animation and added section header bands,
+  dividers, and a contained current-document row for clearer panel hierarchy.
+- Clipped activity-panel text, aligned plugin content, added real panel buttons, and kept the arrow
+  cursor over activity controls.
+- Corrected natural scrolling direction in the file browser.
+- Enabled ARC for the Objective-C++ interface to keep browser state alive safely.
+- Made the square traffic control enter fullscreen while title-bar double-click maximizes.
+
+## 0.1.0
+
+- Established the Apache-2.0 project, Rust/C++ ABI, macOS application bundle, CLI, branding,
+  documentation, CI, and packaging foundation.

@@ -1,0 +1,63 @@
+#!/bin/sh
+
+set -eu
+scriptDir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+. "$scriptDir/lib/common.sh"
+
+templatePath="$KINETIC_ROOT/packaging/macports/Portfile.in"
+
+checkTemplate() {
+    [ -f "$templatePath" ] || kinetic_die "MacPorts template is missing: $templatePath"
+    for placeholder in VERSION RMD160 SHA256 SIZE; do
+        rg -q "@$placeholder@" "$templatePath" ||
+            kinetic_die "MacPorts template is missing @$placeholder@"
+    done
+    rg -q '^supported_archs[[:space:]]+arm64$' "$templatePath" ||
+        kinetic_die "MacPorts template must remain Apple Silicon-only"
+    rg -q 'Contents/Resources/bin/kinetic' "$templatePath" ||
+        kinetic_die "MacPorts template must install the embedded Kinetic CLI"
+}
+
+checkTemplate
+
+if [ "${1:-}" = "--check-template" ]; then
+    printf 'MacPorts template checks passed\n'
+    exit 0
+fi
+
+[ "$#" -eq 0 ] || kinetic_die "usage: scripts/generate-macports [--check-template]"
+kinetic_require openssl
+kinetic_require shasum
+
+"$scriptDir/version" check
+version=$("$scriptDir/version" show)
+archivePath="$KINETIC_ROOT/dist/Kinetic-$version-macos-arm64.zip"
+outputDir="$KINETIC_ROOT/dist/macports"
+outputPath="$outputDir/Portfile"
+
+[ -f "$archivePath" ] ||
+    kinetic_die "release archive is missing; run scripts/package first: $archivePath"
+
+rmd160=$(openssl dgst -rmd160 "$archivePath" | awk '{print $NF}')
+sha256=$(shasum -a 256 "$archivePath" | awk '{print $1}')
+archiveSize=$(stat -f '%z' "$archivePath")
+
+mkdir -p "$outputDir"
+sed \
+    -e "s/@VERSION@/$version/g" \
+    -e "s/@RMD160@/$rmd160/g" \
+    -e "s/@SHA256@/$sha256/g" \
+    -e "s/@SIZE@/$archiveSize/g" \
+    "$templatePath" > "$outputPath"
+
+if rg -n '@(VERSION|RMD160|SHA256|SIZE)@' "$outputPath"; then
+    kinetic_die "generated MacPorts Portfile still contains placeholders"
+fi
+
+if command -v port >/dev/null 2>&1; then
+    (cd "$outputDir" && port lint --nitpick)
+else
+    printf 'MacPorts port command not found; skipped Portfile lint\n'
+fi
+
+printf 'Generated MacPorts Portfile: %s\n' "$outputPath"

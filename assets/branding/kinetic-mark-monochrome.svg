@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Kinetic monochrome mark</title>
+  <rect x="70" y="54" width="80" height="404" rx="22" fill="currentColor"/>
+  <path fill="currentColor" d="M150 225 323 54c8-8 18-12 30-12h71c17 0 25 20 13 32L246 250c-7 6-15 8-24 8h-72v-33Z"/>
+  <path fill="currentColor" d="m178 254 68-16 191 193c12 13 3 35-15 35h-70c-12 0-22-4-30-13L178 290v-36Z"/>
+</svg>

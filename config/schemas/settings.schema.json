@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kinetic.frameworksdev.top/schemas/settings-v1.json",
+  "title": "Kinetic settings",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "window": { "$ref": "#/$defs/window" },
+    "animations": { "$ref": "#/$defs/animations" },
+    "editor": { "$ref": "#/$defs/editor" },
+    "activityBar": { "$ref": "#/$defs/activityBar" },
+    "fileBrowser": { "$ref": "#/$defs/fileBrowser" },
+    "shortcuts": { "$ref": "#/$defs/shortcuts" }
+  },
+  "required": ["schemaVersion"],
+  "$defs": {
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "opacity": { "type": "number", "minimum": 0.1, "maximum": 1.0 },
+        "backdropBlur": { "type": "boolean" },
+        "minimumWidth": { "type": "integer", "minimum": 320 },
+        "minimumHeight": { "type": "integer", "minimum": 240 }
+      }
+    },
+    "animations": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "easing": { "type": "string" },
+        "editorEnterMilliseconds": { "type": "integer", "minimum": 0 },
+        "editorExitMilliseconds": { "type": "integer", "minimum": 0 },
+        "modalMilliseconds": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "editor": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fontSize": { "type": "number", "minimum": 6.0 },
+        "lineHeight": { "type": "number", "minimum": 8.0 },
+        "tabWidth": { "type": "integer", "minimum": 1, "maximum": 16 },
+        "verticalScrolling": { "type": "boolean" },
+        "horizontalScrolling": { "type": "boolean" },
+        "showScrollIndicators": { "type": "boolean" },
+        "naturalScrolling": { "type": "boolean" },
+        "showLineNumbers": { "type": "boolean" },
+        "showDirtyIndicator": { "type": "boolean" },
+        "mouseCaretPlacement": { "type": "boolean" },
+        "mouseDragSelection": { "type": "boolean" },
+        "shiftClickExtendsSelection": { "type": "boolean" },
+        "contextMenu": { "type": "boolean" },
+        "undoHistoryLimit": { "type": "integer", "minimum": 0 },
+        "optionWordNavigation": { "type": "boolean" }
+      }
+    },
+    "activityBar": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "visible": { "type": "boolean" },
+        "railWidth": { "type": "number", "minimum": 28.0 },
+        "panelWidth": { "type": "number", "minimum": 140.0 },
+        "defaultSection": {
+          "enum": ["none", "explorer", "search", "sourceControl", "plugins", "settings"]
+        },
+        "animationMilliseconds": { "type": "integer", "minimum": 0 },
+        "collapseAnimationMilliseconds": { "type": "integer", "minimum": 0 },
+        "sectionHeaders": { "type": "boolean" },
+        "showExplorer": { "type": "boolean" },
+        "showSearch": { "type": "boolean" },
+        "showSourceControl": { "type": "boolean" },
+        "showPlugins": { "type": "boolean" },
+        "showSettings": { "type": "boolean" }
+      }
+    },
+    "fileBrowser": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rowHeight": { "type": "number", "minimum": 18.0 },
+        "naturalScrolling": { "type": "boolean" },
+        "foldersFirst": { "type": "boolean" },
+        "showHiddenFiles": { "type": "boolean" }
+      }
+    },
+    "shortcuts": {
+      "type": "object",
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    }
+  }
+}

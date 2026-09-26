@@ -1,0 +1,87 @@
+#!/bin/sh
+
+set -eu
+scriptDir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+. "$scriptDir/lib/common.sh"
+
+currentVersion=$(sed -n '1p' "$KINETIC_ROOT/VERSION")
+
+validateVersion() {
+    printf '%s\n' "$1" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' ||
+        kinetic_die "version must use main.feature.patch"
+}
+
+setVersion() {
+    nextVersion=$1
+    validateVersion "$nextVersion"
+    python3 -c '
+from pathlib import Path
+import re, sys
+root = Path(sys.argv[1])
+version = sys.argv[2]
+(root / "VERSION").write_text(version + "\n")
+cargo = root / "Cargo.toml"
+cargo.write_text(re.sub(r"(?m)^version = \"[^\"]+\"$", f"version = \"{version}\"", cargo.read_text(), count=1))
+cargoLock = root / "Cargo.lock"
+cargoLock.write_text(re.sub(r"(?ms)(name = \"kinetic-backend\"\nversion = \")[0-9.]+", lambda match: match.group(1) + version, cargoLock.read_text(), count=1))
+bug = root / ".github/ISSUE_TEMPLATE/bug.yml"
+bug.write_text(re.sub(r"(?m)^      placeholder: [0-9]+\.[0-9]+\.[0-9]+ or commit$", f"      placeholder: {version} or commit", bug.read_text()))
+readme = root / "README.md"
+readme.write_text(re.sub(r"Kinetic `[0-9]+\.[0-9]+\.[0-9]+` is an early functional preview", f"Kinetic `{version}` is an early functional preview", readme.read_text(), count=1))
+changelog = root / "CHANGELOG.md"
+changelog.write_text(re.sub(r"(?m)^## [0-9]+\.[0-9]+\.[0-9]+ - Unreleased$", f"## {version} - Unreleased", changelog.read_text(), count=1))
+' "$KINETIC_ROOT" "$nextVersion"
+    printf 'Kinetic version set to %s\n' "$nextVersion"
+}
+
+case "${1:-show}" in
+    show)
+        printf '%s\n' "$currentVersion"
+        ;;
+    check)
+        validateVersion "$currentVersion"
+        cargoVersion=$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$KINETIC_ROOT/Cargo.toml" | head -n 1)
+        cargoLockVersion=$(sed -n '/^name = "kinetic-backend"$/{n;s/^version = "\([^"]*\)"/\1/p;}' \
+            "$KINETIC_ROOT/Cargo.lock")
+        issueVersion=$(sed -n 's/^      placeholder: \([0-9.]*\) or commit/\1/p' \
+            "$KINETIC_ROOT/.github/ISSUE_TEMPLATE/bug.yml")
+        readmeVersion=$(sed -n 's/^> Kinetic `\([0-9.]*\)` is an early functional preview.*/\1/p' \
+            "$KINETIC_ROOT/README.md")
+        [ "$cargoVersion" = "$currentVersion" ] ||
+            kinetic_die "Cargo.toml is $cargoVersion, expected $currentVersion"
+        [ "$cargoLockVersion" = "$currentVersion" ] ||
+            kinetic_die "Cargo.lock is $cargoLockVersion, expected $currentVersion"
+        [ "$issueVersion" = "$currentVersion" ] ||
+            kinetic_die "bug template is $issueVersion, expected $currentVersion"
+        [ "$readmeVersion" = "$currentVersion" ] ||
+            kinetic_die "README is $readmeVersion, expected $currentVersion"
+        rg -q "^## $currentVersion( - Unreleased)?$" "$KINETIC_ROOT/CHANGELOG.md" ||
+            kinetic_die "CHANGELOG has no entry for $currentVersion"
+        printf 'Version metadata is consistent at %s\n' "$currentVersion"
+        ;;
+    set)
+        [ "$#" -eq 2 ] || kinetic_die "usage: scripts/version set main.feature.patch"
+        setVersion "$2"
+        ;;
+    bump)
+        [ "$#" -eq 2 ] || kinetic_die "usage: scripts/version bump main|feature|patch"
+        bumpTarget=$2
+        oldIfs=$IFS
+        IFS=.
+        set -- $currentVersion
+        IFS=$oldIfs
+        mainNumber=$1
+        featureNumber=$2
+        patchNumber=$3
+        case "$bumpTarget" in
+            main) mainNumber=$((mainNumber + 1)); featureNumber=0; patchNumber=0 ;;
+            feature) featureNumber=$((featureNumber + 1)); patchNumber=0 ;;
+            patch) patchNumber=$((patchNumber + 1)) ;;
+            *) kinetic_die "bump target must be main, feature, or patch" ;;
+        esac
+        setVersion "$mainNumber.$featureNumber.$patchNumber"
+        ;;
+    *)
+        kinetic_die "usage: scripts/version show|check|set|bump"
+        ;;
+esac

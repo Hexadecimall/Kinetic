@@ -1,0 +1,25 @@
+#!/bin/sh
+
+set -eu
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+. "$SCRIPT_DIR/lib/common.sh"
+
+APP_DIR=${KINETIC_APP_DIR:-"$HOME/Applications"}
+BIN_DIR=${KINETIC_BIN_DIR:-"$HOME/.local/bin"}
+TARGET_APP="$APP_DIR/Kinetic.app"
+TARGET_CLI="$BIN_DIR/kinetic"
+TRASH_DIR=${KINETIC_TRASH_DIR:-"$HOME/.Trash"}
+
+if [ -L "$TARGET_CLI" ]; then
+    unlink "$TARGET_CLI"
+fi
+
+if [ -d "$TARGET_APP" ]; then
+    mkdir -p "$TRASH_DIR"
+    TRASH_TARGET="$TRASH_DIR/Kinetic.app"
+    [ ! -e "$TRASH_TARGET" ] || kinetic_die "$TRASH_TARGET already exists"
+    mv "$TARGET_APP" "$TRASH_TARGET"
+    printf 'Moved Kinetic.app to the Trash.\n'
+else
+    printf 'Kinetic.app is not installed at %s\n' "$TARGET_APP"
+fi

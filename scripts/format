@@ -1,0 +1,31 @@
+#!/bin/sh
+
+set -eu
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+. "$SCRIPT_DIR/lib/common.sh"
+
+kinetic_require cargo
+if command -v clang-format >/dev/null 2>&1; then
+    CLANG_FORMAT=clang-format
+elif xcrun --find clang-format >/dev/null 2>&1; then
+    CLANG_FORMAT="xcrun clang-format"
+else
+    kinetic_die "clang-format was not found on PATH or in the active Xcode toolchain"
+fi
+
+MODE=write
+if [ "${1:-}" = "--check" ]; then
+    MODE=check
+elif [ "$#" -ne 0 ]; then
+    kinetic_die "usage: ./scripts/format [--check]"
+fi
+
+if [ "$MODE" = "check" ]; then
+    cargo fmt --all -- --check
+    find "$KINETIC_ROOT/src/C++" -type f \( -name '*.cpp' -o -name '*.mm' -o -name '*.h' \) \
+        -exec sh -c "$CLANG_FORMAT --dry-run --Werror \"\$@\"" sh {} +
+else
+    cargo fmt --all
+    find "$KINETIC_ROOT/src/C++" -type f \( -name '*.cpp' -o -name '*.mm' -o -name '*.h' \) \
+        -exec sh -c "$CLANG_FORMAT -i \"\$@\"" sh {} +
+fi
