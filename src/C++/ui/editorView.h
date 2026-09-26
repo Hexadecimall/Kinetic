@@ -20,6 +20,7 @@
 @property(nonatomic, readonly) KineticActivitySection activeActivitySection;
 @property(nonatomic, readonly, copy) NSDictionary* workspaceUiState;
 - (void)applyWorkspaceUiState:(NSDictionary*)state;
+- (void)revealCreatedFolderAtUrl:(NSURL*)url;
 - (void)setActivitySection:(KineticActivitySection)section animated:(BOOL)animated;
 - (void)markSaved;
 @end

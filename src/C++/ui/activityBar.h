@@ -16,6 +16,7 @@ typedef NS_ENUM(NSInteger, KineticActivitySection) {
 @protocol KineticActivityBarDelegate <NSObject>
 - (void)activityBarDidRequestOpenFile:(KineticActivityBar*)activityBar;
 - (void)activityBarDidRequestOpenFolder:(KineticActivityBar*)activityBar;
+- (void)activityBarDidRequestCreateFolder:(KineticActivityBar*)activityBar;
 - (void)activityBar:(KineticActivityBar*)activityBar didRequestOpenUrl:(NSURL*)url;
 - (void)activityBar:(KineticActivityBar*)activityBar
     didActivateSection:(KineticActivitySection)section;
@@ -29,6 +30,7 @@ typedef NS_ENUM(NSInteger, KineticActivitySection) {
 @property(nonatomic, readonly, copy) NSDictionary* workspaceUiState;
 + (CGFloat)railWidth;
 - (void)applyWorkspaceUiState:(NSDictionary*)state;
+- (void)revealCreatedFolderAtUrl:(NSURL*)url;
 - (void)activateSection:(KineticActivitySection)section animated:(BOOL)animated;
 - (void)deactivateSection;
 @end

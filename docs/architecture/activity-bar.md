@@ -11,11 +11,15 @@ live animated width, so expanded workspace UI never overlays or clips document t
 
 Explorer labels the current document as Open in Editor and provides distinct Open File and Open
 Folder actions. Opening a folder builds a sorted, expandable, scrollable file tree; selecting a file
-opens it in the editor. Compact low-contrast header strips and single-edge dividers group the open
-document, workspace, search, repository, and installed-plugin sections without accordion styling or
-non-functional disclosure affordances. Search, Source Control/GitHub, and Plugins remain honest integration
-surfaces: they display current availability without pretending that workspace indexing, repository
-discovery, account connections, or third-party plugin loading already exist.
+opens it in the editor. The project header's folder-plus control opens a Kinetic-drawn New Folder
+dialog. It creates a folder at the project root or inside a browsed/selected subfolder, rejects
+duplicate and invalid names, and reveals the result in the shared Explorer tree. Creation stays
+inside the active window's project. Compact low-contrast header strips and single-edge dividers
+group the open document, workspace, search, repository, and installed-plugin sections without
+accordion styling or non-functional disclosure affordances. Search, Source Control/GitHub, and
+Plugins remain honest integration surfaces: they display current availability without pretending
+that workspace indexing, repository discovery, account connections, or third-party plugin loading
+already exist.
 
 Settings opens a dedicated editor page instead of a narrow side panel. The first live controls cover
 font size, line height, line-number visibility, scroll-indicator visibility, and natural scrolling.

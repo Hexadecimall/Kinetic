@@ -21,6 +21,7 @@ NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     KineticFileDialogMode _mode;
     id<KineticFileDialogDelegate> _dialogDelegate;
     NSURL* _directoryUrl;
+    NSURL* _creationRootUrl;
     NSArray<KineticFileEntry*>* _entries;
     NSMutableString* _fileName;
     NSString* _errorMessage;
@@ -50,7 +51,8 @@ NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
         _dialogDelegate = delegate;
         _selectedIndex = -1;
         _hoveredButton = -1;
-        _editingFileName = mode == KineticFileDialogModeSave;
+        _editingFileName =
+            mode == KineticFileDialogModeSave || mode == KineticFileDialogModeCreateFolder;
         NSString* expandedPath = [initialPath stringByExpandingTildeInPath];
         if (mode == KineticFileDialogModeSave) {
             _directoryUrl = [NSURL fileURLWithPath:expandedPath.stringByDeletingLastPathComponent
@@ -59,6 +61,9 @@ NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
         } else {
             _directoryUrl = [NSURL fileURLWithPath:expandedPath isDirectory:YES];
             _fileName = [[NSMutableString alloc] init];
+            if (mode == KineticFileDialogModeCreateFolder) {
+                _creationRootUrl = _directoryUrl;
+            }
         }
         self.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
         [self reloadEntries];
@@ -74,13 +79,17 @@ NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     return YES;
 }
 
+- (BOOL)requiresName {
+    return _mode == KineticFileDialogModeSave || _mode == KineticFileDialogModeCreateFolder;
+}
+
 - (void)layoutRects {
     CGFloat width = MIN(690.0, NSWidth(self.bounds) - 48.0);
     CGFloat height = MIN(500.0, NSHeight(self.bounds) - 48.0);
     _panelRect = NSMakeRect(floor((NSWidth(self.bounds) - width) * 0.5),
                             floor((NSHeight(self.bounds) - height) * 0.46), width, height);
     _upRect = NSMakeRect(NSMinX(_panelRect) + 24.0, NSMinY(_panelRect) + 58.0, 30.0, 28.0);
-    CGFloat listHeight = _mode == KineticFileDialogModeSave ? height - 194.0 : height - 158.0;
+    CGFloat listHeight = [self requiresName] ? height - 194.0 : height - 158.0;
     _listRect = NSMakeRect(NSMinX(_panelRect) + 24.0, NSMinY(_panelRect) + 98.0,
                            NSWidth(_panelRect) - 48.0, listHeight);
     _nameFieldRect = NSMakeRect(NSMinX(_panelRect) + 24.0, NSMaxY(_listRect) + 12.0,
@@ -198,6 +207,8 @@ NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
         title = @"Open Folder";
     } else if (_mode == KineticFileDialogModeSave) {
         title = @"Save File";
+    } else if (_mode == KineticFileDialogModeCreateFolder) {
+        title = @"New Folder";
     }
     [title drawAtPoint:NSMakePoint(NSMinX(_panelRect) + 24.0, NSMinY(_panelRect) + 22.0)
         withAttributes:titleAttributes];
@@ -270,7 +281,7 @@ NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
                               yRadius:1.5] fill];
     }
 
-    if (_mode == KineticFileDialogModeSave) {
+    if ([self requiresName]) {
         [dialogColor(30, 38, 50, 0.96) setFill];
         [[NSBezierPath bezierPathWithRoundedRect:_nameFieldRect xRadius:4.0 yRadius:4.0] fill];
         [dialogColor(77, 141, 255, 0.74) setStroke];
@@ -282,9 +293,17 @@ NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
         };
         NSPoint namePoint = NSMakePoint(NSMinX(_nameFieldRect) + 9.0, NSMinY(_nameFieldRect) + 8.0);
         [_fileName drawAtPoint:namePoint withAttributes:nameAttributes];
+        if (_fileName.length == 0) {
+            [(_mode == KineticFileDialogModeCreateFolder ? @"Folder name" : @"File name")
+                   drawAtPoint:namePoint
+                withAttributes:@{
+                    NSFontAttributeName : nameAttributes[NSFontAttributeName],
+                    NSForegroundColorAttributeName : dialogColor(132, 146, 166),
+                }];
+        }
         if (_editingFileName) {
-            CGFloat caretX =
-                namePoint.x + [_fileName sizeWithAttributes:nameAttributes].width + 1.0;
+            CGFloat caretX = namePoint.x + [_fileName sizeWithAttributes:nameAttributes].width +
+                             (_fileName.length == 0 ? -3.0 : 1.0);
             [dialogColor(111, 166, 255) setFill];
             NSRectFill(NSMakeRect(caretX, namePoint.y, 1.5, 16.0));
         }
@@ -300,7 +319,9 @@ NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     }
     [self drawButtonInRect:_cancelRect title:@"Cancel" primary:NO hovered:_hoveredButton == 0];
     [self drawButtonInRect:_confirmRect
-                     title:_mode == KineticFileDialogModeSave ? @"Save" : @"Open"
+                     title:_mode == KineticFileDialogModeSave           ? @"Save"
+                           : _mode == KineticFileDialogModeCreateFolder ? @"Create"
+                                                                        : @"Open"
                    primary:YES
                    hovered:_hoveredButton == 1];
 }
@@ -341,6 +362,28 @@ NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
         [_dialogDelegate fileDialog:self didChoosePath:selectedUrl.path mode:_mode];
         return;
     }
+    if (_mode == KineticFileDialogModeCreateFolder) {
+        NSString* name = [_fileName
+            stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+        if (name.length == 0) {
+            [self showError:@"Enter a folder name."];
+            return;
+        }
+        if ([name hasPrefix:@"."] || [name containsString:@"/"] || [name containsString:@":"] ||
+            [name rangeOfCharacterFromSet:NSCharacterSet.controlCharacterSet].location !=
+                NSNotFound) {
+            [self showError:@"Use a visible folder name without slashes or colons."];
+            return;
+        }
+        NSURL* parentUrl = _directoryUrl;
+        if (_selectedIndex >= 0 && _selectedIndex < (NSInteger)_entries.count &&
+            _entries[(NSUInteger)_selectedIndex].directory) {
+            parentUrl = _entries[(NSUInteger)_selectedIndex].url;
+        }
+        NSURL* url = [parentUrl URLByAppendingPathComponent:name isDirectory:YES];
+        [_dialogDelegate fileDialog:self didChoosePath:url.path mode:_mode];
+        return;
+    }
     if (_fileName.length == 0) {
         [self showError:@"Enter a file name."];
         return;
@@ -351,6 +394,10 @@ NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
 
 - (void)goToParentDirectory {
     NSURL* parent = [_directoryUrl URLByDeletingLastPathComponent];
+    if (_creationRootUrl != nil &&
+        [parent.path isEqualToString:[[_creationRootUrl URLByDeletingLastPathComponent] path]]) {
+        return;
+    }
     if (parent != nil && ![parent.path isEqualToString:_directoryUrl.path]) {
         _directoryUrl = parent;
         [self reloadEntries];
@@ -362,7 +409,7 @@ NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
         [_dialogDelegate fileDialogDidCancel:self];
     } else if (event.keyCode == 36 || event.keyCode == 76) {
         [self confirm];
-    } else if (_mode == KineticFileDialogModeSave && _editingFileName && event.keyCode == 51 &&
+    } else if ([self requiresName] && _editingFileName && event.keyCode == 51 &&
                _fileName.length > 0) {
         [_fileName
             deleteCharactersInRange:[_fileName
@@ -379,7 +426,7 @@ NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
         self.needsDisplay = YES;
     } else {
         NSString* characters = event.characters;
-        if (_mode == KineticFileDialogModeSave && _editingFileName && characters.length > 0 &&
+        if ([self requiresName] && _editingFileName && characters.length > 0 &&
             [characters characterAtIndex:0] >= 0x20 &&
             (event.modifierFlags & NSEventModifierFlagCommand) == 0) {
             [_fileName appendString:characters];
@@ -399,14 +446,14 @@ NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
         [_dialogDelegate fileDialogDidCancel:self];
     } else if (NSPointInRect(point, _confirmRect)) {
         [self confirm];
-    } else if (_mode == KineticFileDialogModeSave && NSPointInRect(point, _nameFieldRect)) {
+    } else if ([self requiresName] && NSPointInRect(point, _nameFieldRect)) {
         _editingFileName = YES;
         self.needsDisplay = YES;
     } else {
         NSInteger index = [self entryIndexAtPoint:point];
         if (index >= 0) {
             _selectedIndex = index;
-            _editingFileName = NO;
+            _editingFileName = _mode == KineticFileDialogModeCreateFolder;
             if (event.clickCount == 2) {
                 [self openSelectedEntry];
             } else if (_mode == KineticFileDialogModeSave &&

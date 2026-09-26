@@ -343,6 +343,14 @@
     [self presentFileDialogWithMode:KineticFileDialogModeOpenFolder initialPath:@"~/"];
 }
 
+- (void)createFolder {
+    if (self.workspaceUrl == nil) {
+        return;
+    }
+    [self presentFileDialogWithMode:KineticFileDialogModeCreateFolder
+                        initialPath:self.workspaceUrl.path];
+}
+
 - (BOOL)writeEditorToUrl:(NSURL*)fileUrl {
     NSError* error = nil;
     if (![self.editor.documentText writeToURL:fileUrl
@@ -402,6 +410,35 @@
      didChoosePath:(NSString*)path
               mode:(KineticFileDialogMode)mode {
     NSURL* fileUrl = [NSURL fileURLWithPath:path];
+    if (mode == KineticFileDialogModeCreateFolder) {
+        NSURL* parentUrl = [fileUrl URLByDeletingLastPathComponent];
+        NSString* workspacePath =
+            [[[self.workspaceUrl URLByResolvingSymlinksInPath] path] stringByStandardizingPath];
+        NSString* parentPath =
+            [[[parentUrl URLByResolvingSymlinksInPath] path] stringByStandardizingPath];
+        if (workspacePath == nil ||
+            !([parentPath isEqualToString:workspacePath] ||
+              [parentPath hasPrefix:[workspacePath stringByAppendingString:@"/"]])) {
+            [dialog showError:@"Choose a folder inside this project."];
+            return;
+        }
+        if ([NSFileManager.defaultManager fileExistsAtPath:fileUrl.path]) {
+            [dialog showError:@"A file or folder with that name already exists."];
+            return;
+        }
+        NSError* error = nil;
+        if (![NSFileManager.defaultManager createDirectoryAtURL:fileUrl
+                                    withIntermediateDirectories:NO
+                                                     attributes:nil
+                                                          error:&error]) {
+            [dialog showError:@"Kinetic could not create this folder."];
+            return;
+        }
+        [self.editor revealCreatedFolderAtUrl:fileUrl];
+        self.workspaceUiState = self.editor.workspaceUiState;
+        [self dismissFileDialog];
+        return;
+    }
     if (mode == KineticFileDialogModeOpenFolder) {
         BOOL isDirectory = NO;
         if (![NSFileManager.defaultManager fileExistsAtPath:path isDirectory:&isDirectory] ||

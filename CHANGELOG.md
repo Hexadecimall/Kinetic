@@ -2,10 +2,12 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.8.3 - Unreleased
+## 0.9.0 - Unreleased
 
 ### Added
 
+- Added an Explorer New Folder action and custom folder-creation dialog with nested destination
+  browsing, name validation, duplicate protection, and immediate tree refresh.
 - Retained multi-document tabs with independent text, selection, undo history, scrolling, file URL,
   save state, direct tab activation and closing, and previous/next tab shortcuts.
 - Persisted recent workspace folders with custom Home rows that reopen the selected project.

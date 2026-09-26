@@ -6,6 +6,7 @@ typedef NS_ENUM(NSInteger, KineticFileDialogMode) {
     KineticFileDialogModeOpen = 0,
     KineticFileDialogModeOpenFolder,
     KineticFileDialogModeSave,
+    KineticFileDialogModeCreateFolder,
 };
 
 @class KineticFileDialog;

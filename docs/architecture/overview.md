@@ -42,6 +42,7 @@ panels are also Kinetic-owned. Sections may be hidden, reordered, replaced, or e
 settings and plugin registries are live; no section is a permanent hard-coded limit.
 
 Opening a workspace folder populates an expandable file tree without using a native outline view.
+The Explorer creates folders through a Kinetic-drawn dialog and refreshes the window's project tree.
 The dedicated Settings page exposes only controls already connected to editor behavior.
 
 See [`tabs-and-recents.md`](tabs-and-recents.md) for document retention, tab switching, closing, and

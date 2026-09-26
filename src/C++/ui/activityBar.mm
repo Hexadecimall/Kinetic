@@ -95,6 +95,33 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
     self.needsDisplay = YES;
 }
 
+- (void)revealCreatedFolderAtUrl:(NSURL*)url {
+    NSURL* parent = [url URLByDeletingLastPathComponent];
+    while (parent != nil && ![parent.path isEqualToString:_workspaceUrl.path]) {
+        [_expandedPaths addObject:parent.path];
+        NSURL* next = [parent URLByDeletingLastPathComponent];
+        if ([next.path isEqualToString:parent.path]) {
+            break;
+        }
+        parent = next;
+    }
+    [self reloadTreeEntries];
+    for (NSUInteger index = 0; index < _treeEntries.count; ++index) {
+        if ([_treeEntries[index].url.path isEqualToString:url.path]) {
+            CGFloat rowTop = index * kTreeRowHeight;
+            CGFloat rowBottom = (index + 1) * kTreeRowHeight;
+            CGFloat visibleHeight = MAX(1.0, NSHeight(self.bounds) - kTreeStartY);
+            if (rowTop < _treeScrollOffset) {
+                _treeScrollOffset = rowTop;
+            } else if (rowBottom > _treeScrollOffset + visibleHeight) {
+                _treeScrollOffset = MIN([self maximumTreeScroll], rowBottom - visibleHeight);
+            }
+            break;
+        }
+    }
+    self.needsDisplay = YES;
+}
+
 - (void)activateSection:(KineticActivitySection)section animated:(BOOL)animated {
     if (section == KineticActivitySectionNone) {
         if (animated) {
@@ -338,20 +365,56 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
     return NSMakeRect(kRailWidth + 12.0, y, kPanelWidth - 24.0, 27.0);
 }
 
+- (NSRect)newFolderButtonRect {
+    return NSMakeRect(kRailWidth + kPanelWidth - 30.0, 183.0, 23.0, 20.0);
+}
+
 - (NSRect)treeRowRectAtIndex:(NSUInteger)index {
     return NSMakeRect(kRailWidth + 7.0, kTreeStartY + index * kTreeRowHeight - _treeScrollOffset,
                       kPanelWidth - 14.0, kTreeRowHeight);
 }
 
-- (void)drawSectionHeader:(NSString*)title atY:(CGFloat)y attributes:(NSDictionary*)attributes {
+- (void)drawSectionHeader:(NSString*)title
+                      atY:(CGFloat)y
+               attributes:(NSDictionary*)attributes
+            trailingInset:(CGFloat)trailingInset {
     NSRect headerRect = NSMakeRect(kRailWidth + 1.0, y, kPanelWidth - 1.0, 24.0);
     [activityColor(48, 59, 74, 0.22) setFill];
     NSRectFill(headerRect);
     [activityColor(75, 89, 109, 0.24) setFill];
     NSRectFill(NSMakeRect(NSMinX(headerRect), NSMaxY(headerRect) - 1.0, NSWidth(headerRect), 1.0));
 
-    [title drawInRect:NSMakeRect(kRailWidth + 14.0, y + 5.0, kPanelWidth - 28.0, 16.0)
+    [title drawInRect:NSMakeRect(kRailWidth + 14.0, y + 5.0, kPanelWidth - 28.0 - trailingInset,
+                                 16.0)
         withAttributes:attributes];
+}
+
+- (void)drawSectionHeader:(NSString*)title atY:(CGFloat)y attributes:(NSDictionary*)attributes {
+    [self drawSectionHeader:title atY:y attributes:attributes trailingInset:0.0];
+}
+
+- (void)drawNewFolderButton {
+    NSRect rect = [self newFolderButtonRect];
+    if (_hoveredPanelAction == 2) {
+        [activityColor(77, 141, 255, 0.16) setFill];
+        [[NSBezierPath bezierPathWithRoundedRect:rect xRadius:3.0 yRadius:3.0] fill];
+    }
+    NSBezierPath* icon = [NSBezierPath bezierPath];
+    icon.lineWidth = 1.15;
+    icon.lineCapStyle = NSLineCapStyleRound;
+    [icon moveToPoint:NSMakePoint(NSMinX(rect) + 3.0, NSMinY(rect) + 8.0)];
+    [icon lineToPoint:NSMakePoint(NSMinX(rect) + 7.0, NSMinY(rect) + 8.0)];
+    [icon lineToPoint:NSMakePoint(NSMinX(rect) + 9.0, NSMinY(rect) + 6.0)];
+    [icon lineToPoint:NSMakePoint(NSMinX(rect) + 14.0, NSMinY(rect) + 6.0)];
+    [icon moveToPoint:NSMakePoint(NSMinX(rect) + 3.0, NSMinY(rect) + 8.0)];
+    [icon lineToPoint:NSMakePoint(NSMinX(rect) + 3.0, NSMinY(rect) + 15.0)];
+    [icon lineToPoint:NSMakePoint(NSMinX(rect) + 13.0, NSMinY(rect) + 15.0)];
+    [icon moveToPoint:NSMakePoint(NSMinX(rect) + 16.0, NSMinY(rect) + 8.0)];
+    [icon lineToPoint:NSMakePoint(NSMinX(rect) + 16.0, NSMinY(rect) + 14.0)];
+    [icon moveToPoint:NSMakePoint(NSMinX(rect) + 13.0, NSMinY(rect) + 11.0)];
+    [icon lineToPoint:NSMakePoint(NSMinX(rect) + 19.0, NSMinY(rect) + 11.0)];
+    [activityColor(155, 181, 220) setStroke];
+    [icon stroke];
 }
 
 - (void)drawPanelButtonInRect:(NSRect)rect title:(NSString*)title hovered:(BOOL)hovered {
@@ -409,7 +472,10 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
                         hovered:_hoveredPanelAction == 1];
 
     NSString* workspaceTitle = _workspaceUrl.lastPathComponent ?: @"NO FOLDER OPEN";
-    [self drawSectionHeader:workspaceTitle.uppercaseString atY:181.0 attributes:headingAttributes];
+    [self drawSectionHeader:workspaceTitle.uppercaseString
+                        atY:181.0
+                 attributes:headingAttributes
+              trailingInset:_workspaceUrl == nil ? 0.0 : 24.0];
     if (_workspaceUrl == nil) {
         [@"Open a folder to show its files."
                 drawInRect:NSMakeRect(kRailWidth + 14.0, kTreeStartY + 7.0, kPanelWidth - 28.0,
@@ -417,6 +483,7 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
             withAttributes:mutedAttributes];
         return;
     }
+    [self drawNewFolderButton];
 
     NSRect treeClip = NSMakeRect(kRailWidth + 1.0, kTreeStartY, kPanelWidth - 1.0,
                                  MAX(0.0, NSHeight(self.bounds) - kTreeStartY));
@@ -608,6 +675,10 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
             [self.delegate activityBarDidRequestOpenFolder:self];
             return;
         }
+        if (_workspaceUrl != nil && NSPointInRect(point, [self newFolderButtonRect])) {
+            [self.delegate activityBarDidRequestCreateFolder:self];
+            return;
+        }
         for (NSUInteger index = 0; point.y >= kTreeStartY && index < _treeEntries.count; ++index) {
             if (!NSPointInRect(point, [self treeRowRectAtIndex:index])) {
                 continue;
@@ -665,6 +736,8 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
             panelAction = 0;
         } else if (NSPointInRect(point, [self panelButtonRectAtY:143.0])) {
             panelAction = 1;
+        } else if (_workspaceUrl != nil && NSPointInRect(point, [self newFolderButtonRect])) {
+            panelAction = 2;
         } else {
             for (NSUInteger index = 0; point.y >= kTreeStartY && index < _treeEntries.count;
                  ++index) {

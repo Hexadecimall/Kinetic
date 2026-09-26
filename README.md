@@ -7,10 +7,10 @@
 </p>
 
 > [!IMPORTANT]
-> Kinetic `0.8.3` is an early functional preview. Editing, retained multi-document tabs, persisted
+> Kinetic `0.9.0` is an early functional preview. Editing, retained multi-document tabs, persisted
 > recent projects, mouse selection, undo/redo, custom context menus, the activity bar, file
-> browsing, opening, saving, scrolling, shortcuts, and the macOS application shell work, but
-> production editor features are still under active development.
+> browsing, folder creation, opening, saving, scrolling, shortcuts, and the macOS application shell
+> work, but production editor features are still under active development.
 
 ## Direction
 

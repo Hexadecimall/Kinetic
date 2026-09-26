@@ -7,6 +7,7 @@
 - (void)openFile;
 - (void)openFileAtUrl:(NSURL*)fileUrl;
 - (void)openFolder;
+- (void)createFolder;
 - (void)openRecentProjectAtUrl:(NSURL*)projectUrl;
 - (void)saveFile;
 - (BOOL)closeActiveTab;

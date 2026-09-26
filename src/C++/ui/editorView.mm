@@ -191,6 +191,10 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     [_activityBar applyWorkspaceUiState:state];
 }
 
+- (void)revealCreatedFolderAtUrl:(NSURL*)url {
+    [_activityBar revealCreatedFolderAtUrl:url];
+}
+
 - (void)setActivitySection:(KineticActivitySection)section animated:(BOOL)animated {
     _settingsVisible = section == KineticActivitySectionSettings;
     [_activityBar activateSection:section animated:animated];
@@ -1161,6 +1165,11 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
 - (void)activityBarDidRequestOpenFolder:(KineticActivityBar*)activityBar {
     (void)activityBar;
     [self.commandHandler openFolder];
+}
+
+- (void)activityBarDidRequestCreateFolder:(KineticActivityBar*)activityBar {
+    (void)activityBar;
+    [self.commandHandler createFolder];
 }
 
 - (void)activityBar:(KineticActivityBar*)activityBar didRequestOpenUrl:(NSURL*)url {
