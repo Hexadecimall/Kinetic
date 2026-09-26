@@ -2,7 +2,7 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.7.1 - Unreleased
+## 0.7.2 - Unreleased
 
 ### Added
 
@@ -30,8 +30,8 @@ All notable Kinetic changes are recorded here. Versions use `main.feature.patch`
 
 ### Fixed
 
-- Kept activity-panel content visible during its closing animation and added section header bands,
-  dividers, and a contained current-document row for clearer panel hierarchy.
+- Kept activity-panel content visible during its closing animation and added compact section header
+  strips and dividers for clearer hierarchy without heavy accordion styling.
 - Clipped activity-panel text, aligned plugin content, added real panel buttons, and kept the arrow
   cursor over activity controls.
 - Corrected natural scrolling direction in the file browser.

@@ -284,23 +284,13 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
 }
 
 - (void)drawSectionHeader:(NSString*)title atY:(CGFloat)y attributes:(NSDictionary*)attributes {
-    NSRect headerRect = NSMakeRect(kRailWidth + 1.0, y, kPanelWidth - 1.0, 28.0);
-    [activityColor(48, 59, 74, 0.72) setFill];
+    NSRect headerRect = NSMakeRect(kRailWidth + 1.0, y, kPanelWidth - 1.0, 24.0);
+    [activityColor(48, 59, 74, 0.22) setFill];
     NSRectFill(headerRect);
-    [activityColor(75, 89, 109, 0.34) setFill];
+    [activityColor(75, 89, 109, 0.24) setFill];
     NSRectFill(NSMakeRect(NSMinX(headerRect), NSMaxY(headerRect) - 1.0, NSWidth(headerRect), 1.0));
 
-    NSBezierPath* chevron = [NSBezierPath bezierPath];
-    chevron.lineWidth = 1.1;
-    chevron.lineCapStyle = NSLineCapStyleRound;
-    chevron.lineJoinStyle = NSLineJoinStyleRound;
-    [chevron moveToPoint:NSMakePoint(kRailWidth + 12.0, y + 12.0)];
-    [chevron lineToPoint:NSMakePoint(kRailWidth + 15.0, y + 15.0)];
-    [chevron lineToPoint:NSMakePoint(kRailWidth + 18.0, y + 12.0)];
-    [activityColor(151, 165, 184) setStroke];
-    [chevron stroke];
-
-    [title drawInRect:NSMakeRect(kRailWidth + 25.0, y + 7.0, kPanelWidth - 35.0, 16.0)
+    [title drawInRect:NSMakeRect(kRailWidth + 14.0, y + 5.0, kPanelWidth - 28.0, 16.0)
         withAttributes:attributes];
 }
 
@@ -346,13 +336,9 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
     truncatingStyle.lineBreakMode = NSLineBreakByTruncatingTail;
     NSMutableDictionary* documentAttributes = [bodyAttributes mutableCopy];
     documentAttributes[NSParagraphStyleAttributeName] = truncatingStyle;
-    NSRect documentRect = NSMakeRect(kRailWidth + 9.0, 79.0, kPanelWidth - 18.0, 23.0);
-    [activityColor(53, 64, 80, 0.52) setFill];
-    [[NSBezierPath bezierPathWithRoundedRect:documentRect xRadius:3.0 yRadius:3.0] fill];
     [activityColor(103, 158, 255, 0.68) setFill];
-    NSRectFill(NSMakeRect(NSMinX(documentRect), NSMinY(documentRect) + 5.0, 1.5,
-                          NSHeight(documentRect) - 10.0));
-    [_documentTitle drawInRect:NSMakeRect(kRailWidth + 16.0, 83.0, kPanelWidth - 30.0, 17.0)
+    NSRectFill(NSMakeRect(kRailWidth + 10.0, 78.0, 1.5, 15.0));
+    [_documentTitle drawInRect:NSMakeRect(kRailWidth + 18.0, 77.0, kPanelWidth - 32.0, 18.0)
                 withAttributes:documentAttributes];
 
     [self drawPanelButtonInRect:[self panelButtonRectAtY:110.0]

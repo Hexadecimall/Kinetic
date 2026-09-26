@@ -9,9 +9,9 @@ before the panel reaches the rail.
 
 Explorer labels the current document as Open in Editor and provides distinct Open File and Open
 Folder actions. Opening a folder builds a sorted, expandable, scrollable file tree; selecting a file
-opens it in the editor. Low-contrast header bands and dividers group the open document, workspace,
-search, repository, and installed-plugin sections without turning them into heavy cards. Search,
-Source Control/GitHub, and Plugins remain honest integration
+opens it in the editor. Compact low-contrast header strips and single-edge dividers group the open
+document, workspace, search, repository, and installed-plugin sections without accordion styling or
+non-functional disclosure affordances. Search, Source Control/GitHub, and Plugins remain honest integration
 surfaces: they display current availability without pretending that workspace indexing, repository
 discovery, account connections, or third-party plugin loading already exist.
 

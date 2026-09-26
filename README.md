@@ -7,7 +7,7 @@
 </p>
 
 > [!IMPORTANT]
-> Kinetic `0.7.1` is an early functional preview. Editing, mouse selection, undo/redo, custom
+> Kinetic `0.7.2` is an early functional preview. Editing, mouse selection, undo/redo, custom
 > context menus, the activity bar, file browsing, opening, saving, scrolling, shortcuts, and the
 > macOS application shell work, but production editor features are still under active development.
 
