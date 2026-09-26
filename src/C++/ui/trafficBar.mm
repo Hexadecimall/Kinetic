@@ -9,6 +9,7 @@ constexpr CGFloat kControlStart = 11.0;
 constexpr CGFloat kMenuStart = 84.0;
 constexpr NSInteger kNoHit = -1;
 constexpr NSInteger kMenuHitBase = 100;
+constexpr NSInteger kSearchHit = 200;
 
 NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
     return [NSColor colorWithSRGBRed:red / 255.0 green:green / 255.0 blue:blue / 255.0 alpha:alpha];
@@ -276,6 +277,23 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
     return NO;
 }
 
+- (void)setShowsSearch:(BOOL)showsSearch {
+    _showsSearch = showsSearch;
+    if (!showsSearch && _hoveredItem == kSearchHit) {
+        _hoveredItem = kNoHit;
+    }
+    self.needsDisplay = YES;
+}
+
+- (void)setSearchActive:(BOOL)searchActive {
+    _searchActive = searchActive;
+    self.needsDisplay = YES;
+}
+
+- (NSRect)searchButtonRect {
+    return NSMakeRect(NSWidth(self.bounds) - 43.0, 3.0, 34.0, kBarHeight - 6.0);
+}
+
 - (NSRect)controlRectAtIndex:(NSInteger)index {
     const CGFloat x = kControlStart + index * (kControlSize + kControlGap);
     const CGFloat y = (NSHeight(self.bounds) - kControlSize) * 0.5 + 2.0;
@@ -373,6 +391,22 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
         NSPoint point = NSMakePoint(NSMinX(rect) + 7.0, NSMidY(rect) - size.height * 0.5);
         [title drawAtPoint:point withAttributes:attributes];
     }
+    if (_showsSearch) {
+        NSRect button = [self searchButtonRect];
+        if (_searchActive || _hoveredItem == kSearchHit) {
+            [color(77, 141, 255, _searchActive ? 0.19 : 0.10) setFill];
+            [[NSBezierPath bezierPathWithRoundedRect:button xRadius:5.0 yRadius:5.0] fill];
+        }
+        NSBezierPath* icon = [NSBezierPath bezierPath];
+        icon.lineWidth = 1.35;
+        [icon appendBezierPathWithOvalInRect:NSMakeRect(NSMidX(button) - 6.0, NSMidY(button) - 6.0,
+                                                        10.0, 10.0)];
+        [icon moveToPoint:NSMakePoint(NSMidX(button) + 2.5, NSMidY(button) + 2.5)];
+        [icon lineToPoint:NSMakePoint(NSMidX(button) + 7.0, NSMidY(button) + 7.0)];
+        [color(_searchActive ? 130 : 174, _searchActive ? 178 : 190, _searchActive ? 255 : 211)
+            setStroke];
+        [icon stroke];
+    }
 }
 
 - (void)updateTrackingAreas {
@@ -390,6 +424,9 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
 }
 
 - (NSInteger)hitAtPoint:(NSPoint)point {
+    if (_showsSearch && NSPointInRect(point, [self searchButtonRect])) {
+        return kSearchHit;
+    }
     for (NSInteger index = 0; index < 3; ++index) {
         if (NSPointInRect(point, [self controlRectAtIndex:index])) {
             return index;
@@ -449,6 +486,10 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
     } else if (hit == 2) {
         [self.window toggleFullScreen:nil];
     } else if (hit >= kMenuHitBase) {
+        if (hit == kSearchHit) {
+            [self.commandHandler toggleFileSearch];
+            return;
+        }
         [self openMenu];
     } else if (event.clickCount == 2) {
         [self.window performZoom:nil];

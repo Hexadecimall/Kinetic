@@ -80,7 +80,6 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     BOOL _searchAnimating;
     BOOL _searchClosePending;
     BOOL _searchReopenPending;
-    BOOL _searchHovered;
     BOOL _dirty;
     NSURL* _fileUrl;
     CGFloat _verticalScroll;
@@ -160,7 +159,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         [self addSubview:_activityBar];
         _searchPopover = [[KineticSearchPopover alloc]
             initWithFrame:NSMakeRect(MAX(8.0, NSWidth(frameRect) - kSearchPopoverWidth - 12.0),
-                                     72.0, kSearchPopoverWidth, 165.0)];
+                                     38.0, kSearchPopoverWidth, 165.0)];
         _searchPopover.delegate = self;
         _searchPopover.hidden = YES;
         _searchPopover.autoresizingMask = NSViewMinXMargin;
@@ -256,6 +255,10 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     return _searchPopover.scope;
 }
 
+- (BOOL)searchOpen {
+    return _searchOpen;
+}
+
 - (void)applyWorkspaceUiState:(NSDictionary*)state {
     [_activityBar applyWorkspaceUiState:state];
 }
@@ -267,7 +270,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     _searchPopover.hidden = !_searchOpen;
     _searchPopover.alphaValue = 1.0;
     _searchPopover.frame = NSMakeRect(MAX(8.0, NSWidth(self.bounds) - kSearchPopoverWidth - 12.0),
-                                      72.0, kSearchPopoverWidth, _searchPopover.preferredHeight);
+                                      38.0, kSearchPopoverWidth, _searchPopover.preferredHeight);
     if (_searchPopover.scope == KineticSearchScopeFile) {
         [self refreshFileSearch];
     }
@@ -289,6 +292,14 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 - (void)focusFileSearch {
     [_searchPopover selectScope:KineticSearchScopeFile];
     [self openSearch];
+}
+
+- (void)toggleFileSearch {
+    if (_searchOpen) {
+        [self closeSearch];
+    } else {
+        [self focusFileSearch];
+    }
 }
 
 - (void)focusSearchQuery {
@@ -317,10 +328,6 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     _searchPopover.frame = frame;
 }
 
-- (NSRect)searchButtonRect {
-    return NSMakeRect(NSWidth(self.bounds) - 43.0, kTabBarY + 3.0, 34.0, kTabBarHeight - 6.0);
-}
-
 - (void)openSearch {
     if (_searchAnimating) {
         if (_searchOpen) {
@@ -332,10 +339,11 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     }
     if (!_searchOpen && !_searchAnimating) {
         _searchOpen = YES;
+        [self.commandHandler searchVisibilityDidChange:YES];
         _searchAnimating = YES;
         NSRect finalFrame = NSMakeRect(MAX(8.0, NSWidth(self.bounds) - kSearchPopoverWidth - 12.0),
-                                       72.0, kSearchPopoverWidth, _searchPopover.preferredHeight);
-        _searchPopover.frame = NSMakeRect(NSMinX(finalFrame), 67.0, NSWidth(finalFrame), 26.0);
+                                       38.0, kSearchPopoverWidth, _searchPopover.preferredHeight);
+        _searchPopover.frame = NSMakeRect(NSMinX(finalFrame), 33.0, NSWidth(finalFrame), 26.0);
         _searchPopover.alphaValue = 0.0;
         _searchPopover.hidden = NO;
         [KineticTween animateView:_searchPopover
@@ -368,9 +376,10 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         return;
     }
     _searchOpen = NO;
+    [self.commandHandler searchVisibilityDidChange:NO];
     _searchAnimating = YES;
     NSRect closingFrame =
-        NSMakeRect(NSMinX(_searchPopover.frame), 67.0, NSWidth(_searchPopover.frame), 26.0);
+        NSMakeRect(NSMinX(_searchPopover.frame), 33.0, NSWidth(_searchPopover.frame), 26.0);
     [KineticTween animateView:_searchPopover
                       toFrame:closingFrame
                       toAlpha:0.0
@@ -1215,21 +1224,6 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         }
     }
 
-    NSRect searchButton = [self searchButtonRect];
-    if (_searchOpen || _searchHovered) {
-        [editorColor(77, 141, 255, _searchOpen ? 0.19 : 0.10) setFill];
-        [[NSBezierPath bezierPathWithRoundedRect:searchButton xRadius:5.0 yRadius:5.0] fill];
-    }
-    NSBezierPath* searchIcon = [NSBezierPath bezierPath];
-    searchIcon.lineWidth = 1.35;
-    [searchIcon appendBezierPathWithOvalInRect:NSMakeRect(NSMidX(searchButton) - 6.0,
-                                                          NSMidY(searchButton) - 6.0, 10.0, 10.0)];
-    [searchIcon moveToPoint:NSMakePoint(NSMidX(searchButton) + 2.5, NSMidY(searchButton) + 2.5)];
-    [searchIcon lineToPoint:NSMakePoint(NSMidX(searchButton) + 7.0, NSMidY(searchButton) + 7.0)];
-    [editorColor(_searchOpen ? 130 : 174, _searchOpen ? 178 : 190, _searchOpen ? 255 : 211)
-        setStroke];
-    [searchIcon stroke];
-
     if (_settingsVisible) {
         [self drawSettingsPage];
         return;
@@ -1379,14 +1373,6 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 
 - (void)mouseDown:(NSEvent*)event {
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
-    if (NSPointInRect(point, [self searchButtonRect])) {
-        if (_searchOpen) {
-            [self closeSearch];
-        } else {
-            [self focusFileSearch];
-        }
-        return;
-    }
     if (_searchOpen) {
         [self closeSearch];
     }
@@ -1578,11 +1564,6 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 
 - (void)mouseMoved:(NSEvent*)event {
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
-    BOOL searchHovered = NSPointInRect(point, [self searchButtonRect]);
-    if (_searchHovered != searchHovered) {
-        _searchHovered = searchHovered;
-        self.needsDisplay = YES;
-    }
     NSInteger settingsControl = _settingsVisible ? [self settingsControlAtPoint:point] : -1;
     if (settingsControl != _settingsHoveredControl) {
         _settingsHoveredControl = settingsControl;

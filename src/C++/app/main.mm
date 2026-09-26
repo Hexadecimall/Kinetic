@@ -253,6 +253,8 @@
     [nextEditor applySearchUiState:self.searchUiState];
     [nextEditor setActivitySection:self.activitySection animated:NO];
     self.editor = nextEditor;
+    self.trafficBar.showsSearch = YES;
+    self.trafficBar.searchActive = nextEditor.searchOpen;
     [self updateTabMetadata];
     if (previousEditor == nextEditor && nextEditor.superview != nil) {
         [self.window makeFirstResponder:nextEditor];
@@ -409,6 +411,18 @@
     }
     [self.editor focusFileSearch];
     self.searchUiState = self.editor.searchUiState;
+}
+
+- (void)toggleFileSearch {
+    if (self.editor == nil) {
+        return;
+    }
+    [self.editor toggleFileSearch];
+    self.searchUiState = self.editor.searchUiState;
+}
+
+- (void)searchVisibilityDidChange:(BOOL)visible {
+    self.trafficBar.searchActive = visible;
 }
 
 - (void)openSearchResult:(NSDictionary*)result {
@@ -620,6 +634,8 @@
     }
 
     self.home.hidden = NO;
+    self.trafficBar.showsSearch = NO;
+    self.trafficBar.searchActive = NO;
     self.home.alphaValue = 0.0;
     NSRect homeFrame = self.home.frame;
     self.home.frame = NSOffsetRect(homeFrame, 0.0, 6.0);

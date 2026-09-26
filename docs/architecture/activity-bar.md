@@ -20,8 +20,9 @@ styling or non-functional disclosure affordances. Source Control/GitHub and Plug
 integration surfaces: they do not pretend repository discovery, account connections, or third-party
 plugin loading already exist.
 
-Search lives in a Kinetic-drawn dropdown anchored to the top-right of the editor tab strip. The
-button and Command-F open in-file search; Command-Shift-F opens project search. Both scopes show
+Search lives in a Kinetic-drawn dropdown anchored beneath the Search icon at the right edge of the
+custom titlebar. The icon appears only while an editor is open; it no longer occupies the tab strip.
+The button and Command-F open in-file search; Command-Shift-F opens project search. Both scopes show
 live result rows and support match case, keyboard selection, and opening the selected match. In-file
 search finds each occurrence, including multiple on one line, and highlights visible matches in the
 editor. Project search scans filenames and UTF-8 lines off the UI thread, including unsaved text in
@@ -29,8 +30,8 @@ open files. Its query and results follow the window's project across tabs. Hidde
 contents, common generated folders, files over 1 MiB, and binary files are skipped; results stop at
 300 matches or 10,000 scanned files.
 
-Settings opens a dedicated editor page instead of a narrow side panel. The first live controls cover
-font size, line height, line-number visibility, scroll-indicator visibility, and natural scrolling.
+Settings opens a dedicated editor page instead of a narrow side panel. Live controls cover editor
+type, scrolling, syntax highlighting, indentation, and delimiter pairing.
 
 The rail, panel, icons, selection indicator, hover treatment, section headers, dimensions, opening
 and closing animation durations, visibility, section order, and contributed sections belong to the

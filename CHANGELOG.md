@@ -2,7 +2,14 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.13.0 - Unreleased
+## 0.14.0 - Unreleased
+
+### Changed
+
+- Moved the editor Search icon from the tab strip to the custom titlebar. The Search dropdown now
+  opens directly beneath it, while the icon remains hidden on Home and reflects open/hover state.
+
+## 0.13.0
 
 ### Added
 

@@ -22,6 +22,7 @@
 @property(nonatomic, readonly, copy) NSDictionary* workspaceUiState;
 @property(nonatomic, readonly, copy) NSDictionary* searchUiState;
 @property(nonatomic, readonly) KineticSearchScope searchScope;
+@property(nonatomic, readonly) BOOL searchOpen;
 - (void)applyWorkspaceUiState:(NSDictionary*)state;
 - (void)applySearchUiState:(NSDictionary*)state;
 - (void)applySearchResults:(NSArray<NSDictionary*>*)results
@@ -29,6 +30,7 @@
                  truncated:(BOOL)truncated;
 - (void)focusWorkspaceSearch;
 - (void)focusFileSearch;
+- (void)toggleFileSearch;
 - (void)focusSearchQuery;
 - (void)revealLine:(NSUInteger)line column:(NSUInteger)column length:(NSUInteger)length;
 - (void)revealCreatedFolderAtUrl:(NSURL*)url;
