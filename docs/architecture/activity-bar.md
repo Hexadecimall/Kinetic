@@ -6,6 +6,8 @@ side panel; selecting it again collapses the panel. The rail stays close to the 
 so it reads as navigation rather than a separate dark column. Opening and closing use the same
 ease-out motion; panel content remains rendered through the closing tween instead of disappearing
 before the panel reaches the rail.
+The editor viewport, gutter, caret, selections, hit testing, and scroll bounds follow the panel's
+live animated width, so expanded workspace UI never overlays or clips document text.
 
 Explorer labels the current document as Open in Editor and provides distinct Open File and Open
 Folder actions. Opening a folder builds a sorted, expandable, scrollable file tree; selecting a file

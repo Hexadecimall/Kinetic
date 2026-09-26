@@ -234,6 +234,18 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     };
 }
 
+- (CGFloat)editorContentX {
+    return NSMaxX(_activityBar.frame);
+}
+
+- (CGFloat)editorTextOriginX {
+    return MAX(kTextOriginX, [self editorContentX] + 54.0);
+}
+
+- (CGFloat)editorViewportWidth {
+    return MAX(1.0, NSWidth(self.bounds) - [self editorTextOriginX] - 18.0);
+}
+
 - (NSArray<NSString*>*)documentLines {
     return [_text componentsSeparatedByString:@"\n"];
 }
@@ -418,7 +430,7 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     }
 
     NSString* line = lines[(NSUInteger)lineIndex];
-    CGFloat targetX = point.x - kTextOriginX + _horizontalScroll;
+    CGFloat targetX = point.x - [self editorTextOriginX] + _horizontalScroll;
     if (targetX <= 0.0 || line.length == 0) {
         return lineStart;
     }
@@ -453,7 +465,7 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     for (NSString* line in [self documentLines]) {
         widestLine = MAX(widestLine, [line sizeWithAttributes:attributes].width);
     }
-    return MAX(0.0, widestLine - MAX(1.0, NSWidth(self.bounds) - 116.0));
+    return MAX(0.0, widestLine - [self editorViewportWidth]);
 }
 
 - (void)clampScroll {
@@ -483,7 +495,7 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     NSString* lineText = [self documentLines][line];
     NSString* beforeCaret = [lineText substringToIndex:MIN(column, lineText.length)];
     CGFloat caretX = [beforeCaret sizeWithAttributes:[self editorTextAttributes]].width;
-    CGFloat viewportWidth = MAX(1.0, NSWidth(self.bounds) - 116.0);
+    CGFloat viewportWidth = [self editorViewportWidth];
     if (caretX < _horizontalScroll) {
         _horizontalScroll = caretX;
     } else if (caretX + 10.0 > _horizontalScroll + viewportWidth) {
@@ -921,9 +933,10 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     };
 
     NSArray<NSString*>* lines = [self documentLines];
-    NSRect contentRect = NSMakeRect(KineticActivityBar.railWidth, 68.0,
-                                    NSWidth(self.bounds) - KineticActivityBar.railWidth,
-                                    NSHeight(self.bounds) - 68.0);
+    CGFloat contentX = [self editorContentX];
+    CGFloat textOriginX = [self editorTextOriginX];
+    NSRect contentRect =
+        NSMakeRect(contentX, 68.0, NSWidth(self.bounds) - contentX, NSHeight(self.bounds) - 68.0);
     [NSGraphicsContext saveGraphicsState];
     [[NSBezierPath bezierPathWithRect:contentRect] addClip];
     NSUInteger lineStart = 0;
@@ -938,7 +951,7 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
         if (_showLineNumbers) {
             NSString* lineNumber = [NSString stringWithFormat:@"%lu", (unsigned long)(index + 1)];
             NSSize numberSize = [lineNumber sizeWithAttributes:lineNumberAttributes];
-            [lineNumber drawAtPoint:NSMakePoint(76.0 - numberSize.width, y)
+            [lineNumber drawAtPoint:NSMakePoint(textOriginX - 16.0 - numberSize.width, y)
                      withAttributes:lineNumberAttributes];
         }
         NSRange selection = [self selectionRange];
@@ -955,7 +968,7 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
             NSString* selectedText =
                 [line substringWithRange:NSMakeRange(segmentStart - currentLineStart,
                                                      segmentEnd - segmentStart)];
-            CGFloat selectionX = kTextOriginX - _horizontalScroll +
+            CGFloat selectionX = textOriginX - _horizontalScroll +
                                  [beforeSelection sizeWithAttributes:textAttributes].width;
             CGFloat selectionWidth = [selectedText sizeWithAttributes:textAttributes].width;
             if (selectsNewline) {
@@ -964,7 +977,7 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
             [editorColor(77, 141, 255, 0.34) setFill];
             NSRectFill(NSMakeRect(floor(selectionX), y, MAX(1.5, selectionWidth), _lineHeight));
         }
-        [line drawAtPoint:NSMakePoint(kTextOriginX - _horizontalScroll, y)
+        [line drawAtPoint:NSMakePoint(textOriginX - _horizontalScroll, y)
             withAttributes:textAttributes];
     }
 
@@ -972,7 +985,7 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     NSArray<NSString*>* caretLines = [beforeCaret componentsSeparatedByString:@"\n"];
     NSString* caretLine = caretLines.lastObject ?: @"";
     CGFloat caretX =
-        kTextOriginX - _horizontalScroll + [caretLine sizeWithAttributes:textAttributes].width;
+        textOriginX - _horizontalScroll + [caretLine sizeWithAttributes:textAttributes].width;
     CGFloat caretY = kFirstLineY + (caretLines.count - 1) * _lineHeight - _verticalScroll;
     [editorColor(111, 166, 255) setFill];
     NSRectFill(NSMakeRect(floor(caretX), caretY + 1.0, 1.5, 16.0));
@@ -995,8 +1008,8 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
 
     CGFloat maximumHorizontal = [self maximumHorizontalScroll];
     if (_showScrollIndicators && maximumHorizontal > 0.0) {
-        NSRect track = NSMakeRect(kTextOriginX, NSHeight(self.bounds) - 6.0,
-                                  MAX(20.0, NSWidth(self.bounds) - 104.0), 3.0);
+        NSRect track = NSMakeRect(textOriginX, NSHeight(self.bounds) - 6.0,
+                                  MAX(20.0, NSWidth(self.bounds) - textOriginX - 12.0), 3.0);
         CGFloat thumbWidth =
             MAX(32.0, NSWidth(track) * NSWidth(track) / (NSWidth(track) + maximumHorizontal));
         CGFloat thumbX =
@@ -1098,7 +1111,7 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     } else if (point.y > NSHeight(self.bounds) - 8.0) {
         _verticalScroll += _lineHeight;
     }
-    if (point.x < kTextOriginX) {
+    if (point.x < [self editorTextOriginX]) {
         _horizontalScroll -= 12.0;
     } else if (point.x > NSWidth(self.bounds) - 8.0) {
         _horizontalScroll += 12.0;
@@ -1123,8 +1136,8 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
                      cursor:NSCursor.arrowCursor];
         return;
     }
-    NSRect editorRect = NSMakeRect(KineticActivityBar.railWidth, 68.0,
-                                   NSWidth(self.bounds) - KineticActivityBar.railWidth,
+    CGFloat contentX = [self editorContentX];
+    NSRect editorRect = NSMakeRect(contentX, 68.0, NSWidth(self.bounds) - contentX,
                                    MAX(0.0, NSHeight(self.bounds) - 68.0));
     [self addCursorRect:editorRect cursor:NSCursor.IBeamCursor];
     if (_contextMenuVisible) {

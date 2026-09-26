@@ -51,6 +51,7 @@
         _startFrame.size.height + (_endFrame.size.height - _startFrame.size.height) * eased;
     _view.frame = frame;
     _view.alphaValue = _startAlpha + (_endAlpha - _startAlpha) * eased;
+    _view.superview.needsDisplay = YES;
 
     if (progress >= 1.0) {
         [timer invalidate];
