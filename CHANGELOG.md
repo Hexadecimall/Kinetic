@@ -2,10 +2,13 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.9.0 - Unreleased
+## 0.10.0 - Unreleased
 
 ### Added
 
+- Added project-wide Search with Command-Shift-F, live filename and UTF-8 text matches, match-case
+  control, clickable results that open at the matching line, and unsaved open-file text matches.
+- Capped feature and patch version components at 99 with automatic rollover through `1.0.0`.
 - Added an Explorer New Folder action and custom folder-creation dialog with nested destination
   browsing, name validation, duplicate protection, and immediate tree refresh.
 - Retained multi-document tabs with independent text, selection, undo history, scrolling, file URL,

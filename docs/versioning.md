@@ -8,6 +8,9 @@ Kinetic versions use `main.feature.patch`:
 - `patch` increments for compatible bug fixes, polish, documentation corrections, and packaging
   repairs that do not add a feature.
 
+`feature` and `patch` each run from 0 through 99. A patch bump from `0.9.99` becomes `0.10.0`;
+either bump beyond `0.99.99` becomes `1.0.0`. Explicit versions outside these bounds are rejected.
+
 `VERSION` is the release source of truth. CMake reads it directly; Rust package metadata is checked
 against it. Run `./scripts/version check` before committing and packaging.
 
@@ -15,6 +18,7 @@ against it. Run `./scripts/version check` before committing and packaging.
 ./scripts/version show
 ./scripts/version bump feature
 ./scripts/version bump patch
+./scripts/version next patch 0.99.99
 ./scripts/version set 1.0.0
 ```
 

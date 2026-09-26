@@ -51,6 +51,7 @@ set_source_files_properties("${KINETIC_APP_ICON}" PROPERTIES MACOSX_PACKAGE_LOCA
 
 add_executable(
     Kinetic MACOSX_BUNDLE src/C++/app/main.mm src/C++/app/keyboardShortcuts.mm
+                              src/C++/app/workspaceSearch.mm
                               src/C++/ui/activityBar.mm src/C++/ui/editorView.mm
                               src/C++/ui/fileDialog.mm
                               src/C++/ui/homeView.mm
@@ -87,3 +88,10 @@ add_dependencies(Kinetic kinetic_cli)
 enable_testing()
 add_test(NAME kinetic_cli_version COMMAND kinetic_cli --version)
 set_tests_properties(kinetic_cli_version PROPERTIES PASS_REGULAR_EXPRESSION "kinetic ${PROJECT_VERSION}")
+
+add_executable(kineticWorkspaceSearchTests tests/workspaceSearchTests.mm
+                                           src/C++/app/workspaceSearch.mm)
+target_include_directories(kineticWorkspaceSearchTests PRIVATE src/C++/app)
+target_compile_options(kineticWorkspaceSearchTests PRIVATE "-fobjc-arc")
+target_link_libraries(kineticWorkspaceSearchTests PRIVATE "-framework Foundation")
+add_test(NAME kineticWorkspaceSearch COMMAND kineticWorkspaceSearchTests)

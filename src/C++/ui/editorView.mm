@@ -191,6 +191,31 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     [_activityBar applyWorkspaceUiState:state];
 }
 
+- (void)applySearchResults:(NSArray<NSDictionary*>*)results
+                   loading:(BOOL)loading
+                 truncated:(BOOL)truncated {
+    [_activityBar applySearchResults:results loading:loading truncated:truncated];
+}
+
+- (void)focusWorkspaceSearch {
+    [_activityBar focusSearch];
+}
+
+- (void)revealLine:(NSUInteger)line column:(NSUInteger)column length:(NSUInteger)length {
+    NSArray<NSString*>* lines = [self documentLines];
+    NSUInteger targetLine = MIN(MAX(line, 1), lines.count) - 1;
+    NSUInteger index = 0;
+    for (NSUInteger row = 0; row < targetLine; ++row) {
+        index += lines[row].length + 1;
+    }
+    NSUInteger targetColumn = MIN(MAX(column, 1) - 1, lines[targetLine].length);
+    index += targetColumn;
+    _selectionAnchor = index;
+    _caretIndex = index + MIN(length, lines[targetLine].length - targetColumn);
+    [self ensureCaretVisible];
+    self.needsDisplay = YES;
+}
+
 - (void)revealCreatedFolderAtUrl:(NSURL*)url {
     [_activityBar revealCreatedFolderAtUrl:url];
 }
@@ -1175,6 +1200,19 @@ NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
 - (void)activityBar:(KineticActivityBar*)activityBar didRequestOpenUrl:(NSURL*)url {
     (void)activityBar;
     [self.commandHandler openFileAtUrl:url];
+}
+
+- (void)activityBar:(KineticActivityBar*)activityBar
+    didChangeSearchQuery:(NSString*)query
+               matchCase:(BOOL)matchCase {
+    (void)activityBar;
+    [self.commandHandler searchWorkspaceForQuery:query matchCase:matchCase];
+}
+
+- (void)activityBar:(KineticActivityBar*)activityBar
+    didRequestOpenSearchResult:(NSDictionary*)result {
+    (void)activityBar;
+    [self.commandHandler openSearchResult:result];
 }
 
 - (void)activityBar:(KineticActivityBar*)activityBar

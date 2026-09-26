@@ -8,6 +8,9 @@
 - (void)openFileAtUrl:(NSURL*)fileUrl;
 - (void)openFolder;
 - (void)createFolder;
+- (void)searchWorkspaceForQuery:(NSString*)query matchCase:(BOOL)matchCase;
+- (void)focusWorkspaceSearch;
+- (void)openSearchResult:(NSDictionary*)result;
 - (void)openRecentProjectAtUrl:(NSURL*)projectUrl;
 - (void)saveFile;
 - (BOOL)closeActiveTab;

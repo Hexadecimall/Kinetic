@@ -16,10 +16,13 @@ dialog. It creates a folder at the project root or inside a browsed/selected sub
 duplicate and invalid names, and reveals the result in the shared Explorer tree. Creation stays
 inside the active window's project. Compact low-contrast header strips and single-edge dividers
 group the open document, workspace, search, repository, and installed-plugin sections without
-accordion styling or non-functional disclosure affordances. Search, Source Control/GitHub, and
-Plugins remain honest integration surfaces: they display current availability without pretending
-that workspace indexing, repository discovery, account connections, or third-party plugin loading
-already exist.
+accordion styling or non-functional disclosure affordances. Search scans the active project for
+filename and UTF-8 line matches. It searches unsaved text in open files, supports match case,
+and opens a result at its line. Command-Shift-F opens and focuses Search. Search runs off the UI
+thread and shares query/results across tabs in the window. Hidden files, package contents, common
+generated folders, files over 1 MiB, and binary files are skipped; results stop at 300 matches or
+10,000 scanned files. Source Control/GitHub and Plugins remain honest integration surfaces: they do
+not pretend repository discovery, account connections, or third-party plugin loading already exist.
 
 Settings opens a dedicated editor page instead of a narrow side panel. The first live controls cover
 font size, line height, line-number visibility, scroll-indicator visibility, and natural scrolling.

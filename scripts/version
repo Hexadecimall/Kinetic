@@ -7,8 +7,43 @@ scriptDir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 currentVersion=$(sed -n '1p' "$KINETIC_ROOT/VERSION")
 
 validateVersion() {
-    printf '%s\n' "$1" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' ||
-        kinetic_die "version must use main.feature.patch"
+    printf '%s\n' "$1" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' ||
+        kinetic_die "version must use main.feature.patch without leading zeroes"
+    versionRemainder=${1#*.}
+    versionFeature=${versionRemainder%%.*}
+    versionPatch=${versionRemainder#*.}
+    [ "$versionFeature" -le 99 ] && [ "$versionPatch" -le 99 ] ||
+        kinetic_die "feature and patch numbers must be 0 through 99"
+}
+
+nextVersion() {
+    validateVersion "$1"
+    nextRemainder=${1#*.}
+    nextMain=${1%%.*}
+    nextFeature=${nextRemainder%%.*}
+    nextPatch=${nextRemainder#*.}
+    case "$2" in
+        main) nextMain=$((nextMain + 1)); nextFeature=0; nextPatch=0 ;;
+        feature)
+            if [ "$nextFeature" -eq 99 ]; then
+                nextMain=$((nextMain + 1)); nextFeature=0
+            else
+                nextFeature=$((nextFeature + 1))
+            fi
+            nextPatch=0
+            ;;
+        patch)
+            if [ "$nextPatch" -lt 99 ]; then
+                nextPatch=$((nextPatch + 1))
+            elif [ "$nextFeature" -lt 99 ]; then
+                nextFeature=$((nextFeature + 1)); nextPatch=0
+            else
+                nextMain=$((nextMain + 1)); nextFeature=0; nextPatch=0
+            fi
+            ;;
+        *) kinetic_die "bump target must be main, feature, or patch" ;;
+    esac
+    printf '%s.%s.%s\n' "$nextMain" "$nextFeature" "$nextPatch"
 }
 
 setVersion() {
@@ -65,23 +100,14 @@ case "${1:-show}" in
         ;;
     bump)
         [ "$#" -eq 2 ] || kinetic_die "usage: scripts/version bump main|feature|patch"
-        bumpTarget=$2
-        oldIfs=$IFS
-        IFS=.
-        set -- $currentVersion
-        IFS=$oldIfs
-        mainNumber=$1
-        featureNumber=$2
-        patchNumber=$3
-        case "$bumpTarget" in
-            main) mainNumber=$((mainNumber + 1)); featureNumber=0; patchNumber=0 ;;
-            feature) featureNumber=$((featureNumber + 1)); patchNumber=0 ;;
-            patch) patchNumber=$((patchNumber + 1)) ;;
-            *) kinetic_die "bump target must be main, feature, or patch" ;;
-        esac
-        setVersion "$mainNumber.$featureNumber.$patchNumber"
+        setVersion "$(nextVersion "$currentVersion" "$2")"
+        ;;
+    next)
+        [ "$#" -ge 2 ] && [ "$#" -le 3 ] ||
+            kinetic_die "usage: scripts/version next main|feature|patch [main.feature.patch]"
+        nextVersion "${3:-$currentVersion}" "$2"
         ;;
     *)
-        kinetic_die "usage: scripts/version show|check|set|bump"
+        kinetic_die "usage: scripts/version show|check|set|bump|next"
         ;;
 esac

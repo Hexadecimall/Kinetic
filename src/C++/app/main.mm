@@ -9,6 +9,7 @@
 #include "kineticCommands.h"
 #include "trafficBar.h"
 #include "tween.h"
+#include "workspaceSearch.h"
 
 @interface KineticApplication : NSApplication
 @end
@@ -26,6 +27,9 @@
         return;
     case KineticShortcutCommandSaveFile:
         [(id<KineticCommandHandler>)self.delegate saveFile];
+        return;
+    case KineticShortcutCommandSearchWorkspace:
+        [(id<KineticCommandHandler>)self.delegate focusWorkspaceSearch];
         return;
     case KineticShortcutCommandPreviousTab:
         [(id<KineticCommandHandler>)self.delegate selectPreviousTab];
@@ -115,6 +119,7 @@
 @property(nonatomic, copy) NSDictionary* workspaceUiState;
 @property(nonatomic) KineticActivitySection activitySection;
 @property(nonatomic) NSUInteger untitledCounter;
+@property(nonatomic) NSUInteger searchGeneration;
 @end
 
 @implementation KineticApplicationDelegate
@@ -339,6 +344,66 @@
     }
 }
 
+- (void)searchWorkspaceForQuery:(NSString*)query matchCase:(BOOL)matchCase {
+    NSUInteger generation = ++self.searchGeneration;
+    NSURL* workspaceUrl = self.workspaceUrl;
+    if (self.editor == nil || workspaceUrl == nil || query.length == 0) {
+        [self.editor applySearchResults:@[] loading:NO truncated:NO];
+        self.workspaceUiState = self.editor.workspaceUiState ?: @{};
+        return;
+    }
+
+    [self.editor applySearchResults:@[] loading:YES truncated:NO];
+    self.workspaceUiState = self.editor.workspaceUiState;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.18 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+                     if (generation != self.searchGeneration ||
+                         ![workspaceUrl.path isEqualToString:self.workspaceUrl.path]) {
+                         return;
+                     }
+                     NSMutableDictionary<NSString*, NSString*>* openDocuments =
+                         [NSMutableDictionary dictionary];
+                     for (KineticEditorView* editor in self.editors) {
+                         if (editor.fileUrl != nil) {
+                             openDocuments[editor.fileUrl.path] = editor.documentText;
+                         }
+                     }
+                     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+                       BOOL truncated = NO;
+                       NSArray<NSDictionary*>* results = kineticSearchWorkspace(
+                           workspaceUrl, query, matchCase, openDocuments, 300, &truncated);
+                       dispatch_async(dispatch_get_main_queue(), ^{
+                         if (generation != self.searchGeneration ||
+                             ![workspaceUrl.path isEqualToString:self.workspaceUrl.path]) {
+                             return;
+                         }
+                         [self.editor applySearchResults:results loading:NO truncated:truncated];
+                         self.workspaceUiState = self.editor.workspaceUiState;
+                       });
+                     });
+                   });
+}
+
+- (void)focusWorkspaceSearch {
+    if (self.editor == nil) {
+        return;
+    }
+    self.activitySection = KineticActivitySectionSearch;
+    [self.editor setActivitySection:KineticActivitySectionSearch animated:YES];
+    [self.editor focusWorkspaceSearch];
+}
+
+- (void)openSearchResult:(NSDictionary*)result {
+    NSURL* fileUrl = result[@"url"];
+    if (![fileUrl isKindOfClass:NSURL.class]) {
+        return;
+    }
+    [self openFileAtUrl:fileUrl];
+    [self.editor revealLine:[result[@"line"] unsignedIntegerValue]
+                     column:[result[@"column"] unsignedIntegerValue]
+                     length:[result[@"length"] unsignedIntegerValue]];
+}
+
 - (void)openFolder {
     [self presentFileDialogWithMode:KineticFileDialogModeOpenFolder initialPath:@"~/"];
 }
@@ -446,6 +511,7 @@
             [dialog showError:@"That folder does not exist."];
             return;
         }
+        ++self.searchGeneration;
         self.workspaceUrl = fileUrl;
         [self recordRecentProject:fileUrl];
         [self dismissFileDialog];
@@ -555,6 +621,7 @@
         self.home.recentProjects = [self persistedRecentProjects];
         return;
     }
+    ++self.searchGeneration;
     self.workspaceUrl = projectUrl;
     [self recordRecentProject:projectUrl];
     for (KineticEditorView* editor in self.editors) {
