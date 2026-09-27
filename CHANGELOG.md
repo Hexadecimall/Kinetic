@@ -2,7 +2,14 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.16.0 - Unreleased
+## 0.16.1 - Unreleased
+
+### Fixed
+
+- Moved native plugin configuration and loading to the portable `~/.kinetic/` dot-directory;
+  Kinetic no longer reads the macOS Application Support location for plugins.
+
+## 0.16.0
 
 ### Added
 

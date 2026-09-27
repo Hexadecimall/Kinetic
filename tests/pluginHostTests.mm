@@ -50,6 +50,11 @@ static void require(BOOL condition, NSString* message) {
 int main(int argc, const char* argv[]) {
     @autoreleasepool {
         require(argc == 2, @"plugin directory argument");
+        NSURL* userRootUrl = [KineticPluginHost userPluginRootUrl];
+        require([userRootUrl.lastPathComponent isEqualToString:@".kinetic"],
+                @"plugin root uses a dot-directory");
+        require([userRootUrl.URLByDeletingLastPathComponent.path isEqualToString:NSHomeDirectory()],
+                @"plugin root lives directly under the user home");
         NSURL* pluginDirectory = [NSURL fileURLWithPath:[NSString stringWithUTF8String:argv[1]]
                                              isDirectory:YES];
         NSURL* temporaryDirectory = [NSURL

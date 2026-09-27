@@ -158,6 +158,11 @@ static BOOL readPluginConfiguration(NSURL* configurationUrl, BOOL* enabled,
 
 @implementation KineticPluginHost
 
++ (NSURL*)userPluginRootUrl {
+    return [[NSURL fileURLWithPath:NSHomeDirectory()
+                       isDirectory:YES] URLByAppendingPathComponent:@".kinetic" isDirectory:YES];
+}
+
 - (instancetype)init {
     self = [super init];
     if (self) {

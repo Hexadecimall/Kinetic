@@ -1,11 +1,11 @@
 # Native plugin API (preview)
 
 Kinetic 0.15.0 and later load local Apple Silicon `.dylib` plugins from
-`~/Library/Application Support/Kinetic/plugins/` when the first editor tab opens. It does not
+`~/.kinetic/plugins/` when the first editor tab opens. It does not
 download, publish, update, or verify plugins. Only install code whose author is trusted: a native
 plugin runs in Kinetic's process with the user's privileges and can crash the app.
 Plugin loading can be disabled globally or per `.dylib` filename through the optional
-`[plugins]` table in `~/Library/Application Support/Kinetic/config.toml`; see
+`[plugins]` table in `~/.kinetic/config.toml`; see
 [`config/README.md`](../../config/README.md). Configuration is checked before `dlopen`.
 
 The public ABI is [`include/kinetic/pluginApi.h`](../../include/kinetic/pluginApi.h). A Rust or C++

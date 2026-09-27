@@ -12,7 +12,7 @@ migration contract for replacing temporary in-code defaults with the Rust settin
 setting becomes supported only when its runtime wiring, validation, documentation, and plugin API
 exposure land together.
 
-Native plugin policy lives at `~/Library/Application Support/Kinetic/config.toml`. The supported
+Native plugin policy lives at `~/.kinetic/config.toml`. The supported
 subset is a `[plugins]` table with `enabled = true` or `false` and a one-line `disabledFiles` array
 of exact `.dylib` filenames. For example:
 
@@ -24,7 +24,8 @@ disabledFiles = ["example.dylib"]
 
 The file is optional. If it is absent, installed local plugins load by default. If the plugin
 table is invalid or unreadable, no native plugin loads and the Plugins panel displays the error.
-Disabled filenames are checked before opening libraries. Changes take effect on the next launch;
+Disabled filenames are checked before opening libraries in `~/.kinetic/plugins/`. Changes take
+effect on the next launch;
 loaded native plugins cannot be safely unloaded in place. Other configuration sections in this
 file are currently ignored.
 

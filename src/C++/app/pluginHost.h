@@ -16,6 +16,7 @@
 @property(nonatomic, readonly, copy) NSArray<NSString*>* loadedPluginNames;
 @property(nonatomic, readonly, copy) NSArray<NSDictionary<NSString*, NSString*>*>* commands;
 @property(nonatomic, readonly, copy) NSString* configurationError;
++ (NSURL*)userPluginRootUrl;
 - (void)loadPluginsAtUrl:(NSURL*)directoryUrl configurationUrl:(NSURL*)configurationUrl;
 - (BOOL)executeCommand:(NSString*)commandId;
 - (void)emitEvent:(NSString*)eventName;

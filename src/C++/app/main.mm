@@ -261,14 +261,9 @@
     if (self.pluginHost == nil) {
         self.pluginHost = [[KineticPluginHost alloc] init];
         self.pluginHost.delegate = self;
-        NSURL* supportUrl =
-            [NSFileManager.defaultManager URLsForDirectory:NSApplicationSupportDirectory
-                                                 inDomains:NSUserDomainMask]
-                .firstObject;
-        NSURL* pluginsUrl = [[supportUrl URLByAppendingPathComponent:@"Kinetic"]
-            URLByAppendingPathComponent:@"plugins"];
-        NSURL* configurationUrl = [[supportUrl URLByAppendingPathComponent:@"Kinetic"]
-            URLByAppendingPathComponent:@"config.toml"];
+        NSURL* pluginRootUrl = [KineticPluginHost userPluginRootUrl];
+        NSURL* pluginsUrl = [pluginRootUrl URLByAppendingPathComponent:@"plugins" isDirectory:YES];
+        NSURL* configurationUrl = [pluginRootUrl URLByAppendingPathComponent:@"config.toml"];
         [self.pluginHost loadPluginsAtUrl:pluginsUrl configurationUrl:configurationUrl];
         for (KineticEditorView* editor in self.editors) {
             [editor setPluginNames:self.pluginHost.loadedPluginNames
