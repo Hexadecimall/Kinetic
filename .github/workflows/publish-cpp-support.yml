@@ -21,11 +21,17 @@ jobs:
         run: ./scripts/test
       - name: Build release plugin
         run: ./scripts/build --release
-      - name: Verify plugin signature
-        run: codesign --verify --strict build/release/Kinetic.app/Contents/PlugIns/libkineticCppSupport.dylib
+      - name: Stage signed plugin without build-only symbols
+        run: |
+          mkdir -p build/plugin-release
+          cp build/release/Kinetic.app/Contents/PlugIns/libkineticCppSupport.dylib \
+            build/plugin-release/libkineticCppSupport.dylib
+          xcrun strip -S -x build/plugin-release/libkineticCppSupport.dylib
+          codesign --force --sign - build/plugin-release/libkineticCppSupport.dylib
+          codesign --verify --strict build/plugin-release/libkineticCppSupport.dylib
       - name: Publish immutable asset
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           python3 scripts/publishOfficialPlugin.py \
-            --asset build/release/Kinetic.app/Contents/PlugIns/libkineticCppSupport.dylib
+            --asset build/plugin-release/libkineticCppSupport.dylib

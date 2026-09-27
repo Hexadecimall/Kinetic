@@ -18,6 +18,8 @@ All notable Kinetic changes are recorded here. Versions use `main.feature.patch`
 ### Fixed
 
 - Re-sign the app bundle after a bundled plugin changes, even when the app executable is unchanged.
+- Replace Cargo's absolute C/C++ plugin install name with a portable one, and strip build-only
+  symbols from the release copy so hosted-runner paths cannot enter public binaries.
 
 ## 0.21.0
 

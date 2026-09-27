@@ -50,9 +50,10 @@ runs on every pull request, including ones without catalog changes. Human review
 required rule once another maintainer is available to approve the owner's pull requests.
 
 The bundled first-party C/C++ Support plugin has a separate, manual
-`Publish C/C++ Support` workflow. It tests and builds the plugin on macOS, verifies the signed
-arm64 asset and its public-path hygiene, then creates `cpp-support-v0.1.0` with an immutable
-`libkineticCppSupport.dylib` release asset. The workflow prints the uploaded size and SHA-256;
+`Publish C/C++ Support` workflow. It tests and builds the plugin on macOS, strips build-only
+symbols from a separate release copy, re-signs and audits that arm64 asset, then creates
+`cpp-support-v0.1.0` with an immutable `libkineticCppSupport.dylib` release asset. The workflow
+prints the uploaded size and SHA-256;
 add the catalog entry only after those remote bytes pass `verify-assets`. Re-running the workflow
 will not replace an existing asset.
 

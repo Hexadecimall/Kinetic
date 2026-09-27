@@ -43,7 +43,11 @@ add_custom_command(
             "RUSTFLAGS=${KINETIC_RUSTFLAGS}"
             cargo build --offline --manifest-path
             "${CMAKE_SOURCE_DIR}/plugins/builtin/cppSupport/Cargo.toml" ${KINETIC_CARGO_ARGS}
+    COMMAND xcrun install_name_tool -id @rpath/libkineticCppSupport.dylib
+            "${KINETIC_CPP_PLUGIN}"
+    COMMAND codesign --force --sign - "${KINETIC_CPP_PLUGIN}"
     DEPENDS
+        "${CMAKE_SOURCE_DIR}/CMakeLists.txt"
         "${CMAKE_SOURCE_DIR}/plugins/builtin/cppSupport/Cargo.toml"
         "${CMAKE_SOURCE_DIR}/plugins/builtin/cppSupport/Cargo.lock"
         "${CMAKE_SOURCE_DIR}/plugins/builtin/cppSupport/src/lib.rs"
