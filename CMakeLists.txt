@@ -13,6 +13,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_OSX_ARCHITECTURES arm64 CACHE STRING "Supported architecture" FORCE)
 set(CMAKE_OSX_DEPLOYMENT_TARGET 15.0 CACHE STRING "Minimum macOS version" FORCE)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(KINETIC_GITHUB_CLIENT_ID "Ov23li0CaegWQ9lfPBQl" CACHE STRING "Public GitHub OAuth client ID")
+if(NOT KINETIC_GITHUB_CLIENT_ID)
+    set(KINETIC_GITHUB_CLIENT_ID "Ov23li0CaegWQ9lfPBQl")
+endif()
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     set(KINETIC_CARGO_PROFILE release)
@@ -50,7 +54,8 @@ set(KINETIC_APP_ICON "${CMAKE_SOURCE_DIR}/assets/icons/Kinetic.icns")
 set_source_files_properties("${KINETIC_APP_ICON}" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
 
 add_executable(
-    Kinetic MACOSX_BUNDLE src/C++/app/main.mm src/C++/app/keyboardShortcuts.mm
+    Kinetic MACOSX_BUNDLE src/C++/app/main.mm src/C++/app/githubAccount.mm
+                              src/C++/app/keyboardShortcuts.mm
                               src/C++/app/pluginHost.mm src/C++/app/workspaceSearch.mm
                               src/C++/ui/activityBar.mm src/C++/ui/editorView.mm
                               src/C++/ui/editorStructure.mm
@@ -63,7 +68,8 @@ add_executable(
 target_include_directories(Kinetic PRIVATE include src/C++/app src/C++/bridge src/C++/ui)
 target_compile_options(Kinetic PRIVATE "-fobjc-arc")
 target_link_libraries(
-    Kinetic PRIVATE kinetic_backend "-framework AppKit" "-framework Metal" "-framework MetalKit")
+    Kinetic PRIVATE kinetic_backend "-framework AppKit" "-framework Metal" "-framework MetalKit"
+                           "-framework Security")
 set_target_properties(
     Kinetic
     PROPERTIES
@@ -123,3 +129,10 @@ target_compile_options(kineticPluginHostTests PRIVATE "-fobjc-arc")
 target_link_libraries(kineticPluginHostTests PRIVATE "-framework Foundation")
 add_dependencies(kineticPluginHostTests kineticSamplePlugin)
 add_test(NAME kineticPluginHost COMMAND kineticPluginHostTests "$<TARGET_FILE_DIR:kineticSamplePlugin>")
+
+add_executable(kineticGitHubAccountTests tests/githubAccountTests.mm
+                                         src/C++/app/githubAccount.mm)
+target_include_directories(kineticGitHubAccountTests PRIVATE src/C++/app)
+target_compile_options(kineticGitHubAccountTests PRIVATE "-fobjc-arc")
+target_link_libraries(kineticGitHubAccountTests PRIVATE "-framework AppKit" "-framework Security")
+add_test(NAME kineticGitHubAccount COMMAND kineticGitHubAccountTests)

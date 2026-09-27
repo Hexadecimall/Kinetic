@@ -22,6 +22,8 @@
     <string>@PROJECT_VERSION@</string>
     <key>CFBundleVersion</key>
     <string>@PROJECT_VERSION@</string>
+    <key>KineticGitHubClientId</key>
+    <string>@KINETIC_GITHUB_CLIENT_ID@</string>
     <key>LSMinimumSystemVersion</key>
     <string>15.0</string>
     <key>NSHighResolutionCapable</key>

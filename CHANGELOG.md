@@ -2,7 +2,17 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.17.1 - Unreleased
+## 0.18.0 - Unreleased
+
+### Added
+
+- Added GitHub sign-in through Kinetic's public OAuth app and GitHub's device authorization flow.
+  The custom titlebar account panel shows the verification code, connection status, and sign-out.
+- Added repository-scope authorization for future Git integration, Keychain-backed session storage,
+  token refresh, and tests for device-code validation and requested scopes.
+- Show the signed-in GitHub profile and avatar, and keep the File menu clear of the Home logo.
+
+## 0.17.1
 
 ### Changed
 

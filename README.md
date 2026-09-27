@@ -7,11 +7,12 @@
 </p>
 
 > [!IMPORTANT]
-> Kinetic `0.17.1` is an early functional preview. Editing, retained multi-document tabs, persisted
+> Kinetic `0.18.0` is an early functional preview. Editing, retained multi-document tabs, persisted
 > recent projects, mouse selection, undo/redo, basic syntax highlighting, auto-indentation,
 > matching delimiters, custom context menus,
 > in-file and project search,
-> the activity bar, native plugin host, file browsing, folder creation, opening, saving, scrolling, shortcuts, and the
+> the activity bar, GitHub account sign-in, native plugin host, file browsing, folder creation,
+> opening, saving, scrolling, shortcuts, and the
 > macOS shell work, but production editor features are still under active development.
 
 ## Direction
@@ -22,6 +23,8 @@ dynamic configuration and automation. A first native plugin API now supports Rus
 a versioned C ABI; its current surface is documented in [`docs/plugin-api/README.md`](docs/plugin-api/README.md).
 The GitHub-backed plugin registry and publication process are documented in
 [`registry/README.md`](registry/README.md).
+GitHub sign-in and its current permission boundary are documented in
+[`docs/architecture/accounts.md`](docs/architecture/accounts.md).
 
 The first platform is Apple Silicon macOS 15 or newer. Linux and Intel macOS support are planned
 after the macOS experience is mature.

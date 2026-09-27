@@ -10,6 +10,7 @@ kinetic_require iconutil
 
 SOURCE="$KINETIC_ROOT/assets/branding/kinetic-app-icon.svg"
 OUTPUT="$KINETIC_ROOT/assets/icons/Kinetic.icns"
+OAUTH_OUTPUT="$KINETIC_ROOT/assets/icons/KineticOAuth.png"
 TEMP_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/kinetic-icons.XXXXXX")
 ICONSET="$TEMP_ROOT/Kinetic.iconset"
 
@@ -35,4 +36,5 @@ cp "$RENDERED" "$ICONSET/icon_512x512@2x.png"
 
 iconutil -c icns "$ICONSET" -o "$OUTPUT"
 printf 'Generated %s\n' "$OUTPUT"
-
+sips -z 512 512 "$RENDERED" --out "$OAUTH_OUTPUT" >/dev/null
+printf 'Generated %s\n' "$OAUTH_OUTPUT"

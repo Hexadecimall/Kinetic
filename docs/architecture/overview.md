@@ -46,6 +46,11 @@ also Kinetic-owned. File and project search share a top-right editor dropdown. S
 hidden, reordered, replaced, or extended once the
 settings and plugin registries are live; no section is a permanent hard-coded limit.
 
+The titlebar account control is also Kinetic-drawn. GitHub authorization happens in the user's
+browser through the public Kinetic OAuth app; Kinetic stores the resulting session in the macOS
+Keychain and refreshes expiring tokens. See [`accounts.md`](accounts.md) for the current permissions
+and sign-out behavior.
+
 The Plugins panel now lists locally loaded native plugins and their registered commands. A plugin
 can set supported editor properties, including letter spacing, and subscribe to document events.
 Panels, language-tool registries, and arbitrary UI contributions are future API expansions, not

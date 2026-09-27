@@ -10,6 +10,7 @@ constexpr CGFloat kMenuStart = 84.0;
 constexpr NSInteger kNoHit = -1;
 constexpr NSInteger kMenuHitBase = 100;
 constexpr NSInteger kSearchHit = 200;
+constexpr NSInteger kAccountHit = 201;
 
 NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
     return [NSColor colorWithSRGBRed:red / 255.0 green:green / 255.0 blue:blue / 255.0 alpha:alpha];
@@ -21,6 +22,236 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
 
 @interface KineticTrafficBar (MenuControl)
 - (void)closeMenu;
+- (void)closeAccountPanel;
+@end
+
+@interface KineticAccountPanel : NSView {
+    KineticTrafficBar* _owner;
+    NSTrackingArea* _trackingArea;
+    NSInteger _hoveredAction;
+}
+- (instancetype)initWithFrame:(NSRect)frame owner:(KineticTrafficBar*)owner;
+@end
+
+@implementation KineticAccountPanel
+
+- (instancetype)initWithFrame:(NSRect)frame owner:(KineticTrafficBar*)owner {
+    self = [super initWithFrame:frame];
+    if (self) {
+        _owner = owner;
+        _hoveredAction = -1;
+        self.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    }
+    return self;
+}
+
+- (BOOL)isFlipped {
+    return YES;
+}
+
+- (BOOL)acceptsFirstResponder {
+    return YES;
+}
+
+- (BOOL)acceptsFirstMouse:(NSEvent*)event {
+    (void)event;
+    return YES;
+}
+
+- (NSRect)panelRect {
+    CGFloat width = 314.0;
+    CGFloat height =
+        _owner.githubAccount.phase == KineticGitHubAccountPhaseAwaitingApproval ? 224.0 : 188.0;
+    return NSMakeRect(MAX(8.0, NSWidth(self.bounds) - width - 9.0), kBarHeight + 6.0, width,
+                      height);
+}
+
+- (NSArray<NSString*>*)actions {
+    switch (_owner.githubAccount.phase) {
+    case KineticGitHubAccountPhaseSignedIn:
+        return @[ @"Sign out" ];
+    case KineticGitHubAccountPhaseRequestingCode:
+    case KineticGitHubAccountPhaseLoadingProfile:
+        return @[ @"Cancel" ];
+    case KineticGitHubAccountPhaseAwaitingApproval:
+        return @[ @"Open GitHub", @"Copy code", @"Cancel" ];
+    case KineticGitHubAccountPhaseSignedOut:
+    case KineticGitHubAccountPhaseError:
+        return _owner.githubAccount.signInAvailable ? @[ @"Sign in with GitHub" ] : @[];
+    }
+}
+
+- (NSRect)actionRect:(NSInteger)index {
+    NSRect panel = [self panelRect];
+    NSArray<NSString*>* actions = [self actions];
+    CGFloat gap = 7.0;
+    CGFloat width = (NSWidth(panel) - 32.0 - gap * (actions.count - 1)) / actions.count;
+    return NSMakeRect(NSMinX(panel) + 16.0 + index * (width + gap), NSMaxY(panel) - 48.0, width,
+                      32.0);
+}
+
+- (void)drawRect:(NSRect)dirtyRect {
+    (void)dirtyRect;
+    NSRect panel = [self panelRect];
+    NSShadow* shadow = [[NSShadow alloc] init];
+    shadow.shadowColor = color(8, 12, 19, 0.46);
+    shadow.shadowBlurRadius = 18.0;
+    shadow.shadowOffset = NSMakeSize(0.0, -4.0);
+    [NSGraphicsContext saveGraphicsState];
+    [shadow set];
+    [color(47, 59, 76) setFill];
+    [[NSBezierPath bezierPathWithRoundedRect:panel xRadius:7.0 yRadius:7.0] fill];
+    [NSGraphicsContext restoreGraphicsState];
+    [color(79, 94, 114) setStroke];
+    [[NSBezierPath bezierPathWithRoundedRect:panel xRadius:7.0 yRadius:7.0] stroke];
+
+    NSDictionary* titleStyle = @{
+        NSFontAttributeName : [NSFont systemFontOfSize:14.0 weight:NSFontWeightSemibold],
+        NSForegroundColorAttributeName : color(232, 238, 247),
+    };
+    NSDictionary* detailStyle = @{
+        NSFontAttributeName : [NSFont systemFontOfSize:12.0],
+        NSForegroundColorAttributeName : color(165, 177, 193),
+    };
+    [@"GitHub account" drawAtPoint:NSMakePoint(NSMinX(panel) + 17.0, NSMinY(panel) + 17.0)
+                    withAttributes:titleStyle];
+
+    KineticGitHubAccount* account = _owner.githubAccount;
+    if (account.phase == KineticGitHubAccountPhaseSignedIn) {
+        if (account.avatarImage != nil) {
+            NSRect avatarRect = NSMakeRect(NSMinX(panel) + 17.0, NSMinY(panel) + 56.0, 34.0, 34.0);
+            [NSGraphicsContext saveGraphicsState];
+            [[NSBezierPath bezierPathWithOvalInRect:avatarRect] addClip];
+            [account.avatarImage drawInRect:avatarRect];
+            [NSGraphicsContext restoreGraphicsState];
+        }
+        NSString* login = [@"@" stringByAppendingString:account.login ?: @""];
+        CGFloat textX = NSMinX(panel) + (account.avatarImage != nil ? 59.0 : 17.0);
+        NSString* name = account.displayName.length > 0 ? account.displayName : login;
+        NSMutableParagraphStyle* nameParagraph = [[NSMutableParagraphStyle alloc] init];
+        nameParagraph.lineBreakMode = NSLineBreakByTruncatingTail;
+        NSMutableDictionary* nameStyle = [titleStyle mutableCopy];
+        nameStyle[NSParagraphStyleAttributeName] = nameParagraph;
+        [name drawInRect:NSMakeRect(textX, NSMinY(panel) + 56.0, NSMaxX(panel) - textX - 17.0, 20.0)
+            withAttributes:nameStyle];
+        if (account.displayName.length > 0) {
+            [login drawAtPoint:NSMakePoint(textX, NSMinY(panel) + 75.0) withAttributes:detailStyle];
+        }
+    } else if (account.phase == KineticGitHubAccountPhaseAwaitingApproval) {
+        NSRect codeRect =
+            NSMakeRect(NSMinX(panel) + 16.0, NSMinY(panel) + 70.0, NSWidth(panel) - 32.0, 51.0);
+        [color(40, 51, 67) setFill];
+        [[NSBezierPath bezierPathWithRoundedRect:codeRect xRadius:5.0 yRadius:5.0] fill];
+        NSDictionary* codeStyle = @{
+            NSFontAttributeName : [NSFont monospacedSystemFontOfSize:21.0
+                                                              weight:NSFontWeightMedium],
+            NSForegroundColorAttributeName : color(225, 234, 247),
+        };
+        NSSize codeSize = [account.userCode sizeWithAttributes:codeStyle];
+        [account.userCode drawAtPoint:NSMakePoint(NSMidX(codeRect) - codeSize.width * 0.5,
+                                                  NSMidY(codeRect) - codeSize.height * 0.5)
+                       withAttributes:codeStyle];
+    }
+
+    CGFloat detailY = account.userCode.length > 0
+                          ? 130.0
+                          : (account.phase == KineticGitHubAccountPhaseSignedIn ? 99.0 : 64.0);
+    NSRect detailRect =
+        NSMakeRect(NSMinX(panel) + 17.0, NSMinY(panel) + detailY, NSWidth(panel) - 34.0, 36.0);
+    [account.statusText drawInRect:detailRect withAttributes:detailStyle];
+
+    if (account.phase == KineticGitHubAccountPhaseSignedOut ||
+        account.phase == KineticGitHubAccountPhaseError) {
+        [@"Requests read/write access to your public and private repositories."
+                drawInRect:NSMakeRect(NSMinX(panel) + 17.0, NSMinY(panel) + 102.0,
+                                      NSWidth(panel) - 34.0, 38.0)
+            withAttributes:detailStyle];
+    }
+
+    NSArray<NSString*>* actions = [self actions];
+    for (NSInteger index = 0; index < (NSInteger)actions.count; ++index) {
+        NSRect button = [self actionRect:index];
+        BOOL primary = index == 0 && ![actions[index] isEqualToString:@"Sign out"];
+        [color(primary ? 73 : 57, primary ? 127 : 70, primary ? 207 : 89,
+               _hoveredAction == index ? 1.0 : 0.86) setFill];
+        [[NSBezierPath bezierPathWithRoundedRect:button xRadius:4.0 yRadius:4.0] fill];
+        NSDictionary* buttonStyle = @{
+            NSFontAttributeName : [NSFont systemFontOfSize:11.0 weight:NSFontWeightMedium],
+            NSForegroundColorAttributeName : color(239, 244, 251),
+        };
+        NSSize size = [actions[index] sizeWithAttributes:buttonStyle];
+        [actions[index] drawAtPoint:NSMakePoint(NSMidX(button) - size.width * 0.5,
+                                                NSMidY(button) - size.height * 0.5)
+                     withAttributes:buttonStyle];
+    }
+}
+
+- (void)updateTrackingAreas {
+    if (_trackingArea != nil) {
+        [self removeTrackingArea:_trackingArea];
+    }
+    _trackingArea = [[NSTrackingArea alloc]
+        initWithRect:NSZeroRect
+             options:NSTrackingMouseEnteredAndExited | NSTrackingMouseMoved |
+                     NSTrackingActiveInKeyWindow | NSTrackingInVisibleRect
+               owner:self
+            userInfo:nil];
+    [self addTrackingArea:_trackingArea];
+    [super updateTrackingAreas];
+}
+
+- (void)mouseMoved:(NSEvent*)event {
+    NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+    NSInteger action = -1;
+    for (NSInteger index = 0; index < (NSInteger)[self actions].count; ++index) {
+        if (NSPointInRect(point, [self actionRect:index])) {
+            action = index;
+            break;
+        }
+    }
+    if (_hoveredAction != action) {
+        _hoveredAction = action;
+        self.needsDisplay = YES;
+    }
+}
+
+- (void)mouseDown:(NSEvent*)event {
+    NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+    NSArray<NSString*>* actions = [self actions];
+    for (NSInteger index = 0; index < (NSInteger)actions.count; ++index) {
+        if (!NSPointInRect(point, [self actionRect:index])) {
+            continue;
+        }
+        NSString* action = actions[index];
+        if ([action isEqualToString:@"Sign in with GitHub"]) {
+            [_owner.githubAccount startSignIn];
+        } else if ([action isEqualToString:@"Open GitHub"]) {
+            [_owner.githubAccount openVerificationPage];
+        } else if ([action isEqualToString:@"Copy code"]) {
+            [NSPasteboard.generalPasteboard clearContents];
+            [NSPasteboard.generalPasteboard setString:_owner.githubAccount.userCode
+                                              forType:NSPasteboardTypeString];
+        } else if ([action isEqualToString:@"Cancel"]) {
+            [_owner.githubAccount cancelSignIn];
+        } else if ([action isEqualToString:@"Sign out"]) {
+            [_owner.githubAccount signOut];
+        }
+        self.needsDisplay = YES;
+        return;
+    }
+    if (!NSPointInRect(point, [self panelRect])) {
+        [_owner closeAccountPanel];
+    }
+}
+
+- (void)keyDown:(NSEvent*)event {
+    if (event.keyCode == 53) {
+        [_owner closeAccountPanel];
+    } else {
+        [super keyDown:event];
+    }
+}
+
 @end
 
 @interface KineticMenuOverlay : NSView {
@@ -76,7 +307,7 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
 - (void)rebuildRows {
     [_rowRects removeAllObjects];
     CGFloat y = kBarHeight + 3.0;
-    const CGFloat width = 216.0;
+    const CGFloat width = 184.0;
     for (NSUInteger index = 0; index < _titles.count; ++index) {
         const CGFloat height = [self isSeparatorAtIndex:(NSInteger)index] ? 9.0 : 25.0;
         [_rowRects addObject:[NSValue valueWithRect:NSMakeRect(kMenuStart, y, width, height)]];
@@ -241,8 +472,10 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
     NSMutableArray<NSValue*>* _menuRects;
     NSTrackingArea* _trackingArea;
     KineticMenuOverlay* _menuOverlay;
+    KineticAccountPanel* _accountPanel;
     NSInteger _hoveredItem;
     BOOL _menuOpen;
+    BOOL _accountPanelOpen;
 }
 @end
 
@@ -292,6 +525,16 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
 
 - (NSRect)searchButtonRect {
     return NSMakeRect(NSWidth(self.bounds) - 43.0, 3.0, 34.0, kBarHeight - 6.0);
+}
+
+- (NSRect)accountButtonRect {
+    return NSMakeRect(NSWidth(self.bounds) - (_showsSearch ? 82.0 : 43.0), 3.0, 34.0,
+                      kBarHeight - 6.0);
+}
+
+- (void)accountDidChange {
+    self.needsDisplay = YES;
+    _accountPanel.needsDisplay = YES;
 }
 
 - (NSRect)controlRectAtIndex:(NSInteger)index {
@@ -407,6 +650,47 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
             setStroke];
         [icon stroke];
     }
+
+    NSRect accountButton = [self accountButtonRect];
+    if (_accountPanelOpen || _hoveredItem == kAccountHit) {
+        [color(77, 141, 255, _accountPanelOpen ? 0.19 : 0.10) setFill];
+        [[NSBezierPath bezierPathWithRoundedRect:accountButton xRadius:5.0 yRadius:5.0] fill];
+    }
+    NSPoint center = NSMakePoint(NSMidX(accountButton), NSMidY(accountButton));
+    if (self.githubAccount.phase == KineticGitHubAccountPhaseSignedIn) {
+        NSRect avatarRect = NSMakeRect(center.x - 9.0, center.y - 9.0, 18.0, 18.0);
+        if (self.githubAccount.avatarImage != nil) {
+            [NSGraphicsContext saveGraphicsState];
+            [[NSBezierPath bezierPathWithOvalInRect:avatarRect] addClip];
+            [self.githubAccount.avatarImage drawInRect:avatarRect];
+            [NSGraphicsContext restoreGraphicsState];
+        } else {
+            [color(77, 141, 255) setFill];
+            [[NSBezierPath bezierPathWithOvalInRect:avatarRect] fill];
+            NSString* initial = self.githubAccount.login.length > 0
+                                    ? [self.githubAccount.login substringToIndex:1].uppercaseString
+                                    : @"?";
+            NSDictionary* style = @{
+                NSFontAttributeName : [NSFont systemFontOfSize:10.0 weight:NSFontWeightSemibold],
+                NSForegroundColorAttributeName : color(247, 249, 252),
+            };
+            NSSize size = [initial sizeWithAttributes:style];
+            [initial drawAtPoint:NSMakePoint(center.x - size.width * 0.5,
+                                             center.y - size.height * 0.5)
+                  withAttributes:style];
+        }
+    } else {
+        NSBezierPath* person = [NSBezierPath bezierPath];
+        person.lineWidth = 1.35;
+        [person
+            appendBezierPathWithOvalInRect:NSMakeRect(center.x - 3.0, center.y - 7.0, 6.0, 6.0)];
+        [person moveToPoint:NSMakePoint(center.x - 7.0, center.y + 7.0)];
+        [person curveToPoint:NSMakePoint(center.x + 7.0, center.y + 7.0)
+               controlPoint1:NSMakePoint(center.x - 7.0, center.y - 1.0)
+               controlPoint2:NSMakePoint(center.x + 7.0, center.y - 1.0)];
+        [color(174, 190, 211) setStroke];
+        [person stroke];
+    }
 }
 
 - (void)updateTrackingAreas {
@@ -424,6 +708,9 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
 }
 
 - (NSInteger)hitAtPoint:(NSPoint)point {
+    if (NSPointInRect(point, [self accountButtonRect])) {
+        return kAccountHit;
+    }
     if (_showsSearch && NSPointInRect(point, [self searchButtonRect])) {
         return kSearchHit;
     }
@@ -455,6 +742,7 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
 }
 
 - (void)openMenu {
+    [self closeAccountPanel];
     if (_menuOpen) {
         [self closeMenu];
         return;
@@ -466,6 +754,28 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
     _menuOpen = YES;
     self.needsDisplay = YES;
     [self.window makeFirstResponder:_menuOverlay];
+}
+
+- (void)openAccountPanel {
+    if (_accountPanelOpen) {
+        [self closeAccountPanel];
+        return;
+    }
+    [self closeMenu];
+    NSView* content = self.window.contentView;
+    _accountPanel = [[KineticAccountPanel alloc] initWithFrame:content.bounds owner:self];
+    [content addSubview:_accountPanel positioned:NSWindowAbove relativeTo:nil];
+    _accountPanelOpen = YES;
+    self.needsDisplay = YES;
+    [self.window makeFirstResponder:_accountPanel];
+}
+
+- (void)closeAccountPanel {
+    [_accountPanel removeFromSuperview];
+    _accountPanel = nil;
+    _accountPanelOpen = NO;
+    self.needsDisplay = YES;
+    [self.window makeFirstResponder:self];
 }
 
 - (void)closeMenu {
@@ -486,6 +796,10 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
     } else if (hit == 2) {
         [self.window toggleFullScreen:nil];
     } else if (hit >= kMenuHitBase) {
+        if (hit == kAccountHit) {
+            [self openAccountPanel];
+            return;
+        }
         if (hit == kSearchHit) {
             [self.commandHandler toggleFileSearch];
             return;

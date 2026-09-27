@@ -3,6 +3,7 @@
 
 #include "editorView.h"
 #include "fileDialog.h"
+#include "githubAccount.h"
 #include "homeView.h"
 #include "keyboardShortcuts.h"
 #include "kineticBackend.h"
@@ -112,7 +113,7 @@
 
 @interface KineticApplicationDelegate
     : NSObject <NSApplicationDelegate, KineticCommandHandler, KineticFileDialogDelegate,
-                KineticPluginHostDelegate>
+                KineticPluginHostDelegate, KineticGitHubAccountDelegate>
 @property(nonatomic, strong) NSWindow* window;
 @property(nonatomic, strong) NSView* content;
 @property(nonatomic, strong) KineticHomeView* home;
@@ -121,6 +122,7 @@
 @property(nonatomic, strong) NSMutableArray<KineticEditorView*>* editors;
 @property(nonatomic, strong) KineticFileDialog* fileDialog;
 @property(nonatomic, strong) KineticPluginHost* pluginHost;
+@property(nonatomic, strong) KineticGitHubAccount* githubAccount;
 @property(nonatomic, strong) NSMutableDictionary<NSString*, NSNumber*>* pluginNumberOverrides;
 @property(nonatomic, strong) NSURL* workspaceUrl;
 @property(nonatomic, copy) NSDictionary* workspaceUiState;
@@ -186,6 +188,10 @@
         initWithFrame:NSMakeRect(0.0, NSHeight(self.content.bounds) - trafficBarHeight,
                                  NSWidth(self.content.bounds), trafficBarHeight)];
     self.trafficBar.commandHandler = self;
+    NSString* clientId = [NSBundle.mainBundle objectForInfoDictionaryKey:@"KineticGitHubClientId"];
+    self.githubAccount = [[KineticGitHubAccount alloc] initWithClientId:clientId];
+    self.githubAccount.delegate = self;
+    self.trafficBar.githubAccount = self.githubAccount;
     [self.content addSubview:backdrop];
     [self.content addSubview:surface];
     [self.content addSubview:self.home];
@@ -194,6 +200,12 @@
     [self.window center];
     [self.window makeKeyAndOrderFront:nil];
     [NSApp activateIgnoringOtherApps:YES];
+    [self.githubAccount restoreSession];
+}
+
+- (void)githubAccountDidChange:(KineticGitHubAccount*)account {
+    (void)account;
+    [self.trafficBar accountDidChange];
 }
 
 - (NSArray<NSURL*>*)persistedRecentProjects {
