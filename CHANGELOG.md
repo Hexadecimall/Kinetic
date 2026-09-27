@@ -2,7 +2,14 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.18.0 - Unreleased
+## 0.18.1 - Unreleased
+
+### Fixed
+
+- Generated the OAuth badge with a navy canvas matching its GitHub background, removing the white
+  corners around the Kinetic icon.
+
+## 0.18.0
 
 ### Added
 

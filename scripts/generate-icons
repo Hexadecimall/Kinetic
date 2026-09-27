@@ -10,9 +10,10 @@ kinetic_require iconutil
 
 SOURCE="$KINETIC_ROOT/assets/branding/kinetic-app-icon.svg"
 OUTPUT="$KINETIC_ROOT/assets/icons/Kinetic.icns"
-OAUTH_OUTPUT="$KINETIC_ROOT/assets/icons/KineticOAuth.png"
+oauthOutput="$KINETIC_ROOT/assets/icons/KineticOAuth.png"
 TEMP_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/kinetic-icons.XXXXXX")
 ICONSET="$TEMP_ROOT/Kinetic.iconset"
+oauthSource="$TEMP_ROOT/kinetic-oauth-icon.svg"
 
 cleanup() {
     rm -rf "$TEMP_ROOT"
@@ -36,5 +37,8 @@ cp "$RENDERED" "$ICONSET/icon_512x512@2x.png"
 
 iconutil -c icns "$ICONSET" -o "$OUTPUT"
 printf 'Generated %s\n' "$OUTPUT"
-sips -z 512 512 "$RENDERED" --out "$OAUTH_OUTPUT" >/dev/null
-printf 'Generated %s\n' "$OAUTH_OUTPUT"
+awk 'NR == 1 { print; print "  <rect width=\"1024\" height=\"1024\" fill=\"#151E2C\"/>"; next } { print }' \
+    "$SOURCE" > "$oauthSource"
+qlmanage -t -s 1024 -o "$TEMP_ROOT" "$oauthSource" >/dev/null
+sips -z 512 512 "$TEMP_ROOT/kinetic-oauth-icon.svg.png" --out "$oauthOutput" >/dev/null
+printf 'Generated %s\n' "$oauthOutput"

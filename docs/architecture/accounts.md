@@ -15,7 +15,8 @@ source-control operations and plugin publishing through the account are later fe
 release does not request `delete_repo`, `workflow`, or account-administration scopes.
 
 The public OAuth badge asset is `assets/icons/KineticOAuth.png`, generated alongside the app icon
-from the Kinetic SVG by `scripts/generate-icons`.
+from the Kinetic SVG by `scripts/generate-icons`. Its navy canvas matches the OAuth app's badge
+background color (`#151E2C`).
 
 The access and refresh tokens live only in the macOS Keychain under Kinetic's own service name;
 they are never written to `~/.kinetic/`, project files, or logs. Expiring tokens are refreshed on

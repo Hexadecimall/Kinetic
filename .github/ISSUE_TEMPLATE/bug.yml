@@ -10,7 +10,7 @@ body:
     id: version
     attributes:
       label: Kinetic version
-      placeholder: 0.18.0 or commit
+      placeholder: 0.18.1 or commit
     validations:
       required: true
   - type: input
