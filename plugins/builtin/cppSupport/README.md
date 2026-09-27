@@ -19,8 +19,10 @@ Header/source switching searches sibling files with a matching stem. A project-l
 The user can disable the bundle with `disabledFiles = ["libkineticCppSupport.dylib"]` under
 `[plugins]` in `~/.kinetic/config.toml`, or disable all native plugins with `enabled = false`.
 The bundled plugin is first-party and marked Official in the editor only when loaded from the
-signed app bundle. It has not been published to the GitHub plugin catalog; that catalog requires
-an immutable public Release asset, checksum, and matching publisher policy entry.
+signed app bundle. Version 0.1.0 is also published as an immutable
+[GitHub Release](https://github.com/Hexadecimall/Kinetic/releases/tag/cpp-support-v0.1.0) and
+listed as Official in the public catalog. The editor does not yet browse or install catalog
+plugins; a manual download must still be treated as native code with the user's privileges.
 
 Build and test through `./scripts/test`. The Rust plugin crate has isolated unit tests; the
 native integration test starts an actual clangd and checks diagnostics and definition navigation.

@@ -100,7 +100,7 @@ The GitHub-backed publication flow and Official policy are documented in
 from that catalog.
 
 [`C/C++ Support`](../../plugins/builtin/cppSupport/README.md) is a first-party example of the
-language hooks. It ships in the signed app bundle; it is not a catalog release yet.
+language hooks. It ships in the signed app bundle and has an immutable Official catalog release.
 
 The current ABI does **not** yet expose every editor control. The Rust contribution registry now
 owns metadata and collision rules for commands, shortcuts, menus, panels, overlays, and formatters;

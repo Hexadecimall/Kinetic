@@ -1,7 +1,10 @@
+import os
 import struct
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from scripts import publishOfficialPlugin as publisher
 
@@ -35,6 +38,25 @@ class PublishOfficialPluginTests(unittest.TestCase):
         linkedAsset.symlink_to(self.asset)
         with self.assertRaisesRegex(ValueError, "first-party"):
             publisher.validateAsset(linkedAsset)
+
+    def testPublisherRequiresImmutableRepositoryAndRejectsSymlinks(self):
+        releaseEnv = {"GITHUB_TOKEN": "test", "GITHUB_REPOSITORY": "Hexadecimall/Kinetic",
+                      "GITHUB_SHA": "0123456789abcdef"}
+        with patch.dict(os.environ, releaseEnv, clear=True), \
+                patch.object(sys, "argv", ["publishOfficialPlugin.py", "--asset", str(self.asset)]), \
+                patch.object(publisher, "requestJson", return_value={"enabled": False}):
+            with self.assertRaisesRegex(ValueError, "immutability"):
+                publisher.main()
+
+        linkDir = self.asset.parent / "links"
+        linkDir.mkdir()
+        linkedAsset = linkDir / publisher.assetName
+        linkedAsset.symlink_to(self.asset)
+        with patch.dict(os.environ, releaseEnv, clear=True), \
+                patch.object(sys, "argv", ["publishOfficialPlugin.py", "--asset", str(linkedAsset)]), \
+                patch.object(publisher, "requestJson", side_effect=AssertionError("network accessed")):
+            with self.assertRaisesRegex(ValueError, "first-party"):
+                publisher.main()
 
 
 if __name__ == "__main__":

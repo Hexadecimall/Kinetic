@@ -14,6 +14,7 @@ All notable Kinetic changes are recorded here. Versions use `main.feature.patch`
 - Added an actual clangd integration test and plugin lexer/LSP protocol tests.
 - Added a gated first-party release workflow for the C/C++ plugin and distinct required registry
   validation on every pull request.
+- Published C/C++ Support 0.1.0 as a checksum-verified, immutable Official registry release.
 
 ### Fixed
 

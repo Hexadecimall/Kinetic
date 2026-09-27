@@ -1,4 +1,6 @@
 {
-  "plugins": {},
+  "plugins": {
+    "kinetic.cpp-support": 121444149
+  },
   "schemaVersion": 1
 }

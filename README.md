@@ -16,7 +16,8 @@
 
 The bundled [C/C++ Support](plugins/builtin/cppSupport/README.md) plugin adds C/C++ syntax,
 clangd diagnostics and Go to Definition, clang-format, and header/source switching. It uses the
-same public plugin API available to third-party native plugins.
+same public plugin API available to third-party native plugins. Its first signed arm64 asset is
+published in the GitHub-backed catalog as Official; in-editor catalog installation is not yet built.
 
 ## Direction
 

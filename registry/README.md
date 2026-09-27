@@ -51,11 +51,17 @@ required rule once another maintainer is available to approve the owner's pull r
 
 The bundled first-party C/C++ Support plugin has a separate, manual
 `Publish C/C++ Support` workflow. It tests and builds the plugin on macOS, strips build-only
-symbols from a separate release copy, re-signs and audits that arm64 asset, then creates
-`cpp-support-v0.1.0` with an immutable `libkineticCppSupport.dylib` release asset. The workflow
-prints the uploaded size and SHA-256;
-add the catalog entry only after those remote bytes pass `verify-assets`. Re-running the workflow
+symbols from a separate release copy, re-signs and audits that arm64 asset, then creates a draft,
+uploads `libkineticCppSupport.dylib`, and publishes the draft as an immutable release. It requires
+GitHub's repository-level release immutability setting to be enabled. The workflow prints the
+uploaded size and SHA-256. Add the catalog entry only after those remote bytes pass
+`verify-assets`. Re-running the workflow
 will not replace an existing asset.
+
+The first release, `kinetic.cpp-support` 0.1.0, is published at
+[`cpp-support-v0.1.0`](https://github.com/Hexadecimall/Kinetic/releases/tag/cpp-support-v0.1.0).
+The Official catalog entry pins its publisher account ID and the verified 552,288-byte SHA-256
+asset. GitHub reports the release itself as immutable.
 
 “Official” means Kinetic project approval, not a claim that native code is sandboxed or risk-free.
 The editor does not yet browse or install from this catalog. A future installer must verify the

@@ -54,10 +54,13 @@ def main():
     if not token or repository != "Hexadecimall/Kinetic" or not commit:
         raise ValueError("Run only in the Kinetic release workflow with GitHub credentials")
 
-    assetPath = options.asset.resolve()
+    assetPath = options.asset.absolute()
     data = validateAsset(assetPath)
 
     apiBase = f"https://api.github.com/repos/{repository}/releases"
+    releaseSettings = requestJson(f"https://api.github.com/repos/{repository}/immutable-releases", token)
+    if not releaseSettings.get("enabled"):
+        raise ValueError("GitHub release immutability must be enabled before publishing")
     try:
         release = requestJson(f"{apiBase}/tags/{quote(releaseTag)}", token)
     except HTTPError as error:
@@ -73,27 +76,38 @@ def main():
                 "and header/source switching. The plugin uses installed toolchains and does "
                 "not download tools automatically."
             ),
-            "draft": False,
+            "draft": True,
             "prerelease": True,
         })
 
-    if any(asset["name"] == assetName for asset in release.get("assets", [])):
-        raise ValueError("The release already has this immutable asset; refusing to replace it")
-    uploadUrl = release["upload_url"].split("{", 1)[0]
-    expectedPrefix = f"https://uploads.github.com/repos/{repository}/releases/"
-    if not uploadUrl.startswith(expectedPrefix):
-        raise ValueError("Unexpected GitHub release upload URL")
-    request = Request(f"{uploadUrl}?name={quote(assetName)}", data=data, method="POST", headers={
-        "Accept": "application/vnd.github+json",
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/octet-stream",
-        "User-Agent": "Kinetic-Official-Plugin-Publisher",
-    })
-    with urlopen(request, timeout=120) as response:
-        uploaded = json.load(response)
-    if uploaded.get("name") != assetName or uploaded.get("size") != len(data):
-        raise ValueError("GitHub reported an unexpected uploaded asset")
-    print(f"Release: {release['html_url']}")
+    if not release.get("draft"):
+        raise ValueError("The release is already published; refusing to replace it")
+    matchingAssets = [asset for asset in release.get("assets", []) if asset["name"] == assetName]
+    if matchingAssets:
+        uploaded = matchingAssets[0]
+        if uploaded.get("size") != len(data) or \
+                uploaded.get("digest") != f"sha256:{hashlib.sha256(data).hexdigest()}":
+            raise ValueError("Existing draft asset differs from the verified build")
+    else:
+        uploadUrl = release["upload_url"].split("{", 1)[0]
+        expectedPrefix = f"https://uploads.github.com/repos/{repository}/releases/"
+        if not uploadUrl.startswith(expectedPrefix):
+            raise ValueError("Unexpected GitHub release upload URL")
+        request = Request(f"{uploadUrl}?name={quote(assetName)}", data=data, method="POST", headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/octet-stream",
+            "User-Agent": "Kinetic-Official-Plugin-Publisher",
+        })
+        with urlopen(request, timeout=120) as response:
+            uploaded = json.load(response)
+        if uploaded.get("name") != assetName or uploaded.get("size") != len(data):
+            raise ValueError("GitHub reported an unexpected uploaded asset")
+
+    published = requestJson(f"{apiBase}/{release['id']}", token, "PATCH", {"draft": False})
+    if not published.get("immutable"):
+        raise ValueError("GitHub did not mark the published release immutable")
+    print(f"Release: {published['html_url']}")
     print(f"Asset: {uploaded['browser_download_url']}")
     print(f"Size: {len(data)}")
     print(f"SHA-256: {hashlib.sha256(data).hexdigest()}")

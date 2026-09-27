@@ -1,4 +1,27 @@
 {
-  "plugins": [],
+  "plugins": [
+    {
+      "id": "kinetic.cpp-support",
+      "name": "C/C++ Support",
+      "official": true,
+      "publisher": {
+        "githubId": 121444149,
+        "githubLogin": "Hexadecimall"
+      },
+      "releases": [
+        {
+          "apiVersion": 1,
+          "asset": {
+            "sha256": "00e80a207abcfd30111c8f523eae7f2bfd1c8e08ef7c4a5d565a4de9ef140ec7",
+            "sizeBytes": 552288,
+            "url": "https://github.com/Hexadecimall/Kinetic/releases/download/cpp-support-v0.1.0/libkineticCppSupport.dylib"
+          },
+          "platform": "macos-arm64",
+          "version": "0.1.0"
+        }
+      ],
+      "summary": "C/C++ syntax, clangd diagnostics and definition navigation, clang-format, and header/source switching."
+    }
+  ],
   "schemaVersion": 1
 }
