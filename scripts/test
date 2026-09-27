@@ -18,3 +18,6 @@ fi
 
 CARGO_TARGET_DIR="$KINETIC_ROOT/build/cargo-tests" cargo test --workspace --all-targets
 ctest --test-dir "$(kinetic_build_dir debug)" --output-on-failure
+PYTHONPATH="$KINETIC_ROOT" python3 -m unittest discover -s "$KINETIC_ROOT/tests" \
+    -p 'pluginRegistryTests.py'
+python3 "$KINETIC_ROOT/scripts/pluginRegistry.py" check

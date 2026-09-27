@@ -55,6 +55,10 @@ ABI is an extensible entry point rather than a frozen list of ten preferences. T
 inside Kinetic's renderer: plugins change a property, not per-glyph callbacks. This keeps letter
 spacing customizable without placing plugin dispatch in the drawing hot path.
 
+The GitHub-backed publication flow and Official policy are documented in
+[`registry/README.md`](../../registry/README.md). The current editor does not yet browse or install
+from that catalog.
+
 The current ABI does **not** yet expose every editor control. Typed string/theme properties,
 settings persistence, shortcut registration, custom panels, language tooling, diagnostics, file
 system providers, and granular UI contributions require further host work. These capabilities

@@ -2,7 +2,17 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.16.1 - Unreleased
+## 0.17.0 - Unreleased
+
+### Added
+
+- Added a GitHub-backed plugin publication registry with immutable release entries, deterministic
+  catalog generation, SHA-256 asset verification, publisher identity checks, and a project-owned
+  Official policy.
+- Added a plugin release drafting tool, registry regression tests, PR validation, and a GitHub
+  Pages workflow for the public catalog.
+
+## 0.16.1
 
 ### Fixed
 

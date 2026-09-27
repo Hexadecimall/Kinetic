@@ -7,7 +7,7 @@
 </p>
 
 > [!IMPORTANT]
-> Kinetic `0.16.1` is an early functional preview. Editing, retained multi-document tabs, persisted
+> Kinetic `0.17.0` is an early functional preview. Editing, retained multi-document tabs, persisted
 > recent projects, mouse selection, undo/redo, basic syntax highlighting, auto-indentation,
 > matching delimiters, custom context menus,
 > in-file and project search,
@@ -20,6 +20,8 @@ Kinetic combines a fast custom interface with first-class project tooling and an
 works well before any configuration is written. TOML handles declarative settings, Lua handles
 dynamic configuration and automation. A first native plugin API now supports Rust and C++ through
 a versioned C ABI; its current surface is documented in [`docs/plugin-api/README.md`](docs/plugin-api/README.md).
+The GitHub-backed plugin registry and publication process are documented in
+[`registry/README.md`](registry/README.md).
 
 The first platform is Apple Silicon macOS 15 or newer. Linux and Intel macOS support are planned
 after the macOS experience is mature.

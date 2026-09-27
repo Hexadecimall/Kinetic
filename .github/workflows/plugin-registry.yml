@@ -1,0 +1,94 @@
+name: Plugin Registry
+
+on:
+  pull_request:
+    paths:
+      - registry/**
+      - scripts/pluginRegistry.py
+      - tests/pluginRegistryTests.py
+      - .github/workflows/plugin-registry.yml
+  push:
+    branches: [main]
+    paths:
+      - registry/**
+      - scripts/pluginRegistry.py
+      - tests/pluginRegistryTests.py
+      - .github/workflows/plugin-registry.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plugin-registry-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Check out submitted catalog
+        uses: actions/checkout@v4
+        with:
+          path: source
+          persist-credentials: false
+      - name: Check out trusted validator
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: trusted
+          persist-credentials: false
+      - name: Test trusted registry rules
+        if: github.event_name == 'pull_request'
+        env:
+          PYTHONPATH: trusted
+        run: python3 -m unittest discover -s trusted/tests -p 'pluginRegistryTests.py' -v
+      - name: Test registry rules
+        if: github.event_name != 'pull_request'
+        env:
+          PYTHONPATH: source
+        run: python3 -m unittest discover -s source/tests -p 'pluginRegistryTests.py' -v
+      - name: Validate catalog and publisher identity
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            python3 trusted/scripts/pluginRegistry.py --root source check
+            python3 trusted/scripts/pluginRegistry.py --root source check-pr --event "$GITHUB_EVENT_PATH"
+            python3 trusted/scripts/pluginRegistry.py --root source verify-assets
+          else
+            python3 source/scripts/pluginRegistry.py --root source check
+            python3 source/scripts/pluginRegistry.py --root source verify-assets
+          fi
+      - name: Build public catalog
+        if: github.event_name != 'pull_request'
+        run: python3 source/scripts/pluginRegistry.py --root source build --output build/site/plugins/index.json
+      - name: Configure Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+      - name: Upload catalog
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: build/site
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy catalog
+        id: deployment
+        uses: actions/deploy-pages@v4
