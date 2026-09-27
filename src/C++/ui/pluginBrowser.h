@@ -7,8 +7,8 @@
 @protocol KineticPluginBrowserDelegate <NSObject>
 - (void)pluginBrowserDidRequestRefresh:(KineticPluginBrowser*)browser;
 - (void)pluginBrowser:(KineticPluginBrowser*)browser
-    didRequestAction:(NSString*)action
-           forPlugin:(NSDictionary<NSString*, id>*)plugin;
+     didRequestAction:(NSString*)action
+            forPlugin:(NSDictionary<NSString*, id>*)plugin;
 @end
 
 @interface KineticPluginBrowser : NSView

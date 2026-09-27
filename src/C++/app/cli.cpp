@@ -20,7 +20,7 @@ void printHelp() {
               << "  app check|install|update|uninstall\n";
 }
 
-}
+} // namespace
 
 int main(int argc, char** argv) {
     if (argc == 1 || std::string_view(argv[1]) == "--help" || std::string_view(argv[1]) == "-h") {

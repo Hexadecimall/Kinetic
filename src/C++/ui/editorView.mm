@@ -1195,8 +1195,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 
 - (NSRect)appActionRectAtIndex:(NSUInteger)index {
     CGFloat x = KineticActivityBar.railWidth + 42.0;
-    return NSMakeRect(x + index * 154.0, 154.0 + 9.0 * 56.0 + 19.0 - _settingsScroll,
-                      144.0, 32.0);
+    return NSMakeRect(x + index * 154.0, 154.0 + 9.0 * 56.0 + 19.0 - _settingsScroll, 144.0, 32.0);
 }
 
 - (NSRect)settingsMinusRectForRow:(NSInteger)row {
@@ -1401,11 +1400,12 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         [editorColor(59, 76, 105, 0.88) setFill];
         [[NSBezierPath bezierPathWithRoundedRect:rect xRadius:5.0 yRadius:5.0] fill];
         [appActions[index] drawInRect:NSInsetRect(rect, 9.0, 7.0)
-                      withAttributes:rowTitleAttributes];
+                       withAttributes:rowTitleAttributes];
     }
-    [(_appPackageStatus ?: @"")
-        drawInRect:NSMakeRect(x, appY + 75.0, MIN(620.0, NSWidth(self.bounds) - x - 42.0), 45.0)
-        withAttributes:rowDetailAttributes];
+    [(_appPackageStatus ?: @"") drawInRect:NSMakeRect(x, appY + 75.0,
+                                                      MIN(620.0, NSWidth(self.bounds) - x - 42.0),
+                                                      45.0)
+                            withAttributes:rowDetailAttributes];
     [NSGraphicsContext restoreGraphicsState];
 }
 
@@ -1429,7 +1429,8 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     NSUInteger tabCount = [self visibleTabCount];
     for (NSUInteger index = 0; index < tabCount; ++index) {
         BOOL utilityTab = (_settingsVisible || _pluginsVisible) && index == _tabTitles.count;
-        BOOL active = utilityTab || (!(_settingsVisible || _pluginsVisible) && index == _activeTabIndex);
+        BOOL active =
+            utilityTab || (!(_settingsVisible || _pluginsVisible) && index == _activeTabIndex);
         NSRect tabRect = [self tabRectAtIndex:index];
         if (active) {
             [editorColor(47, 57, 71, 0.94) setFill];
@@ -1446,8 +1447,8 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
                 NSMakeRect(NSMinX(tabRect), NSMinY(tabRect) + 7.0, 1.0, NSHeight(tabRect) - 14.0));
         }
 
-        NSString* tabTitle = utilityTab ? (_settingsVisible ? @"Settings" : @"Plugins")
-                                      : _tabTitles[index];
+        NSString* tabTitle =
+            utilityTab ? (_settingsVisible ? @"Settings" : @"Plugins") : _tabTitles[index];
         [tabTitle drawInRect:NSMakeRect(NSMinX(tabRect) + 12.0, NSMinY(tabRect) + 9.0,
                                         NSWidth(tabRect) - 43.0, 18.0)
               withAttributes:truncatingTabAttributes];
@@ -1700,8 +1701,8 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     if (point.y >= kTabBarY && point.y < kTabBarY + kTabBarHeight) {
         for (NSUInteger index = 0; index < [self visibleTabCount]; ++index) {
             if (NSPointInRect(point, [self closeRectAtIndex:index])) {
-                BOOL utilityTab = (_settingsVisible || _pluginsVisible) &&
-                                  index == _tabTitles.count;
+                BOOL utilityTab =
+                    (_settingsVisible || _pluginsVisible) && index == _tabTitles.count;
                 if (utilityTab) {
                     _settingsVisible = NO;
                     _pluginsVisible = NO;
@@ -1738,12 +1739,16 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
                 [self.commandHandler manageApplication:action];
             } else {
                 NSArray* items = @[
-                    @{@"title" : index == 1 ? @"Verified GitHub release" : @"App moves to Trash",
-                      @"enabled" : @NO},
+                    @{
+                        @"title" : index == 1 ? @"Verified GitHub release" : @"App moves to Trash",
+                        @"enabled" : @NO
+                    },
                     @{@"title" : index == 1 ? @"Install / update" : @"Uninstall Kinetic"},
                     @{@"title" : @"Cancel"},
                 ];
-                [KineticContextMenu showInView:self atPoint:point items:items
+                [KineticContextMenu showInView:self
+                                       atPoint:point
+                                         items:items
                                        handler:^(NSUInteger selected) {
                                          if (selected == 1) {
                                              [self.commandHandler manageApplication:action];
@@ -1927,8 +1932,8 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 }
 
 - (void)pluginBrowser:(KineticPluginBrowser*)browser
-    didRequestAction:(NSString*)action
-           forPlugin:(NSDictionary<NSString*, id>*)plugin {
+     didRequestAction:(NSString*)action
+            forPlugin:(NSDictionary<NSString*, id>*)plugin {
     (void)browser;
     [self.commandHandler managePlugin:plugin action:action];
 }

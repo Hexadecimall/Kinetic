@@ -733,8 +733,8 @@ BOOL activityIsDirectory(NSURL* url) {
 
         _activeSection = section;
         [self.delegate activityBar:self didActivateSection:section];
-        BOOL opensPanel = section != KineticActivitySectionSettings &&
-                          section != KineticActivitySectionPlugins;
+        BOOL opensPanel =
+            section != KineticActivitySectionSettings && section != KineticActivitySectionPlugins;
         if (opensPanel) {
             _displayedSection = section;
             if (NSWidth(self.frame) < kRailWidth + kPanelWidth - 0.5) {

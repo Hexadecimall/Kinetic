@@ -482,24 +482,27 @@
     }
     [self showPluginCatalog:self.catalogPlugins status:@"Checking the public catalog…"];
     [self runPackageCommand:@[ @"plugins", @"list", @"--json" ]
-               completion:^(NSString* output, NSString* errorMessage) {
-                 if (errorMessage != nil) {
-                     [self showPluginCatalog:self.catalogPlugins
+                 completion:^(NSString* output, NSString* errorMessage) {
+                   if (errorMessage != nil) {
+                       [self
+                           showPluginCatalog:self.catalogPlugins
                                       status:[NSString stringWithFormat:@"Catalog unavailable: %@",
                                                                         errorMessage]];
-                     return;
-                 }
-                 NSData* data = [output dataUsingEncoding:NSUTF8StringEncoding];
-                 id parsed = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
-                 if (![parsed isKindOfClass:NSArray.class]) {
-                     [self showPluginCatalog:self.catalogPlugins status:@"Catalog response was invalid."];
-                     return;
-                 }
-                 [self showPluginCatalog:parsed
-                                  status:[NSString stringWithFormat:@"%lu plugin%@ in catalog",
-                                                                    (unsigned long)[parsed count],
-                                                                    [parsed count] == 1 ? @"" : @"s"]];
-               }];
+                       return;
+                   }
+                   NSData* data = [output dataUsingEncoding:NSUTF8StringEncoding];
+                   id parsed = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+                   if (![parsed isKindOfClass:NSArray.class]) {
+                       [self showPluginCatalog:self.catalogPlugins
+                                        status:@"Catalog response was invalid."];
+                       return;
+                   }
+                   [self showPluginCatalog:parsed
+                                    status:[NSString
+                                               stringWithFormat:@"%lu plugin%@ in catalog",
+                                                                (unsigned long)[parsed count],
+                                                                [parsed count] == 1 ? @"" : @"s"]];
+                 }];
 }
 
 - (void)managePlugin:(NSDictionary<NSString*, id>*)plugin action:(NSString*)action {
@@ -511,23 +514,25 @@
     }
     self.pluginManagerBusy = YES;
     [self showPluginCatalog:self.catalogPlugins
-                   status:[NSString stringWithFormat:@"%@ %@…", action.capitalizedString,
-                                                     plugin[@"name"] ?: pluginId]];
+                     status:[NSString stringWithFormat:@"%@ %@…", action.capitalizedString,
+                                                       plugin[@"name"] ?: pluginId]];
     [self runPackageCommand:@[ @"plugins", action, pluginId, @"--yes" ]
-               completion:^(NSString* output, NSString* errorMessage) {
-                 self.pluginManagerBusy = NO;
-                 if (errorMessage != nil) {
-                     [self showPluginCatalog:self.catalogPlugins
-                                      status:[NSString stringWithFormat:@"%@ failed: %@",
-                                                                        action.capitalizedString,
-                                                                        errorMessage]];
-                     return;
-                 }
-                 [self showPluginCatalog:self.catalogPlugins
-                                  status:[output stringByTrimmingCharactersInSet:
-                                                     NSCharacterSet.whitespaceAndNewlineCharacterSet]];
-                 [self refreshPluginCatalog];
-               }];
+                 completion:^(NSString* output, NSString* errorMessage) {
+                   self.pluginManagerBusy = NO;
+                   if (errorMessage != nil) {
+                       [self showPluginCatalog:self.catalogPlugins
+                                        status:[NSString stringWithFormat:@"%@ failed: %@",
+                                                                          action.capitalizedString,
+                                                                          errorMessage]];
+                       return;
+                   }
+                   [self
+                       showPluginCatalog:self.catalogPlugins
+                                  status:[output
+                                             stringByTrimmingCharactersInSet:
+                                                 NSCharacterSet.whitespaceAndNewlineCharacterSet]];
+                   [self refreshPluginCatalog];
+                 }];
 }
 
 - (void)showAppPackageStatus:(NSString*)status {
@@ -538,8 +543,7 @@
 }
 
 - (void)manageApplication:(NSString*)action {
-    if (self.appManagerBusy ||
-        ![@[ @"check", @"update", @"uninstall" ] containsObject:action]) {
+    if (self.appManagerBusy || ![@[ @"check", @"update", @"uninstall" ] containsObject:action]) {
         return;
     }
     if ([action isEqualToString:@"uninstall"]) {
@@ -552,19 +556,24 @@
     }
     NSString* command = action;
     if ([action isEqualToString:@"update"]) {
-        NSString* target = [NSHomeDirectory() stringByAppendingPathComponent:@"Applications/Kinetic.app"];
+        NSString* target =
+            [NSHomeDirectory() stringByAppendingPathComponent:@"Applications/Kinetic.app"];
         if (![NSFileManager.defaultManager fileExistsAtPath:target]) {
             command = @"install";
         }
     }
     self.appManagerBusy = YES;
-    [self showAppPackageStatus:[NSString stringWithFormat:@"%@ application…", action.capitalizedString]];
-    [self runPackageCommand:@[ @"app", command, @"--yes" ]
+    [self showAppPackageStatus:[NSString
+                                   stringWithFormat:@"%@ application…", action.capitalizedString]];
+    [self
+        runPackageCommand:@[ @"app", command, @"--yes" ]
                completion:^(NSString* output, NSString* errorMessage) {
                  self.appManagerBusy = NO;
                  NSString* message = errorMessage ?: output;
-                 [self showAppPackageStatus:[message stringByTrimmingCharactersInSet:
-                                                     NSCharacterSet.whitespaceAndNewlineCharacterSet]];
+                 [self
+                     showAppPackageStatus:[message
+                                              stringByTrimmingCharactersInSet:
+                                                  NSCharacterSet.whitespaceAndNewlineCharacterSet]];
                }];
 }
 

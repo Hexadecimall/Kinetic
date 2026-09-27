@@ -143,8 +143,7 @@ NSNumber* numberValue(id value) {
       OSStatus status = SecItemCopyMatching((__bridge CFDictionaryRef)query, &result);
       NSData* data = result == nullptr ? nil : CFBridgingRelease(result);
       dispatch_async(dispatch_get_main_queue(), ^{
-        if (self.flowGeneration != generation ||
-            self.phase != KineticGitHubAccountPhaseSignedOut) {
+        if (self.flowGeneration != generation || self.phase != KineticGitHubAccountPhaseSignedOut) {
             return;
         }
         if (status == errSecItemNotFound) {

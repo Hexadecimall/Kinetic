@@ -7,10 +7,7 @@ constexpr CGFloat kCardHeight = 106.0;
 constexpr CGFloat kCardGap = 9.0;
 
 NSColor* browserColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
-    return [NSColor colorWithSRGBRed:red / 255.0
-                              green:green / 255.0
-                               blue:blue / 255.0
-                              alpha:alpha];
+    return [NSColor colorWithSRGBRed:red / 255.0 green:green / 255.0 blue:blue / 255.0 alpha:alpha];
 }
 
 NSDictionary* browserText(CGFloat size, NSFontWeight weight, NSColor* color) {
@@ -130,23 +127,23 @@ NSDictionary* browserText(CGFloat size, NSFontWeight weight, NSColor* color) {
     [browserColor(official ? 60 : 67, official ? 93 : 78, official ? 145 : 100) setFill];
     [[NSBezierPath bezierPathWithRoundedRect:rect xRadius:9.0 yRadius:9.0] fill];
     NSString* name = plugin[@"name"] ?: @"Plugin";
-    NSString* mark = [plugin[@"id"] isEqualToString:@"kinetic.cpp-support"] ? @"C++"
-                     : [name substringToIndex:MIN((NSUInteger)2, name.length)].uppercaseString;
+    NSString* mark = [plugin[@"id"] isEqualToString:@"kinetic.cpp-support"]
+                         ? @"C++"
+                         : [name substringToIndex:MIN((NSUInteger)2, name.length)].uppercaseString;
     NSDictionary* attributes = browserText(rect.size.width > 50.0 ? 23.0 : 17.0,
                                            NSFontWeightSemibold, browserColor(234, 241, 252));
     NSSize size = [mark sizeWithAttributes:attributes];
-    [mark drawAtPoint:NSMakePoint(NSMidX(rect) - size.width * 0.5,
-                                  NSMidY(rect) - size.height * 0.5)
-      withAttributes:attributes];
+    [mark drawAtPoint:NSMakePoint(NSMidX(rect) - size.width * 0.5, NSMidY(rect) - size.height * 0.5)
+        withAttributes:attributes];
 }
 
 - (void)drawAction:(NSString*)title inRect:(NSRect)rect enabled:(BOOL)enabled {
-    [browserColor(enabled ? 74 : 62, enabled ? 129 : 73, enabled ? 222 : 88,
-                  enabled ? 0.95 : 0.55) setFill];
+    [browserColor(enabled ? 74 : 62, enabled ? 129 : 73, enabled ? 222 : 88, enabled ? 0.95 : 0.55)
+        setFill];
     [[NSBezierPath bezierPathWithRoundedRect:rect xRadius:5.0 yRadius:5.0] fill];
-    NSDictionary* attributes = browserText(13.0, NSFontWeightMedium,
-                                           enabled ? browserColor(239, 245, 254)
-                                                   : browserColor(145, 157, 175));
+    NSDictionary* attributes =
+        browserText(13.0, NSFontWeightMedium,
+                    enabled ? browserColor(239, 245, 254) : browserColor(145, 157, 175));
     NSSize size = [title sizeWithAttributes:attributes];
     [title drawAtPoint:NSMakePoint(NSMidX(rect) - size.width * 0.5,
                                    NSMidY(rect) - size.height * 0.5)
@@ -164,28 +161,28 @@ NSDictionary* browserText(CGFloat size, NSFontWeight weight, NSColor* color) {
 
     [@"Plugins" drawAtPoint:NSMakePoint(25.0, 27.0) withAttributes:title];
     [@"Find and manage extensions for this editor." drawAtPoint:NSMakePoint(26.0, 61.0)
-                                              withAttributes:muted];
+                                                 withAttributes:muted];
     if (_status.length > 0) {
         [_status drawInRect:NSMakeRect(NSWidth(self.bounds) - 305.0, 45.0, 280.0, 22.0)
-            withAttributes:muted];
+             withAttributes:muted];
     }
     NSRect search = NSMakeRect(25.0, 83.0, MIN(460.0, NSWidth(self.bounds) - 50.0), 42.0);
     [browserColor(34, 43, 57) setFill];
     [[NSBezierPath bezierPathWithRoundedRect:search xRadius:6.0 yRadius:6.0] fill];
     [browserColor(81, 101, 132, 0.6) setStroke];
     [[NSBezierPath bezierPathWithRoundedRect:search xRadius:6.0 yRadius:6.0] stroke];
-    NSBezierPath* searchIcon = [NSBezierPath bezierPathWithOvalInRect:NSMakeRect(36.0, 97.0, 10.0, 10.0)];
+    NSBezierPath* searchIcon =
+        [NSBezierPath bezierPathWithOvalInRect:NSMakeRect(36.0, 97.0, 10.0, 10.0)];
     searchIcon.lineWidth = 1.4;
     [searchIcon moveToPoint:NSMakePoint(44.5, 105.5)];
     [searchIcon lineToPoint:NSMakePoint(50.0, 111.0)];
     [browserColor(153, 174, 202) setStroke];
     [searchIcon stroke];
     [@"Discover" drawAtPoint:NSMakePoint(26.0, 145.0)
-             withAttributes:_installedOnly ? muted : small];
+              withAttributes:_installedOnly ? muted : small];
     [@"Installed" drawAtPoint:NSMakePoint(111.0, 145.0)
-              withAttributes:_installedOnly ? small : muted];
-    [@"Refresh" drawAtPoint:NSMakePoint(NSWidth(self.bounds) - 75.0, 145.0)
-            withAttributes:muted];
+               withAttributes:_installedOnly ? small : muted];
+    [@"Refresh" drawAtPoint:NSMakePoint(NSWidth(self.bounds) - 75.0, 145.0) withAttributes:muted];
     [browserColor(76, 91, 112, 0.43) setFill];
     NSRectFill(NSMakeRect(24.0, 168.0, NSWidth(self.bounds) - 48.0, 1.0));
 
@@ -203,30 +200,28 @@ NSDictionary* browserText(CGFloat size, NSFontWeight weight, NSColor* color) {
             [browserColor(91, 151, 255) setFill];
             NSRectFill(NSMakeRect(NSMinX(card), NSMinY(card) + 7.0, 2.0, NSHeight(card) - 14.0));
         }
-        [self drawIconForPlugin:plugin inRect:NSMakeRect(NSMinX(card) + 12.0,
-                                                         NSMinY(card) + 13.0, 43.0, 43.0)];
+        [self drawIconForPlugin:plugin
+                         inRect:NSMakeRect(NSMinX(card) + 12.0, NSMinY(card) + 13.0, 43.0, 43.0)];
         CGFloat textX = NSMinX(card) + 66.0;
-        [plugin[@"name"] drawInRect:NSMakeRect(textX, NSMinY(card) + 12.0,
-                                                NSWidth(card) - 80.0, 19.0)
-                 withAttributes:body];
+        [plugin[@"name"]
+                drawInRect:NSMakeRect(textX, NSMinY(card) + 12.0, NSWidth(card) - 80.0, 19.0)
+            withAttributes:body];
         NSString* publisher = plugin[@"publisher"] ?: @"Unknown publisher";
-        [publisher drawInRect:NSMakeRect(textX, NSMinY(card) + 33.0,
-                                         NSWidth(card) - 80.0, 17.0)
-              withAttributes:muted];
+        [publisher drawInRect:NSMakeRect(textX, NSMinY(card) + 33.0, NSWidth(card) - 80.0, 17.0)
+               withAttributes:muted];
         [plugin[@"summary"] drawInRect:NSMakeRect(NSMinX(card) + 12.0, NSMinY(card) + 69.0,
-                                                   NSWidth(card) - 24.0, 28.0)
-                       withAttributes:muted];
+                                                  NSWidth(card) - 24.0, 28.0)
+                        withAttributes:muted];
     }
     [NSGraphicsContext restoreGraphicsState];
 
     if (filtered.count == 0) {
         NSString* emptyMessage = _searchField.stringValue.length > 0
                                      ? @"No plugins match this search."
-                                     : _installedOnly ? @"No plugins installed."
-                                                      : (_status ?: @"No plugins available.");
-        [emptyMessage
-            drawInRect:NSMakeRect(28.0, 191.0, [self detailX] - 65.0, 70.0)
-            withAttributes:muted];
+                                 : _installedOnly ? @"No plugins installed."
+                                                  : (_status ?: @"No plugins available.");
+        [emptyMessage drawInRect:NSMakeRect(28.0, 191.0, [self detailX] - 65.0, 70.0)
+                  withAttributes:muted];
     }
     NSDictionary* selected = [self selectedPlugin];
     if (selected == nil) {
@@ -235,29 +230,29 @@ NSDictionary* browserText(CGFloat size, NSFontWeight weight, NSColor* color) {
     CGFloat x = [self detailX] + 23.0;
     CGFloat width = MAX(190.0, NSWidth(self.bounds) - x - 28.0);
     [self drawIconForPlugin:selected inRect:NSMakeRect(x, 193.0, 66.0, 66.0)];
-    [selected[@"name"] drawInRect:NSMakeRect(x + 78.0, 194.0, width - 78.0, 30.0)
-                   withAttributes:browserText(21.0, NSFontWeightSemibold,
-                                               browserColor(233, 240, 250))];
-    NSString* publisher = [NSString stringWithFormat:@"by %@  ·  %@",
-                                    selected[@"publisher"] ?: @"Unknown",
-                                    [selected[@"official"] boolValue] ? @"Official" : @"Community"];
-    [publisher drawInRect:NSMakeRect(x + 78.0, 229.0, width - 78.0, 19.0)
-           withAttributes:muted];
+    [selected[@"name"]
+            drawInRect:NSMakeRect(x + 78.0, 194.0, width - 78.0, 30.0)
+        withAttributes:browserText(21.0, NSFontWeightSemibold, browserColor(233, 240, 250))];
+    NSString* publisher =
+        [NSString stringWithFormat:@"by %@  ·  %@", selected[@"publisher"] ?: @"Unknown",
+                                   [selected[@"official"] boolValue] ? @"Official" : @"Community"];
+    [publisher drawInRect:NSMakeRect(x + 78.0, 229.0, width - 78.0, 19.0) withAttributes:muted];
     [@"ABOUT" drawAtPoint:NSMakePoint(x, 279.0) withAttributes:small];
     NSMutableParagraphStyle* summaryStyle = [[NSMutableParagraphStyle alloc] init];
     summaryStyle.lineBreakMode = NSLineBreakByWordWrapping;
     NSMutableDictionary* summaryAttributes = [body mutableCopy];
     summaryAttributes[NSParagraphStyleAttributeName] = summaryStyle;
     [selected[@"summary"] drawInRect:NSMakeRect(x, 302.0, width, 68.0)
-                       withAttributes:summaryAttributes];
+                      withAttributes:summaryAttributes];
     NSString* state = selected[@"state"] ?: @"available";
-    NSString* action = [state isEqualToString:@"bundled"] ? @"Included"
+    NSString* action = [state isEqualToString:@"bundled"]      ? @"Included"
                        : [state hasPrefix:@"update available"] ? @"Update"
-                       : [state hasPrefix:@"installed"] ? @"Installed"
-                       : @"Install";
-    [self drawAction:action inRect:[self primaryActionRect]
-             enabled:![action isEqualToString:@"Included"] &&
-                     ![action isEqualToString:@"Installed"]];
+                       : [state hasPrefix:@"installed"]        ? @"Installed"
+                                                               : @"Install";
+    [self
+        drawAction:action
+            inRect:[self primaryActionRect]
+           enabled:![action isEqualToString:@"Included"] && ![action isEqualToString:@"Installed"]];
     if (![state isEqualToString:@"bundled"] && ![state isEqualToString:@"available"]) {
         [self drawAction:@"Remove" inRect:[self secondaryActionRect] enabled:YES];
     }
@@ -268,14 +263,13 @@ NSDictionary* browserText(CGFloat size, NSFontWeight weight, NSColor* color) {
     [@"RATING" drawAtPoint:NSMakePoint(x, 556.0) withAttributes:small];
     [@"☆☆☆☆☆  No ratings yet" drawAtPoint:NSMakePoint(x, 574.0) withAttributes:muted];
     NSString* technical = [NSString stringWithFormat:@"%@  ·  API %@  ·  %.0f KiB",
-                                        selected[@"platform"] ?: @"macos-arm64",
-                                        selected[@"apiVersion"] ?: @1,
-                                        [selected[@"sizeBytes"] doubleValue] / 1024.0];
+                                                     selected[@"platform"] ?: @"macos-arm64",
+                                                     selected[@"apiVersion"] ?: @1,
+                                                     [selected[@"sizeBytes"] doubleValue] / 1024.0];
     [technical drawInRect:NSMakeRect(x, 620.0, width, 19.0) withAttributes:muted];
-    [selected[@"id"] drawInRect:NSMakeRect(x, 640.0, width, 19.0)
-                 withAttributes:muted];
+    [selected[@"id"] drawInRect:NSMakeRect(x, 640.0, width, 19.0) withAttributes:muted];
     [@"Native plugins run with Kinetic's permissions. Restart after changes."
-        drawInRect:NSMakeRect(x, 664.0, width, 34.0)
+            drawInRect:NSMakeRect(x, 664.0, width, 34.0)
         withAttributes:muted];
 }
 
@@ -285,21 +279,32 @@ NSDictionary* browserText(CGFloat size, NSFontWeight weight, NSColor* color) {
     self.needsDisplay = YES;
 }
 
-- (void)showConfirmationForPlugin:(NSDictionary*)plugin action:(NSString*)action atPoint:(NSPoint)point {
+- (void)showConfirmationForPlugin:(NSDictionary*)plugin
+                           action:(NSString*)action
+                          atPoint:(NSPoint)point {
     NSString* publisher = plugin[@"publisher"] ?: @"Unknown";
     NSString* trust = [plugin[@"official"] boolValue] ? @"Official" : @"Community";
     NSArray* items = @[
         @{@"title" : [NSString stringWithFormat:@"Publisher: %@", publisher], @"enabled" : @NO},
         @{@"title" : [NSString stringWithFormat:@"%@ native plugin", trust], @"enabled" : @NO},
-        @{@"title" : [action isEqualToString:@"uninstall"] ? @"Remove plugin" : @"Runs with file access", @"enabled" : @NO},
+        @{
+            @"title" : [action isEqualToString:@"uninstall"] ? @"Remove plugin"
+                                                             : @"Runs with file access",
+            @"enabled" : @NO
+        },
         @{@"title" : [action.capitalizedString stringByAppendingString:@" plugin"]},
         @{@"title" : @"Cancel"},
     ];
-    [KineticContextMenu showInView:self atPoint:point items:items handler:^(NSUInteger index) {
-      if (index == 3) {
-          [self.delegate pluginBrowser:self didRequestAction:action forPlugin:plugin];
-      }
-    }];
+    [KineticContextMenu showInView:self
+                           atPoint:point
+                             items:items
+                           handler:^(NSUInteger index) {
+                             if (index == 3) {
+                                 [self.delegate pluginBrowser:self
+                                             didRequestAction:action
+                                                    forPlugin:plugin];
+                             }
+                           }];
 }
 
 - (void)mouseDown:(NSEvent*)event {
@@ -346,8 +351,8 @@ NSDictionary* browserText(CGFloat size, NSFontWeight weight, NSColor* color) {
     NSArray* filtered = [self filteredPlugins];
     CGFloat contentHeight = filtered.count * (kCardHeight + kCardGap);
     CGFloat viewport = MAX(100.0, NSHeight(self.bounds) - 181.0);
-    _listScroll = MIN(MAX(0.0, contentHeight - viewport),
-                      MAX(0.0, _listScroll - event.scrollingDeltaY));
+    _listScroll =
+        MIN(MAX(0.0, contentHeight - viewport), MAX(0.0, _listScroll - event.scrollingDeltaY));
     self.needsDisplay = YES;
 }
 
