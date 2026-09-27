@@ -29,6 +29,23 @@ The current host supports:
 | `setString`, `copyString` | Change or read a supported UTF-8 string property. `copyString` returns `UINT64_MAX` for an unknown property. |
 | `getSelection`, `setSelection` | Read or set the active selection as a UTF-16 range. |
 | `replaceRangeUtf8` | Replace an explicit UTF-16 document range through the Rust document core and normal undo/dirty handling. |
+| `registerShortcut` | Bind a registered command to a single alphanumeric key and modifier mask. Duplicate plugin chords are rejected. |
+| `registerFileMenuItem` | Add a registered command to Kinetic's custom File menu. |
+| `registerPanel` | Add a titled Plugins-panel view with callback-supplied label and command-button rows. |
+| `registerOverlay` | Draw bounded rectangle/text commands over the active editor viewport. |
+| `registerFormatter` | Register a lowercase file extension and UTF-8 document formatter. Format Document appears in the File menu for matching files. |
+
+These five functions are appended to ABI version 1. Older plugins can keep using the original
+structure prefix; new plugins must check `structSize` before reading the appended pointers. A
+plugin retains its own API pointer and context for its lifetime, including registrations made
+after `start` returns. Contributions belong to that plugin and are removed if `start` fails.
+Callbacks and registrations run on the main thread. Shortcut modifiers use the
+`kineticPluginModifier*` constants; a plugin shortcut may supersede a built-in shortcut.
+Panel callbacks can return up to 32 rows per panel. Overlay callbacks can return up to 128 draw
+commands per overlay and are clipped to the editor viewport. Coordinates and sizes are in points,
+relative to the viewport; colors are `0xRRGGBBAA`. Formatter output is limited to 16 MiB,
+must be valid UTF-8, and is applied as one undoable edit. Formatters run only on explicit
+Format Document invocation, not on save.
 
 Supported numeric property keys and ranges:
 
@@ -53,8 +70,9 @@ Supported string properties:
 | `editor.canvas.background` | `#RRGGBB` color; the editor's existing backdrop alpha is retained |
 
 `tests/samplePlugin.cpp` is a compilable example; `kineticPluginHostTests` loads it and checks
-property changes, command execution, event delivery, and document editing. A third-party C++
-plugin can be built with `clang++ -std=c++20 -dynamiclib -I include myPlugin.cpp -o myPlugin.dylib`
+property changes, command execution, event delivery, document editing, shortcuts, menus, panels,
+formatting, and late registration. A third-party C++ plugin can be built with
+`clang++ -std=c++20 -dynamiclib -I include myPlugin.cpp -o myPlugin.dylib`
 from the repository root. Rust plugins can use `extern "C"` with matching `#[repr(C)]` structures;
 no Rust or C++ internal object layout is exposed through the boundary.
 
@@ -69,11 +87,12 @@ The GitHub-backed publication flow and Official policy are documented in
 [`registry/README.md`](../../registry/README.md). The current editor does not yet browse or install
 from that catalog.
 
-The current ABI does **not** yet expose every editor control. The intended customization contract
-requires stable registries for settings, shortcuts, menus, panels, rendering, language tools,
-diagnostics, and file-system providers. These still need implementation; changing one exposed
-property does not imply arbitrary view control. The next backend boundary work is moving selection,
-workspace search, settings, and plugin registries to Rust. API growth must preserve old structure
-prefixes, check `structSize`, and avoid exposing Objective-C++ view pointers or unstable Rust
+The current ABI does **not** yet expose every editor control. The Rust contribution registry now
+owns metadata and collision rules for commands, shortcuts, menus, panels, overlays, and formatters;
+the C++ host still owns native callbacks and rendering. Settings registration, arbitrary widget
+layout, language tools, diagnostics, and file-system providers remain future work. Changing one
+exposed property or registering an overlay does not imply arbitrary view control. The next backend
+boundary work is moving selection, workspace search, and settings to Rust. API growth must preserve
+old structure prefixes, check `structSize`, and avoid exposing Objective-C++ view pointers or unstable Rust
 internals. Marketplace trust and official-publisher verification are separate future work, not
 implied by a local plugin's metadata.

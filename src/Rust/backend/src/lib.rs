@@ -5,6 +5,7 @@
 use std::ffi::c_char;
 
 mod document;
+mod extensions;
 
 const abiVersion: u32 = 1;
 const versionBytes: &[u8] = concat!(env!("CARGO_PKG_VERSION"), "\0").as_bytes();

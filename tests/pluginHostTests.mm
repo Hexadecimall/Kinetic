@@ -1,5 +1,6 @@
 #import <Foundation/Foundation.h>
 
+#include "kinetic/pluginApi.h"
 #import "pluginHost.h"
 
 @interface TestPluginDelegate : NSObject <KineticPluginHostDelegate>
@@ -7,9 +8,15 @@
 @property(nonatomic, copy) NSString* document;
 @property(nonatomic, copy) NSString* background;
 @property(nonatomic) NSRange selection;
+@property(nonatomic) NSUInteger contributionChanges;
 @end
 
 @implementation TestPluginDelegate
+
+- (void)pluginHostContributionsDidChange:(KineticPluginHost*)host {
+    (void)host;
+    self.contributionChanges += 1;
+}
 
 - (BOOL)pluginHost:(KineticPluginHost*)host setNumber:(double)value property:(NSString*)property {
     (void)host;
@@ -120,7 +127,20 @@ int main(int argc, const char* argv[]) {
         require(host.loadedPluginNames.count == 1, @"sample plugin loaded");
         require(delegate.letterSpacing == 1.25, @"plugin changed typography");
         require([delegate.background isEqualToString:@"#2A3647"], @"plugin changed canvas color");
-        require(host.commands.count == 3, @"plugin registered commands");
+        require(host.commands.count == 4, @"plugin registered commands");
+        require(host.fileMenuItems.count == 1, @"plugin registered File menu item");
+        require([host.fileMenuItems[0][@"title"] isEqualToString:@"Replace First"],
+                @"File menu title");
+        require(host.panels.count == 1, @"plugin registered panel");
+        require([host.panels[0][@"rows"] count] == 2, @"panel rows produced");
+        require([host hasFormatterForFileName:@"notes.kineticdemo"], @"formatter registered");
+        require([[host formatDocument:@"hello"
+                             fileName:@"notes.kineticdemo"] isEqualToString:@"HELLO"],
+                @"formatter transformed document");
+        require([host executeShortcutKey:@"p"
+                               modifiers:kineticPluginModifierCommand | kineticPluginModifierShift],
+                @"plugin shortcut executed");
+        require(delegate.letterSpacing == 2.0, @"shortcut invoked plugin command");
         require([host executeCommand:@"sample.increaseSpacing"], @"plugin command executed");
         require(delegate.letterSpacing == 2.0, @"command changed typography");
         [host emitEvent:@"document.activated"];
@@ -129,6 +149,13 @@ int main(int argc, const char* argv[]) {
         require([delegate.document isEqualToString:@"hello!"], @"document API changed text");
         require([host executeCommand:@"sample.replaceFirst"], @"range edit command executed");
         require([delegate.document isEqualToString:@"Hello!"], @"range edit changed document");
+        require([host executeCommand:@"sample.installLate"], @"late registration command executed");
+        require(host.fileMenuItems.count == 2, @"late File menu item registered");
+        require(delegate.contributionChanges == 2, @"late contributions notified UI");
+        require([host executeShortcutKey:@"l"
+                               modifiers:kineticPluginModifierCommand | kineticPluginModifierShift],
+                @"late shortcut executed");
+        require([delegate.document isEqualToString:@"Hello!?"], @"late command edited document");
         require(![host executeCommand:@"unknown.command"], @"unknown command rejected");
 
         NSString* disabled = @"[plugins]\ndisabledFiles = [\"kineticSamplePlugin.dylib\"]\n";

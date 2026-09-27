@@ -9,6 +9,7 @@
 @property(nonatomic) BOOL showsSearch;
 @property(nonatomic) BOOL searchActive;
 @property(nonatomic, strong) KineticGitHubAccount* githubAccount;
+@property(nonatomic, copy) NSArray<NSDictionary<NSString*, NSString*>*>* fileMenuItems;
 - (void)accountDidChange;
 + (CGFloat)preferredHeight;
 @end

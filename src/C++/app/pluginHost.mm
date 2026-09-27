@@ -1,21 +1,39 @@
 #import "pluginHost.h"
 
 #include "kinetic/pluginApi.h"
+#include "kineticBackend.h"
 
+#include <cmath>
 #include <dlfcn.h>
 #include <stddef.h>
 #include <string.h>
+
+@interface KineticPluginSession : NSObject
+@property(nonatomic, assign) KineticPluginHost* host;
+@property(nonatomic, copy) NSString* pluginId;
+@end
+
+@implementation KineticPluginSession
+@end
 
 @interface KineticPluginHost () {
     NSMutableArray<NSString*>* _loadedPluginNames;
     NSMutableSet<NSString*>* _loadedPluginIds;
     NSMutableArray<NSDictionary<NSString*, id>*>* _registeredCommands;
     NSMutableArray<NSDictionary<NSString*, id>*>* _subscriptions;
+    NSMutableArray<NSDictionary<NSString*, id>*>* _panelCallbacks;
+    NSMutableArray<NSDictionary<NSString*, id>*>* _overlayCallbacks;
+    NSMutableArray<NSDictionary<NSString*, id>*>* _formatterCallbacks;
     NSMutableArray<NSValue*>* _libraryHandles;
+    NSMutableArray<KineticPluginSession*>* _sessions;
+    NSMutableArray<NSValue*>* _apiTables;
+    KineticExtensionRegistry* _registry;
+    NSString* _loadingPluginId;
     NSString* _configurationError;
     KineticPluginApi _api;
     BOOL _emittingEvent;
 }
+- (void)contributionsDidChange;
 @end
 
 static int32_t setNumber(void* context, const char* property, double value);
@@ -32,6 +50,17 @@ static int32_t getSelection(void* context, uint64_t* startUtf16, uint64_t* lengt
 static int32_t setSelection(void* context, uint64_t startUtf16, uint64_t lengthUtf16);
 static int32_t replaceRangeUtf8(void* context, uint64_t startUtf16, uint64_t lengthUtf16,
                                 const char* text, uint64_t byteLength);
+static int32_t registerShortcut(void* context, const char* commandId, const char* key,
+                                uint32_t modifiers);
+static int32_t registerFileMenuItem(void* context, const char* commandId, const char* title);
+static int32_t registerPanel(void* context, const char* panelId, const char* title,
+                             KineticPluginPanelRows callback, void* userData);
+static int32_t registerOverlay(void* context, const char* overlayId, KineticPluginOverlay callback,
+                               void* userData);
+static int32_t registerFormatter(void* context, const char* extension,
+                                 KineticPluginFormatter callback, void* userData);
+static NSString* registryField(KineticExtensionRegistry* registry, uint32_t kind, uint64_t index,
+                               uint32_t field);
 
 static NSString* trimmed(NSString* text) {
     return [text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
@@ -176,11 +205,17 @@ static BOOL readPluginConfiguration(NSURL* configurationUrl, BOOL* enabled,
         _loadedPluginIds = [NSMutableSet set];
         _registeredCommands = [NSMutableArray array];
         _subscriptions = [NSMutableArray array];
+        _panelCallbacks = [NSMutableArray array];
+        _overlayCallbacks = [NSMutableArray array];
+        _formatterCallbacks = [NSMutableArray array];
         _libraryHandles = [NSMutableArray array];
+        _sessions = [NSMutableArray array];
+        _apiTables = [NSMutableArray array];
+        _registry = kineticExtensionRegistryCreate();
         _api = {
             kineticPluginAbiVersion,
             sizeof(KineticPluginApi),
-            (__bridge void*)self,
+            nullptr,
             setNumber,
             getNumber,
             registerCommand,
@@ -192,9 +227,24 @@ static BOOL readPluginConfiguration(NSURL* configurationUrl, BOOL* enabled,
             getSelection,
             setSelection,
             replaceRangeUtf8,
+            registerShortcut,
+            registerFileMenuItem,
+            registerPanel,
+            registerOverlay,
+            registerFormatter,
         };
     }
     return self;
+}
+
+- (void)dealloc {
+    kineticExtensionRegistryDestroy(_registry);
+    for (NSValue* table in _apiTables) {
+        delete (KineticPluginApi*)table.pointerValue;
+    }
+    for (NSValue* handle in _libraryHandles) {
+        dlclose(handle.pointerValue);
+    }
 }
 
 - (NSArray<NSString*>*)loadedPluginNames {
@@ -207,14 +257,47 @@ static BOOL readPluginConfiguration(NSURL* configurationUrl, BOOL* enabled,
 
 - (NSArray<NSDictionary<NSString*, NSString*>*>*)commands {
     NSMutableArray<NSDictionary<NSString*, NSString*>*>* result = [NSMutableArray array];
-    for (NSDictionary<NSString*, id>* command in _registeredCommands) {
-        [result addObject:@{@"id" : command[@"id"], @"title" : command[@"title"]}];
+    for (uint64_t index = 0; index < kineticExtensionCount(_registry, kineticExtensionCommand);
+         ++index) {
+        NSString* identifier = registryField(_registry, kineticExtensionCommand, index, 1);
+        NSString* title = registryField(_registry, kineticExtensionCommand, index, 2);
+        if (identifier != nil && title != nil) {
+            [result addObject:@{@"id" : identifier, @"title" : title}];
+        }
     }
     return result;
 }
 
+static NSString* registryField(KineticExtensionRegistry* registry, uint32_t kind, uint64_t index,
+                               uint32_t field) {
+    uint64_t length = kineticExtensionCopyField(registry, kind, index, field, nullptr, 0);
+    if (length == UINT64_MAX || length > 256) {
+        return nil;
+    }
+    char buffer[257] = {};
+    kineticExtensionCopyField(registry, kind, index, field, buffer, sizeof(buffer));
+    return [NSString stringWithUTF8String:buffer];
+}
+
+- (NSArray<NSDictionary<NSString*, NSString*>*>*)fileMenuItems {
+    NSMutableArray<NSDictionary<NSString*, NSString*>*>* items = [NSMutableArray array];
+    for (uint64_t index = 0; index < kineticExtensionCount(_registry, kineticExtensionMenu);
+         ++index) {
+        NSString* identifier = registryField(_registry, kineticExtensionMenu, index, 1);
+        NSString* title = registryField(_registry, kineticExtensionMenu, index, 2);
+        if (identifier != nil && title != nil) {
+            [items addObject:@{@"id" : identifier, @"title" : title}];
+        }
+    }
+    return items;
+}
+
 static KineticPluginHost* hostForContext(void* context) {
-    return (__bridge KineticPluginHost*)context;
+    return ((__bridge KineticPluginSession*)context).host;
+}
+
+static NSString* ownerForContext(void* context) {
+    return ((__bridge KineticPluginSession*)context).pluginId;
 }
 
 static NSString* stringForUtf8(const char* text) {
@@ -248,6 +331,10 @@ static int32_t registerCommand(void* context, const char* commandId, const char*
         return -1;
     }
     KineticPluginHost* host = hostForContext(context);
+    NSString* owner = ownerForContext(context);
+    if (owner == nil) {
+        return -1;
+    }
     NSString* identifier = stringForUtf8(commandId);
     NSString* displayTitle = stringForUtf8(title);
     if (identifier.length == 0 || displayTitle.length == 0 || callback == nullptr ||
@@ -259,12 +346,143 @@ static int32_t registerCommand(void* context, const char* commandId, const char*
             return -1;
         }
     }
+    if (kineticExtensionRegister(host->_registry, owner.UTF8String, kineticExtensionCommand,
+                                 commandId, title, commandId) != 0) {
+        return -1;
+    }
     [host->_registeredCommands addObject:@{
         @"id" : identifier,
         @"title" : displayTitle,
+        @"owner" : owner,
         @"callback" : [NSValue valueWithPointer:(void*)callback],
         @"userData" : [NSValue valueWithPointer:userData],
     }];
+    [host contributionsDidChange];
+    return 0;
+}
+
+static BOOL hasRegisteredCommand(KineticPluginHost* host, NSString* identifier, NSString* owner) {
+    for (NSDictionary* command in host->_registeredCommands) {
+        if ([command[@"id"] isEqualToString:identifier] &&
+            (owner == nil || [command[@"owner"] isEqualToString:owner])) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+static int32_t registerShortcut(void* context, const char* commandId, const char* key,
+                                uint32_t modifiers) {
+    if (![NSThread isMainThread] || modifiers == 0 || modifiers > 31) {
+        return -1;
+    }
+    KineticPluginHost* host = hostForContext(context);
+    NSString* owner = ownerForContext(context);
+    NSString* identifier = stringForUtf8(commandId);
+    NSString* character = stringForUtf8(key).lowercaseString;
+    if (owner == nil || !hasRegisteredCommand(host, identifier, owner) || character.length != 1 ||
+        ![NSCharacterSet.alphanumericCharacterSet
+            characterIsMember:[character characterAtIndex:0]]) {
+        return -1;
+    }
+    NSString* target = [NSString stringWithFormat:@"%u:%@", modifiers, character];
+    int32_t result =
+        kineticExtensionRegister(host->_registry, owner.UTF8String, kineticExtensionShortcut,
+                                 commandId, commandId, target.UTF8String);
+    if (result == 0) {
+        [host contributionsDidChange];
+    }
+    return result;
+}
+
+static int32_t registerFileMenuItem(void* context, const char* commandId, const char* title) {
+    if (![NSThread isMainThread]) {
+        return -1;
+    }
+    KineticPluginHost* host = hostForContext(context);
+    NSString* owner = ownerForContext(context);
+    NSString* identifier = stringForUtf8(commandId);
+    NSString* displayTitle = stringForUtf8(title);
+    if (owner == nil || !hasRegisteredCommand(host, identifier, owner) ||
+        displayTitle.length == 0 || displayTitle.length > 128) {
+        return -1;
+    }
+    int32_t result = kineticExtensionRegister(host->_registry, owner.UTF8String,
+                                              kineticExtensionMenu, commandId, title, commandId);
+    if (result == 0) {
+        [host contributionsDidChange];
+    }
+    return result;
+}
+
+static int32_t registerPanel(void* context, const char* panelId, const char* title,
+                             KineticPluginPanelRows callback, void* userData) {
+    if (![NSThread isMainThread] || callback == nullptr) {
+        return -1;
+    }
+    KineticPluginHost* host = hostForContext(context);
+    NSString* owner = ownerForContext(context);
+    NSString* identifier = stringForUtf8(panelId);
+    NSString* displayTitle = stringForUtf8(title);
+    if (owner == nil || identifier.length == 0 || displayTitle.length == 0 ||
+        identifier.length > 128 || displayTitle.length > 128 ||
+        kineticExtensionRegister(host->_registry, owner.UTF8String, kineticExtensionPanel, panelId,
+                                 title, panelId) != 0) {
+        return -1;
+    }
+    [host->_panelCallbacks addObject:@{
+        @"id" : identifier,
+        @"owner" : owner,
+        @"callback" : [NSValue valueWithPointer:(void*)callback],
+        @"userData" : [NSValue valueWithPointer:userData],
+    }];
+    [host contributionsDidChange];
+    return 0;
+}
+
+static int32_t registerOverlay(void* context, const char* overlayId, KineticPluginOverlay callback,
+                               void* userData) {
+    if (![NSThread isMainThread] || callback == nullptr) {
+        return -1;
+    }
+    KineticPluginHost* host = hostForContext(context);
+    NSString* owner = ownerForContext(context);
+    NSString* identifier = stringForUtf8(overlayId);
+    if (owner == nil || identifier.length == 0 || identifier.length > 128 ||
+        kineticExtensionRegister(host->_registry, owner.UTF8String, kineticExtensionOverlay,
+                                 overlayId, overlayId, overlayId) != 0) {
+        return -1;
+    }
+    [host->_overlayCallbacks addObject:@{
+        @"id" : identifier,
+        @"callback" : [NSValue valueWithPointer:(void*)callback],
+        @"userData" : [NSValue valueWithPointer:userData],
+    }];
+    [host contributionsDidChange];
+    return 0;
+}
+
+static int32_t registerFormatter(void* context, const char* extension,
+                                 KineticPluginFormatter callback, void* userData) {
+    if (![NSThread isMainThread] || callback == nullptr) {
+        return -1;
+    }
+    KineticPluginHost* host = hostForContext(context);
+    NSString* owner = ownerForContext(context);
+    NSString* name = stringForUtf8(extension).lowercaseString;
+    if (owner == nil || name.length == 0 || name.length > 24 ||
+        [name rangeOfCharacterFromSet:NSCharacterSet.alphanumericCharacterSet.invertedSet]
+                .location != NSNotFound ||
+        kineticExtensionRegister(host->_registry, owner.UTF8String, kineticExtensionFormatter,
+                                 name.UTF8String, name.UTF8String, name.UTF8String) != 0) {
+        return -1;
+    }
+    [host->_formatterCallbacks addObject:@{
+        @"extension" : name,
+        @"callback" : [NSValue valueWithPointer:(void*)callback],
+        @"userData" : [NSValue valueWithPointer:userData],
+    }];
+    [host contributionsDidChange];
     return 0;
 }
 
@@ -447,16 +665,39 @@ static int32_t replaceRangeUtf8(void* context, uint64_t startUtf16, uint64_t len
         }
         NSUInteger commandCount = _registeredCommands.count;
         NSUInteger subscriptionCount = _subscriptions.count;
-        if (descriptor->start(&_api) != 0) {
+        NSUInteger panelCount = _panelCallbacks.count;
+        NSUInteger overlayCount = _overlayCallbacks.count;
+        NSUInteger formatterCount = _formatterCallbacks.count;
+        KineticPluginSession* session = [[KineticPluginSession alloc] init];
+        session.host = self;
+        session.pluginId = pluginId;
+        auto apiTable = new KineticPluginApi(_api);
+        apiTable->context = (__bridge void*)session;
+        _loadingPluginId = pluginId;
+        if (descriptor->start(apiTable) != 0) {
+            kineticExtensionRemoveOwner(_registry, pluginId.UTF8String);
             [_registeredCommands
                 removeObjectsInRange:NSMakeRange(commandCount,
                                                  _registeredCommands.count - commandCount)];
             [_subscriptions
                 removeObjectsInRange:NSMakeRange(subscriptionCount,
                                                  _subscriptions.count - subscriptionCount)];
+            [_panelCallbacks
+                removeObjectsInRange:NSMakeRange(panelCount, _panelCallbacks.count - panelCount)];
+            [_overlayCallbacks
+                removeObjectsInRange:NSMakeRange(overlayCount,
+                                                 _overlayCallbacks.count - overlayCount)];
+            [_formatterCallbacks
+                removeObjectsInRange:NSMakeRange(formatterCount,
+                                                 _formatterCallbacks.count - formatterCount)];
             dlclose(handle);
+            delete apiTable;
+            _loadingPluginId = nil;
             continue;
         }
+        _loadingPluginId = nil;
+        [_sessions addObject:session];
+        [_apiTables addObject:[NSValue valueWithPointer:apiTable]];
         [_libraryHandles addObject:[NSValue valueWithPointer:handle]];
         [_loadedPluginIds addObject:pluginId];
         [_loadedPluginNames addObject:displayName];
@@ -474,6 +715,147 @@ static int32_t replaceRangeUtf8(void* context, uint64_t startUtf16, uint64_t len
     return NO;
 }
 
+- (BOOL)executeShortcutKey:(NSString*)key modifiers:(uint32_t)modifiers {
+    NSString* target = [NSString stringWithFormat:@"%u:%@", modifiers, key.lowercaseString];
+    for (uint64_t index = 0; index < kineticExtensionCount(_registry, kineticExtensionShortcut);
+         ++index) {
+        if ([registryField(_registry, kineticExtensionShortcut, index, 3) isEqualToString:target]) {
+            return
+                [self executeCommand:registryField(_registry, kineticExtensionShortcut, index, 1)];
+        }
+    }
+    return NO;
+}
+
+- (NSArray<NSDictionary<NSString*, id>*>*)panels {
+    NSMutableArray<NSDictionary<NSString*, id>*>* result = [NSMutableArray array];
+    for (uint64_t index = 0; index < kineticExtensionCount(_registry, kineticExtensionPanel);
+         ++index) {
+        NSString* identifier = registryField(_registry, kineticExtensionPanel, index, 1);
+        NSString* title = registryField(_registry, kineticExtensionPanel, index, 2);
+        for (NSDictionary<NSString*, id>* panel in _panelCallbacks) {
+            if (![panel[@"id"] isEqualToString:identifier]) {
+                continue;
+            }
+            auto callback = (KineticPluginPanelRows)[panel[@"callback"] pointerValue];
+            KineticPluginPanelRow rows[32] = {};
+            uint32_t count = MIN(callback([panel[@"userData"] pointerValue], rows, 32), 32u);
+            NSMutableArray<NSDictionary<NSString*, NSString*>*>* items = [NSMutableArray array];
+            for (uint32_t row = 0; row < count; ++row) {
+                size_t titleLength = strnlen(rows[row].title, sizeof(rows[row].title));
+                NSString* rowTitle = [[NSString alloc] initWithBytes:rows[row].title
+                                                              length:titleLength
+                                                            encoding:NSUTF8StringEncoding];
+                if (rowTitle.length == 0) {
+                    continue;
+                }
+                if (rows[row].kind == kineticPluginPanelLabel) {
+                    [items addObject:@{@"kind" : @"label", @"title" : rowTitle}];
+                } else if (rows[row].kind == kineticPluginPanelButton) {
+                    size_t idLength = strnlen(rows[row].commandId, sizeof(rows[row].commandId));
+                    NSString* commandId = [[NSString alloc] initWithBytes:rows[row].commandId
+                                                                   length:idLength
+                                                                 encoding:NSUTF8StringEncoding];
+                    if (hasRegisteredCommand(self, commandId, panel[@"owner"])) {
+                        [items addObject:@{
+                            @"kind" : @"button",
+                            @"title" : rowTitle,
+                            @"id" : commandId,
+                        }];
+                    }
+                }
+            }
+            [result addObject:@{@"id" : identifier, @"title" : title, @"rows" : items}];
+            break;
+        }
+    }
+    return result;
+}
+
+- (BOOL)hasFormatterForFileName:(NSString*)fileName {
+    NSString* extension = fileName.pathExtension.lowercaseString;
+    for (NSDictionary<NSString*, id>* formatter in _formatterCallbacks) {
+        if ([formatter[@"extension"] isEqualToString:extension]) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+- (NSString*)formatDocument:(NSString*)text fileName:(NSString*)fileName {
+    NSString* extension = fileName.pathExtension.lowercaseString;
+    NSData* input = [text dataUsingEncoding:NSUTF8StringEncoding];
+    if (input == nil || input.length > 16 * 1024 * 1024) {
+        return nil;
+    }
+    for (NSDictionary<NSString*, id>* formatter in _formatterCallbacks) {
+        if (![formatter[@"extension"] isEqualToString:extension]) {
+            continue;
+        }
+        auto callback = (KineticPluginFormatter)[formatter[@"callback"] pointerValue];
+        void* userData = [formatter[@"userData"] pointerValue];
+        uint64_t length = callback(userData, (const char*)input.bytes, input.length, nullptr, 0);
+        if (length > 16 * 1024 * 1024) {
+            return nil;
+        }
+        NSMutableData* output = [NSMutableData dataWithLength:(NSUInteger)length + 1];
+        uint64_t written = callback(userData, (const char*)input.bytes, input.length,
+                                    (char*)output.mutableBytes, output.length);
+        if (written != length) {
+            return nil;
+        }
+        return [[NSString alloc] initWithBytes:output.bytes
+                                        length:(NSUInteger)length
+                                      encoding:NSUTF8StringEncoding];
+    }
+    return nil;
+}
+
+- (void)drawOverlaysInRect:(NSRect)rect {
+    if (_overlayCallbacks.count == 0) {
+        return;
+    }
+    [NSGraphicsContext saveGraphicsState];
+    [[NSBezierPath bezierPathWithRect:rect] addClip];
+    for (NSDictionary<NSString*, id>* overlay in _overlayCallbacks) {
+        auto callback = (KineticPluginOverlay)[overlay[@"callback"] pointerValue];
+        KineticPluginDrawCommand commands[128] = {};
+        uint32_t count = MIN(callback([overlay[@"userData"] pointerValue], NSWidth(rect),
+                                      NSHeight(rect), commands, 128),
+                             128u);
+        for (uint32_t index = 0; index < count; ++index) {
+            KineticPluginDrawCommand& command = commands[index];
+            if (!std::isfinite(command.x) || !std::isfinite(command.y) ||
+                !std::isfinite(command.width) || !std::isfinite(command.height) ||
+                command.width < 0 || command.height < 0) {
+                continue;
+            }
+            uint32_t rgba = command.rgba;
+            NSColor* color = [NSColor colorWithSRGBRed:((rgba >> 24) & 255) / 255.0
+                                                 green:((rgba >> 16) & 255) / 255.0
+                                                  blue:((rgba >> 8) & 255) / 255.0
+                                                 alpha:(rgba & 255) / 255.0];
+            NSRect bounds = NSMakeRect(NSMinX(rect) + command.x, NSMinY(rect) + command.y,
+                                       command.width, command.height);
+            if (command.kind == kineticPluginDrawRect) {
+                [color setFill];
+                NSRectFill(bounds);
+            } else if (command.kind == kineticPluginDrawText) {
+                size_t length = strnlen(command.text, sizeof(command.text));
+                NSString* text = [[NSString alloc] initWithBytes:command.text
+                                                          length:length
+                                                        encoding:NSUTF8StringEncoding];
+                [text drawInRect:bounds
+                    withAttributes:@{
+                        NSFontAttributeName : [NSFont systemFontOfSize:12.0],
+                        NSForegroundColorAttributeName : color,
+                    }];
+            }
+        }
+    }
+    [NSGraphicsContext restoreGraphicsState];
+}
+
 - (void)emitEvent:(NSString*)eventName {
     if (_emittingEvent) {
         return;
@@ -486,6 +868,13 @@ static int32_t replaceRangeUtf8(void* context, uint64_t startUtf16, uint64_t len
         }
     }
     _emittingEvent = NO;
+}
+
+- (void)contributionsDidChange {
+    if (_loadingPluginId == nil &&
+        [self.delegate respondsToSelector:@selector(pluginHostContributionsDidChange:)]) {
+        [self.delegate pluginHostContributionsDidChange:self];
+    }
 }
 
 @end

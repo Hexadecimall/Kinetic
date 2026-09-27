@@ -8,6 +8,7 @@
 #include "githubAccount.h"
 #include "homeView.h"
 #include "keyboardShortcuts.h"
+#include "kinetic/pluginApi.h"
 #include "kineticBackend.h"
 #include "kineticCommands.h"
 #include "pluginHost.h"
@@ -22,6 +23,10 @@
 
 - (void)sendEvent:(NSEvent*)event {
     NSWindow* window = self.keyWindow ?: self.mainWindow;
+    if (event.type == NSEventTypeKeyDown && !event.isARepeat &&
+        [(id<KineticCommandHandler>)self.delegate executePluginShortcutForEvent:event]) {
+        return;
+    }
     switch (kineticShortcutCommandForEvent(event)) {
     case KineticShortcutCommandNewTextFile:
         [(id<KineticCommandHandler>)self.delegate newTextFile];
@@ -115,7 +120,8 @@
 
 @interface KineticApplicationDelegate
     : NSObject <NSApplicationDelegate, KineticCommandHandler, KineticFileDialogDelegate,
-                KineticPluginHostDelegate, KineticGitHubAccountDelegate>
+                KineticPluginHostDelegate, KineticGitHubAccountDelegate,
+                KineticEditorOverlayRenderer>
 @property(nonatomic, strong) NSWindow* window;
 @property(nonatomic, strong) NSView* content;
 @property(nonatomic, strong) KineticHomeView* home;
@@ -285,9 +291,12 @@
             [editor setPluginNames:self.pluginHost.loadedPluginNames
                           commands:self.pluginHost.commands
                 configurationError:self.pluginHost.configurationError];
+            [editor setPluginPanels:self.pluginHost.panels];
         }
     }
     [self.pluginHost emitEvent:@"document.activated"];
+    [nextEditor setPluginPanels:self.pluginHost.panels];
+    [self refreshPluginFileMenu];
     self.trafficBar.showsSearch = YES;
     self.trafficBar.searchActive = nextEditor.searchOpen;
     [self updateTabMetadata];
@@ -360,9 +369,11 @@
                                                                 contents:contents
                                                                  fileUrl:fileUrl];
     editor.commandHandler = self;
+    editor.overlayRenderer = self;
     [editor setPluginNames:self.pluginHost.loadedPluginNames
                   commands:self.pluginHost.commands
         configurationError:self.pluginHost.configurationError];
+    [editor setPluginPanels:self.pluginHost.panels];
     for (NSString* property in self.pluginNumberOverrides) {
         [editor setPluginNumber:self.pluginNumberOverrides[property].doubleValue property:property];
     }
@@ -389,10 +400,68 @@
 - (void)editorDocumentDidChange {
     [self updateTabMetadata];
     [self.pluginHost emitEvent:@"document.changed"];
+    [self.editor setPluginPanels:self.pluginHost.panels];
 }
 
 - (void)executePluginCommand:(NSString*)commandId {
+    if ([commandId isEqualToString:@"kinetic.formatDocument"]) {
+        [self formatActiveDocument];
+        return;
+    }
     [self.pluginHost executeCommand:commandId];
+}
+
+- (void)refreshPluginFileMenu {
+    NSMutableArray<NSDictionary<NSString*, NSString*>*>* items =
+        [self.pluginHost.fileMenuItems mutableCopy] ?: [NSMutableArray array];
+    NSString* fileName = self.editor.fileUrl.lastPathComponent ?: self.editor.documentTitle;
+    if ([self.pluginHost hasFormatterForFileName:fileName]) {
+        [items insertObject:@{@"id" : @"kinetic.formatDocument", @"title" : @"Format Document"}
+                    atIndex:0];
+    }
+    self.trafficBar.fileMenuItems = items;
+}
+
+- (void)formatActiveDocument {
+    if (self.editor == nil) {
+        return;
+    }
+    NSString* fileName = self.editor.fileUrl.lastPathComponent ?: self.editor.documentTitle;
+    NSString* original = self.editor.documentText;
+    NSString* formatted = [self.pluginHost formatDocument:original fileName:fileName];
+    if (formatted != nil && ![formatted isEqualToString:original]) {
+        [self.editor replaceRangeFromPlugin:NSMakeRange(0, original.length) withString:formatted];
+    }
+}
+
+- (void)drawPluginOverlaysInRect:(NSRect)rect {
+    [self.pluginHost drawOverlaysInRect:rect];
+}
+
+- (void)pluginHostContributionsDidChange:(KineticPluginHost*)host {
+    [self refreshPluginFileMenu];
+    for (KineticEditorView* editor in self.editors) {
+        [editor setPluginNames:host.loadedPluginNames
+                      commands:host.commands
+            configurationError:host.configurationError];
+        [editor setPluginPanels:host.panels];
+        editor.needsDisplay = YES;
+    }
+}
+
+- (BOOL)executePluginShortcutForEvent:(NSEvent*)event {
+    NSEventModifierFlags flags = event.modifierFlags;
+    uint32_t modifiers = 0;
+    modifiers |= (flags & NSEventModifierFlagCommand) != 0 ? kineticPluginModifierCommand : 0;
+    modifiers |= (flags & NSEventModifierFlagShift) != 0 ? kineticPluginModifierShift : 0;
+    modifiers |= (flags & NSEventModifierFlagOption) != 0 ? kineticPluginModifierOption : 0;
+    modifiers |= (flags & NSEventModifierFlagControl) != 0 ? kineticPluginModifierControl : 0;
+    modifiers |= (flags & NSEventModifierFlagFunction) != 0 ? kineticPluginModifierFunction : 0;
+    if (modifiers == 0) {
+        return NO;
+    }
+    return [self.pluginHost executeShortcutKey:event.charactersIgnoringModifiers
+                                     modifiers:modifiers];
 }
 
 - (BOOL)pluginHost:(KineticPluginHost*)host setNumber:(double)value property:(NSString*)property {
@@ -789,6 +858,7 @@
     }
 
     self.home.hidden = NO;
+    [self refreshPluginFileMenu];
     self.trafficBar.showsSearch = NO;
     self.trafficBar.searchActive = NO;
     self.home.alphaValue = 0.0;

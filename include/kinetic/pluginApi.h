@@ -8,8 +8,40 @@ extern "C" {
 
 enum { kineticPluginAbiVersion = 1 };
 
+enum {
+    kineticPluginModifierCommand = 1,
+    kineticPluginModifierShift = 2,
+    kineticPluginModifierOption = 4,
+    kineticPluginModifierControl = 8,
+    kineticPluginModifierFunction = 16,
+};
+
 typedef void (*KineticPluginCommand)(void* userData);
 typedef void (*KineticPluginEvent)(void* userData, const char* eventName);
+
+enum { kineticPluginPanelLabel = 1, kineticPluginPanelButton = 2 };
+typedef struct KineticPluginPanelRow {
+    uint32_t kind;
+    char title[96];
+    char commandId[128];
+} KineticPluginPanelRow;
+typedef uint32_t (*KineticPluginPanelRows)(void* userData, KineticPluginPanelRow* rows,
+                                           uint32_t capacity);
+
+enum { kineticPluginDrawRect = 1, kineticPluginDrawText = 2 };
+typedef struct KineticPluginDrawCommand {
+    uint32_t kind;
+    float x;
+    float y;
+    float width;
+    float height;
+    uint32_t rgba;
+    char text[128];
+} KineticPluginDrawCommand;
+typedef uint32_t (*KineticPluginOverlay)(void* userData, float viewportWidth, float viewportHeight,
+                                         KineticPluginDrawCommand* commands, uint32_t capacity);
+typedef uint64_t (*KineticPluginFormatter)(void* userData, const char* input, uint64_t inputLength,
+                                           char* output, uint64_t outputCapacity);
 
 typedef struct KineticPluginApi {
     uint32_t abiVersion;
@@ -30,6 +62,15 @@ typedef struct KineticPluginApi {
     int32_t (*setSelection)(void* context, uint64_t startUtf16, uint64_t lengthUtf16);
     int32_t (*replaceRangeUtf8)(void* context, uint64_t startUtf16, uint64_t lengthUtf16,
                                 const char* text, uint64_t byteLength);
+    int32_t (*registerShortcut)(void* context, const char* commandId, const char* key,
+                                uint32_t modifiers);
+    int32_t (*registerFileMenuItem)(void* context, const char* commandId, const char* title);
+    int32_t (*registerPanel)(void* context, const char* panelId, const char* title,
+                             KineticPluginPanelRows callback, void* userData);
+    int32_t (*registerOverlay)(void* context, const char* overlayId, KineticPluginOverlay callback,
+                               void* userData);
+    int32_t (*registerFormatter)(void* context, const char* extension,
+                                 KineticPluginFormatter callback, void* userData);
 } KineticPluginApi;
 
 typedef struct KineticPluginDescriptor {

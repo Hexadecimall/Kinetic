@@ -5,8 +5,13 @@
 #import "searchPopover.h"
 #import <AppKit/AppKit.h>
 
+@protocol KineticEditorOverlayRenderer <NSObject>
+- (void)drawPluginOverlaysInRect:(NSRect)rect;
+@end
+
 @interface KineticEditorView : NSView
 @property(nonatomic, assign) id<KineticCommandHandler> commandHandler;
+@property(nonatomic, assign) id<KineticEditorOverlayRenderer> overlayRenderer;
 - (instancetype)initWithFrame:(NSRect)frameRect
                      contents:(NSString*)contents
                       fileUrl:(NSURL*)fileUrl;
@@ -48,4 +53,5 @@
 - (void)setPluginNames:(NSArray<NSString*>*)names
               commands:(NSArray<NSDictionary<NSString*, NSString*>*>*)commands
     configurationError:(NSString*)configurationError;
+- (void)setPluginPanels:(NSArray<NSDictionary<NSString*, id>*>*)panels;
 @end

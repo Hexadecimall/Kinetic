@@ -597,6 +597,10 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     _activityBar.pluginConfigurationError = configurationError;
 }
 
+- (void)setPluginPanels:(NSArray<NSDictionary<NSString*, id>*>*)panels {
+    _activityBar.pluginPanels = panels;
+}
+
 - (BOOL)isFlipped {
     return YES;
 }
@@ -1522,6 +1526,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     CGFloat caretY = kFirstLineY + (caretLines.count - 1) * _lineHeight - _verticalScroll;
     [editorColor(111, 166, 255) setFill];
     NSRectFill(NSMakeRect(floor(caretX), caretY + 1.0, 1.5, 16.0));
+    [self.overlayRenderer drawPluginOverlaysInRect:contentRect];
     [NSGraphicsContext restoreGraphicsState];
 
     CGFloat maximumVertical = [self maximumVerticalScroll];

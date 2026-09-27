@@ -1,6 +1,6 @@
 #pragma once
 
-#import <Foundation/Foundation.h>
+#import <AppKit/AppKit.h>
 
 @class KineticPluginHost;
 
@@ -14,15 +14,23 @@
 - (BOOL)pluginHost:(KineticPluginHost*)host getSelection:(NSRange*)selection;
 - (BOOL)pluginHost:(KineticPluginHost*)host setSelection:(NSRange)selection;
 - (BOOL)pluginHost:(KineticPluginHost*)host replaceRange:(NSRange)range withString:(NSString*)text;
+@optional
+- (void)pluginHostContributionsDidChange:(KineticPluginHost*)host;
 @end
 
 @interface KineticPluginHost : NSObject
 @property(nonatomic, assign) id<KineticPluginHostDelegate> delegate;
 @property(nonatomic, readonly, copy) NSArray<NSString*>* loadedPluginNames;
 @property(nonatomic, readonly, copy) NSArray<NSDictionary<NSString*, NSString*>*>* commands;
+@property(nonatomic, readonly, copy) NSArray<NSDictionary<NSString*, NSString*>*>* fileMenuItems;
+@property(nonatomic, readonly, copy) NSArray<NSDictionary<NSString*, id>*>* panels;
 @property(nonatomic, readonly, copy) NSString* configurationError;
 + (NSURL*)userPluginRootUrl;
 - (void)loadPluginsAtUrl:(NSURL*)directoryUrl configurationUrl:(NSURL*)configurationUrl;
 - (BOOL)executeCommand:(NSString*)commandId;
+- (BOOL)executeShortcutKey:(NSString*)key modifiers:(uint32_t)modifiers;
+- (BOOL)hasFormatterForFileName:(NSString*)fileName;
+- (NSString*)formatDocument:(NSString*)text fileName:(NSString*)fileName;
+- (void)drawOverlaysInRect:(NSRect)rect;
 - (void)emitEvent:(NSString*)eventName;
 @end

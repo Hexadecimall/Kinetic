@@ -42,6 +42,7 @@ BOOL activityIsDirectory(NSURL* url) {
     NSArray<KineticActivityTreeEntry*>* _treeEntries;
     NSInteger _hoveredPanelAction;
     CGFloat _treeScrollOffset;
+    CGFloat _pluginScrollOffset;
     BOOL _animating;
 }
 @end
@@ -63,8 +64,10 @@ BOOL activityIsDirectory(NSURL* url) {
         _treeEntries = @[];
         _pluginNames = @[];
         _pluginCommands = @[];
+        _pluginPanels = @[];
         _hoveredPanelAction = -1;
         _treeScrollOffset = 0.0;
+        _pluginScrollOffset = 0.0;
         _animating = NO;
         self.autoresizingMask = NSViewHeightSizable;
     }
@@ -85,12 +88,63 @@ BOOL activityIsDirectory(NSURL* url) {
 
 - (void)setPluginNames:(NSArray<NSString*>*)pluginNames {
     _pluginNames = [pluginNames copy] ?: @[];
+    _pluginScrollOffset = MIN(_pluginScrollOffset, [self maximumPluginScroll]);
     self.needsDisplay = YES;
 }
 
 - (void)setPluginCommands:(NSArray<NSDictionary<NSString*, NSString*>*>*)pluginCommands {
     _pluginCommands = [pluginCommands copy] ?: @[];
+    _pluginScrollOffset = MIN(_pluginScrollOffset, [self maximumPluginScroll]);
     self.needsDisplay = YES;
+}
+
+- (void)setPluginPanels:(NSArray<NSDictionary<NSString*, id>*>*)pluginPanels {
+    _pluginPanels = [pluginPanels copy] ?: @[];
+    _pluginScrollOffset = MIN(_pluginScrollOffset, [self maximumPluginScroll]);
+    self.needsDisplay = YES;
+}
+
+- (CGFloat)pluginPanelsStartY {
+    CGFloat y = 126.0 + _pluginNames.count * 25.0;
+    if (_pluginCommands.count > 0) {
+        y += 36.0 + _pluginCommands.count * 29.0 + 8.0;
+    }
+    return y;
+}
+
+- (CGFloat)maximumPluginScroll {
+    CGFloat contentBottom = 146.0 + _pluginNames.count * 25.0;
+    if (_pluginCommands.count > 0) {
+        contentBottom = 126.0 + _pluginNames.count * 25.0 + 36.0 + _pluginCommands.count * 29.0;
+    }
+    if (_pluginPanels.count > 0) {
+        contentBottom = [self pluginPanelsStartY] + 36.0;
+        for (NSDictionary<NSString*, id>* panel in _pluginPanels) {
+            contentBottom += 27.0 + [panel[@"rows"] count] * 29.0 + 9.0;
+        }
+    }
+    return MAX(0.0, contentBottom + 12.0 - NSHeight(self.bounds));
+}
+
+- (NSArray<NSDictionary<NSString*, id>*>*)pluginPanelButtons {
+    NSMutableArray<NSDictionary<NSString*, id>*>* buttons = [NSMutableArray array];
+    CGFloat y = [self pluginPanelsStartY] + 36.0;
+    for (NSDictionary<NSString*, id>* panel in _pluginPanels) {
+        y += 27.0;
+        for (NSDictionary<NSString*, NSString*>* row in panel[@"rows"]) {
+            if ([row[@"kind"] isEqualToString:@"button"] && row[@"id"] != nil) {
+                NSRect rect = NSMakeRect(kRailWidth + 10.0, y, kPanelWidth - 20.0, 25.0);
+                [buttons addObject:@{
+                    @"rect" : [NSValue valueWithRect:rect],
+                    @"id" : row[@"id"],
+                    @"title" : row[@"title"],
+                }];
+            }
+            y += 29.0;
+        }
+        y += 9.0;
+    }
+    return buttons;
 }
 
 - (void)setPluginConfigurationError:(NSString*)pluginConfigurationError {
@@ -603,6 +657,16 @@ BOOL activityIsDirectory(NSURL* url) {
     [activityColor(75, 89, 109, 0.34) setFill];
     NSRectFill(NSMakeRect(kRailWidth + 1.0, 43.0, kPanelWidth - 1.0, 1.0));
 
+    if (_displayedSection == KineticActivitySectionPlugins) {
+        [NSGraphicsContext saveGraphicsState];
+        [[NSBezierPath bezierPathWithRect:NSMakeRect(kRailWidth + 1.0, 45.0, kPanelWidth - 1.0,
+                                                     MAX(0.0, NSHeight(self.bounds) - 45.0))]
+            addClip];
+        NSAffineTransform* scrollTransform = [NSAffineTransform transform];
+        [scrollTransform translateXBy:0.0 yBy:-_pluginScrollOffset];
+        [scrollTransform concat];
+    }
+
     switch (_displayedSection) {
     case KineticActivitySectionExplorer:
         [self drawExplorerWithHeadingAttributes:headingAttributes
@@ -647,10 +711,43 @@ BOOL activityIsDirectory(NSURL* url) {
                                               withAttributes:bodyAttributes];
             }
         }
+        if (_pluginPanels.count > 0) {
+            CGFloat y = [self pluginPanelsStartY];
+            [self drawSectionHeader:@"VIEWS" atY:y attributes:headingAttributes];
+            y += 36.0;
+            NSUInteger buttonIndex = 0;
+            for (NSDictionary<NSString*, id>* panel in _pluginPanels) {
+                [panel[@"title"]
+                        drawInRect:NSMakeRect(kRailWidth + 14.0, y, kPanelWidth - 28.0, 20.0)
+                    withAttributes:bodyAttributes];
+                y += 27.0;
+                for (NSDictionary<NSString*, NSString*>* row in panel[@"rows"]) {
+                    NSRect rect = NSMakeRect(kRailWidth + 10.0, y, kPanelWidth - 20.0, 25.0);
+                    if ([row[@"kind"] isEqualToString:@"button"]) {
+                        [activityColor(58, 69, 84,
+                                       _hoveredPanelAction == (NSInteger)buttonIndex + 300 ? 0.92
+                                                                                           : 0.72)
+                            setFill];
+                        [[NSBezierPath bezierPathWithRoundedRect:rect xRadius:4.0
+                                                         yRadius:4.0] fill];
+                        ++buttonIndex;
+                    }
+                    [row[@"title"]
+                            drawInRect:NSInsetRect(rect, 9.0, 3.0)
+                        withAttributes:[row[@"kind"] isEqualToString:@"button"] ? bodyAttributes
+                                                                                : mutedAttributes];
+                    y += 29.0;
+                }
+                y += 9.0;
+            }
+        }
         break;
     case KineticActivitySectionSettings:
     case KineticActivitySectionNone:
         break;
+    }
+    if (_displayedSection == KineticActivitySectionPlugins) {
+        [NSGraphicsContext restoreGraphicsState];
     }
     [NSGraphicsContext restoreGraphicsState];
 }
@@ -764,7 +861,11 @@ BOOL activityIsDirectory(NSURL* url) {
             }
             return;
         }
-    } else if (_activeSection == KineticActivitySectionPlugins && _pluginCommands.count > 0) {
+    } else if (_activeSection == KineticActivitySectionPlugins) {
+        if (point.y < 45.0) {
+            return;
+        }
+        point.y += _pluginScrollOffset;
         CGFloat headerY = 126.0 + _pluginNames.count * 25.0;
         for (NSUInteger index = 0; index < _pluginCommands.count; ++index) {
             NSRect buttonRect = NSMakeRect(kRailWidth + 10.0, headerY + 36.0 + index * 29.0,
@@ -772,6 +873,12 @@ BOOL activityIsDirectory(NSURL* url) {
             if (NSPointInRect(point, buttonRect)) {
                 [self.delegate activityBar:self
                     didRequestPluginCommand:_pluginCommands[index][@"id"]];
+                return;
+            }
+        }
+        for (NSDictionary<NSString*, id>* button in [self pluginPanelButtons]) {
+            if (NSPointInRect(point, [button[@"rect"] rectValue])) {
+                [self.delegate activityBar:self didRequestPluginCommand:button[@"id"]];
                 return;
             }
         }
@@ -857,6 +964,9 @@ BOOL activityIsDirectory(NSURL* url) {
     if (_activeSection == KineticActivitySectionExplorer && _workspaceUrl != nil) {
         _treeScrollOffset =
             MIN([self maximumTreeScroll], MAX(0.0, _treeScrollOffset - event.scrollingDeltaY));
+    } else if (_activeSection == KineticActivitySectionPlugins) {
+        _pluginScrollOffset =
+            MIN([self maximumPluginScroll], MAX(0.0, _pluginScrollOffset - event.scrollingDeltaY));
     }
     self.needsDisplay = YES;
 }
@@ -898,6 +1008,11 @@ BOOL activityIsDirectory(NSURL* url) {
             }
         }
     } else if (_activeSection == KineticActivitySectionPlugins) {
+        if (point.y < 45.0) {
+            point.y = -1000.0;
+        } else {
+            point.y += _pluginScrollOffset;
+        }
         CGFloat headerY = 126.0 + _pluginNames.count * 25.0;
         for (NSUInteger index = 0; index < _pluginCommands.count; ++index) {
             NSRect buttonRect = NSMakeRect(kRailWidth + 10.0, headerY + 36.0 + index * 29.0,
@@ -906,6 +1021,14 @@ BOOL activityIsDirectory(NSURL* url) {
                 panelAction = (NSInteger)index + 200;
                 break;
             }
+        }
+        NSUInteger buttonIndex = 0;
+        for (NSDictionary<NSString*, id>* button in [self pluginPanelButtons]) {
+            if (NSPointInRect(point, [button[@"rect"] rectValue])) {
+                panelAction = (NSInteger)buttonIndex + 300;
+                break;
+            }
+            ++buttonIndex;
         }
     }
     if (hovered != _hoveredSection) {

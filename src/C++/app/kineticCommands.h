@@ -1,6 +1,6 @@
 #pragma once
 
-#import <Foundation/Foundation.h>
+#import <AppKit/AppKit.h>
 
 @protocol KineticCommandHandler <NSObject>
 - (void)newTextFile;
@@ -17,6 +17,7 @@
 - (void)searchVisibilityDidChange:(BOOL)visible;
 - (void)editorDocumentDidChange;
 - (void)executePluginCommand:(NSString*)commandId;
+- (BOOL)executePluginShortcutForEvent:(NSEvent*)event;
 - (void)openSearchResult:(NSDictionary*)result;
 - (void)openRecentProjectAtUrl:(NSURL*)projectUrl;
 - (void)saveFile;

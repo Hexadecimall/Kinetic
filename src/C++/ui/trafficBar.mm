@@ -275,6 +275,18 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
         _owner = owner;
         _titles = @[ @"New File", @"Open File…", @"Open Folder…", @"", @"Save", @"", @"Close Tab" ];
         _shortcuts = @[ @"⌘N", @"⌘O", @"", @"", @"⌘S", @"", @"⌘W" ];
+        if (_owner.fileMenuItems.count > 0) {
+            NSMutableArray<NSString*>* titles = [_titles mutableCopy];
+            NSMutableArray<NSString*>* shortcuts = [_shortcuts mutableCopy];
+            [titles addObject:@""];
+            [shortcuts addObject:@""];
+            for (NSDictionary<NSString*, NSString*>* item in _owner.fileMenuItems) {
+                [titles addObject:item[@"title"]];
+                [shortcuts addObject:@""];
+            }
+            _titles = titles;
+            _shortcuts = shortcuts;
+        }
         _rowRects = [[NSMutableArray alloc] init];
         _hoveredRow = kNoHit;
         _selectedRow = 0;
@@ -297,7 +309,7 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
 }
 
 - (BOOL)isCommandEnabledAtIndex:(NSInteger)index {
-    return index == 0 || index == 1 || index == 2 || index == 4 || index == 6;
+    return index == 0 || index == 1 || index == 2 || index == 4 || index == 6 || index >= 8;
 }
 
 - (BOOL)isSeparatorAtIndex:(NSInteger)index {
@@ -435,6 +447,10 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
         if (![_owner.commandHandler closeActiveTab]) {
             [self.window performClose:nil];
         }
+    } else if (row >= 8 && (NSUInteger)(row - 8) < _owner.fileMenuItems.count) {
+        NSString* commandId = _owner.fileMenuItems[(NSUInteger)(row - 8)][@"id"];
+        [_owner closeMenu];
+        [_owner.commandHandler executePluginCommand:commandId];
     } else if (!NSPointInRect(point, _menuFrame)) {
         [_owner closeMenu];
     }
@@ -460,6 +476,11 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
         if (![_owner.commandHandler closeActiveTab]) {
             [self.window performClose:nil];
         }
+    } else if (event.keyCode == 36 && _selectedRow >= 8 &&
+               (NSUInteger)(_selectedRow - 8) < _owner.fileMenuItems.count) {
+        NSString* commandId = _owner.fileMenuItems[(NSUInteger)(_selectedRow - 8)][@"id"];
+        [_owner closeMenu];
+        [_owner.commandHandler executePluginCommand:commandId];
     } else {
         [super keyDown:event];
     }

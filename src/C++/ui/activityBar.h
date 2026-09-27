@@ -32,6 +32,7 @@ typedef NS_ENUM(NSInteger, KineticActivitySection) {
 @property(nonatomic, strong) NSURL* workspaceUrl;
 @property(nonatomic, copy) NSArray<NSString*>* pluginNames;
 @property(nonatomic, copy) NSArray<NSDictionary<NSString*, NSString*>*>* pluginCommands;
+@property(nonatomic, copy) NSArray<NSDictionary<NSString*, id>*>* pluginPanels;
 @property(nonatomic, copy) NSString* pluginConfigurationError;
 @property(nonatomic, readonly) KineticActivitySection activeSection;
 @property(nonatomic, readonly, copy) NSDictionary* workspaceUiState;

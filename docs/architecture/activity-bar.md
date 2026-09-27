@@ -22,9 +22,9 @@ Home content from showing through a selected row. Compact low-contrast header
 strips and single-edge dividers
 group the open document, workspace, repository, and installed-plugin sections without accordion
 styling or non-functional disclosure affordances. Source Control/GitHub remains an integration
-placeholder. Plugins lists locally loaded native libraries and exposes their registered commands;
-publishing and online installation are not implemented; GitHub account connection lives in the
-titlebar.
+placeholder. Plugins lists locally loaded native libraries, registered commands, and scrollable
+plugin-provided label/button views. Publishing and online installation are not implemented;
+GitHub account connection lives in the titlebar.
 
 Search lives in a Kinetic-drawn dropdown anchored beneath the Search icon at the right edge of the
 custom titlebar. The icon appears only while an editor is open; it no longer occupies the tab strip.

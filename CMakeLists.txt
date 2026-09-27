@@ -41,6 +41,7 @@ add_custom_command(
         "${CMAKE_SOURCE_DIR}/src/Rust/backend/Cargo.toml"
         "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/lib.rs"
         "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/document.rs"
+        "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/extensions.rs"
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     COMMENT "Building Kinetic's Rust backend"
     VERBATIM)
@@ -149,9 +150,9 @@ target_include_directories(kineticSamplePlugin PRIVATE include)
 set_target_properties(kineticSamplePlugin PROPERTIES PREFIX "" SUFFIX ".dylib")
 
 add_executable(kineticPluginHostTests tests/pluginHostTests.mm src/C++/app/pluginHost.mm)
-target_include_directories(kineticPluginHostTests PRIVATE include src/C++/app)
+target_include_directories(kineticPluginHostTests PRIVATE include src/C++/app src/C++/bridge)
 target_compile_options(kineticPluginHostTests PRIVATE "-fobjc-arc")
-target_link_libraries(kineticPluginHostTests PRIVATE "-framework Foundation")
+target_link_libraries(kineticPluginHostTests PRIVATE kinetic_backend "-framework AppKit")
 add_dependencies(kineticPluginHostTests kineticSamplePlugin)
 add_test(NAME kineticPluginHost COMMAND kineticPluginHostTests "$<TARGET_FILE_DIR:kineticSamplePlugin>")
 

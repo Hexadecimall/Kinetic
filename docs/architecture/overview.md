@@ -17,11 +17,13 @@ between its C++ platform/rendering layer and Rust editor core.
 ### Rust
 
 - Document text, edit application, dirty state, and bounded undo/redo history
-- Planned ownership of selections, workspace state, search, settings, language tooling, and
-  plugin registries; these still have Objective-C++ implementations in the current preview
-- Commands, settings, TOML configuration, and Lua automation
-- Project discovery, tasks, language tooling, and LSP lifecycle
-- Long-term plugin capability policy and backend registries
+- Plugin contribution metadata and collision rules for commands, shortcuts, menus, panels,
+  overlays, and formatters
+- Planned ownership of selections, workspace state, search, settings, and language tooling;
+  these still have Objective-C++ implementations in the current preview
+- Planned settings, TOML configuration, and Lua automation ownership
+- Planned project discovery, tasks, language tooling, and LSP lifecycle ownership
+- Long-term plugin capability policy
 
 ### ABI boundary
 
@@ -55,11 +57,14 @@ browser through the public Kinetic OAuth app; Kinetic stores the resulting sessi
 Keychain and refreshes expiring tokens. See [`accounts.md`](accounts.md) for the current permissions
 and sign-out behavior.
 
-The Plugins panel lists locally loaded native plugins and their registered commands. A plugin
-can set supported numeric and string properties, including letter spacing, font, and editor canvas
-color; subscribe to document events; and edit an explicit UTF-16 range or selection. The host is
-still Objective-C++ and in-process. Panels, language-tool registries, custom render passes, and
-arbitrary UI contributions are future API expansions, not implemented plugin features.
+The Plugins panel lists locally loaded native plugins, their registered commands, and scrollable
+contributed panel rows. A plugin can set supported numeric and string properties, including letter
+spacing, font, and editor canvas
+color; subscribe to document events; edit an explicit UTF-16 range or selection; and register
+shortcuts, File menu items, viewport overlays, and extension-specific formatters. Rust owns the
+contribution registry; the Objective-C++ host retains callbacks and renders the custom UI in
+process. Settings registration, language tools, diagnostics, and arbitrary widget layouts are
+not yet exposed.
 
 Opening a workspace folder populates an expandable file tree without using a native outline view.
 The Explorer shows hidden entries and creates files and folders through Kinetic-drawn dialogs; the

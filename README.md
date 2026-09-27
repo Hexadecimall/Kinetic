@@ -7,7 +7,7 @@
 </p>
 
 > [!IMPORTANT]
-> Kinetic `0.20.0` is an early functional preview. Editing, retained multi-document tabs, persisted
+> Kinetic `0.21.0` is an early functional preview. Editing, retained multi-document tabs, persisted
 > recent projects, mouse selection, undo/redo, basic syntax highlighting, auto-indentation,
 > matching delimiters, custom context menus, in-file and project search, the activity bar, GitHub
 > account sign-in, native plugin host, hidden-file browsing, project file and folder creation,
@@ -65,8 +65,9 @@ under `dist/`.
 ## Architecture
 
 - C++, Objective-C++, AppKit, and Metal own the application shell, renderer, input, and UI.
-- C++ currently hosts the native plugin ABI and the custom editor surface. Rust provides the
-  backend ABI; moving more editor-model responsibilities to Rust remains architectural direction.
+- C++ hosts native plugin callbacks and the custom editor surface. Rust owns document state and
+  plugin contribution metadata; moving more editor-model responsibilities to Rust remains
+  architectural direction.
 - A narrow versioned C ABI connects both sides.
 - Third-party source is pinned under `lib/` with provenance and license information.
 

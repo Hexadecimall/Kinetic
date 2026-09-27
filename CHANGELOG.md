@@ -2,7 +2,17 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.20.0 - Unreleased
+## 0.21.0 - Unreleased
+
+### Added
+
+- Added a Rust-owned contribution registry with duplicate-ID and shortcut-chord checks.
+- Added native plugin contributions for keyboard shortcuts, File menu actions, scrollable
+  Plugins-panel views, bounded editor overlays, and extension-specific formatters.
+- Kept per-plugin API contexts stable for late registration and refreshed live UI contributions.
+- Added registry, host, and sample-plugin coverage for these extension points.
+
+## 0.20.0
 
 ### Added
 

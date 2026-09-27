@@ -11,6 +11,26 @@ uint32_t kineticBackendAbiVersion(void);
 const char* kineticBackendVersion(void);
 
 typedef struct KineticDocument KineticDocument;
+typedef struct KineticExtensionRegistry KineticExtensionRegistry;
+
+enum {
+    kineticExtensionCommand = 1,
+    kineticExtensionShortcut = 2,
+    kineticExtensionMenu = 3,
+    kineticExtensionPanel = 4,
+    kineticExtensionOverlay = 5,
+    kineticExtensionFormatter = 6,
+};
+
+KineticExtensionRegistry* kineticExtensionRegistryCreate(void);
+void kineticExtensionRegistryDestroy(KineticExtensionRegistry* registry);
+int32_t kineticExtensionRegister(KineticExtensionRegistry* registry, const char* owner,
+                                 uint32_t kind, const char* identifier, const char* title,
+                                 const char* target);
+void kineticExtensionRemoveOwner(KineticExtensionRegistry* registry, const char* owner);
+uint64_t kineticExtensionCount(const KineticExtensionRegistry* registry, uint32_t kind);
+uint64_t kineticExtensionCopyField(const KineticExtensionRegistry* registry, uint32_t kind,
+                                   uint64_t index, uint32_t field, char* buffer, uint64_t capacity);
 
 KineticDocument* kineticDocumentCreate(const uint8_t* bytes, uint64_t length);
 void kineticDocumentDestroy(KineticDocument* document);
