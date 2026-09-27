@@ -97,6 +97,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     BOOL _autoPairs;
     CGFloat _settingsScroll;
     NSArray<NSArray<NSDictionary<NSString*, id>*>*>* _syntaxTokens;
+    NSArray<NSDictionary<NSString*, id>*>* _diagnostics;
     BOOL _syntaxNeedsUpdate;
     BOOL _syntaxHighlighting;
     BOOL _showLineNumbers;
@@ -599,6 +600,8 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 
 - (void)setPluginPanels:(NSArray<NSDictionary<NSString*, id>*>*)panels {
     _activityBar.pluginPanels = panels;
+    _syntaxNeedsUpdate = YES;
+    self.needsDisplay = YES;
 }
 
 - (BOOL)isFlipped {
@@ -664,10 +667,21 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         return @[];
     }
     if (_syntaxNeedsUpdate) {
-        _syntaxTokens = kineticSyntaxTokens(lines, _fileUrl.lastPathComponent ?: _documentTitle);
+        NSString* fileName = _fileUrl.lastPathComponent ?: _documentTitle;
+        _syntaxTokens = [self.overlayRenderer pluginSyntaxTokensForLines:lines fileName:fileName]
+                            ?: kineticSyntaxTokens(lines, fileName);
         _syntaxNeedsUpdate = NO;
     }
     return _syntaxTokens;
+}
+
+- (void)setDiagnostics:(NSArray<NSDictionary<NSString*, id>*>*)diagnostics {
+    _diagnostics = [diagnostics copy] ?: @[];
+    self.needsDisplay = YES;
+}
+
+- (NSArray<NSDictionary<NSString*, id>*>*)diagnostics {
+    return _diagnostics;
 }
 
 - (NSRange)selectionRange {
@@ -1430,6 +1444,15 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     NSArray<NSString*>* lines = [self documentLines];
     NSArray<NSArray<NSDictionary<NSString*, id>*>*>* syntaxTokens =
         [self syntaxTokensForLines:lines];
+    NSMutableDictionary<NSNumber*, NSMutableArray<NSDictionary<NSString*, id>*>*>*
+        diagnosticsByLine = [NSMutableDictionary dictionary];
+    for (NSDictionary<NSString*, id>* diagnostic in _diagnostics) {
+        NSNumber* line = diagnostic[@"line"];
+        if (diagnosticsByLine[line] == nil) {
+            diagnosticsByLine[line] = [NSMutableArray array];
+        }
+        [diagnosticsByLine[line] addObject:diagnostic];
+    }
     CGFloat contentX = [self editorContentX];
     CGFloat textOriginX = [self editorTextOriginX];
     NSRect contentRect =
@@ -1515,6 +1538,52 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         } else {
             [line drawAtPoint:NSMakePoint(textOriginX - _horizontalScroll, y)
                 withAttributes:textAttributes];
+        }
+        NSArray<NSDictionary<NSString*, id>*>* lineDiagnostics = diagnosticsByLine[@(index + 1)];
+        for (NSDictionary<NSString*, id>* diagnostic in lineDiagnostics) {
+            NSUInteger column = MIN([diagnostic[@"column"] unsignedIntegerValue], line.length);
+            NSUInteger length =
+                MIN(MAX(1, [diagnostic[@"length"] unsignedIntegerValue]), line.length - column);
+            CGFloat startX =
+                textOriginX - _horizontalScroll +
+                [[line substringToIndex:column] sizeWithAttributes:textAttributes].width;
+            CGFloat width = length == 0 ? 7.0
+                                        : [[line substringWithRange:NSMakeRange(column, length)]
+                                              sizeWithAttributes:textAttributes]
+                                              .width;
+            NSColor* diagnosticColor = [diagnostic[@"severity"] unsignedIntegerValue] == 1
+                                           ? editorColor(255, 113, 119)
+                                           : editorColor(246, 184, 95);
+            [diagnosticColor setStroke];
+            NSBezierPath* underline = [NSBezierPath bezierPath];
+            underline.lineWidth = 1.1;
+            CGFloat underlineY = y + _lineHeight - 2.0;
+            for (CGFloat offset = 0.0; offset <= MAX(7.0, width); offset += 4.0) {
+                NSPoint point = NSMakePoint(
+                    startX + offset, underlineY + ((int)(offset / 4.0) % 2 == 0 ? 0.0 : 2.0));
+                if (offset == 0.0) {
+                    [underline moveToPoint:point];
+                } else {
+                    [underline lineToPoint:point];
+                }
+            }
+            [underline stroke];
+        }
+        if (lineDiagnostics.count > 0) {
+            NSDictionary<NSString*, id>* diagnostic = lineDiagnostics.firstObject;
+            CGFloat messageX = textOriginX - _horizontalScroll +
+                               [line sizeWithAttributes:textAttributes].width + 16.0;
+            [diagnostic[@"message"]
+                    drawInRect:NSMakeRect(messageX, y + 1.0,
+                                          MAX(0.0, NSMaxX(contentRect) - messageX - 8.0),
+                                          _lineHeight - 2.0)
+                withAttributes:@{
+                    NSFontAttributeName : [NSFont systemFontOfSize:10.5],
+                    NSForegroundColorAttributeName :
+                                [diagnostic[@"severity"] unsignedIntegerValue] == 1
+                        ? editorColor(255, 132, 137)
+                        : editorColor(246, 194, 116),
+                }];
         }
     }
 

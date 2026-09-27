@@ -27,14 +27,39 @@ else()
 endif()
 
 set(KINETIC_CARGO_TARGET_DIR "${CMAKE_BINARY_DIR}/cargo")
+set(KINETIC_RUSTFLAGS
+    "--remap-path-prefix=$ENV{HOME}=/build-user --remap-path-prefix=${CMAKE_SOURCE_DIR}=/kinetic")
 set(KINETIC_RUST_LIBRARY
     "${KINETIC_CARGO_TARGET_DIR}/${KINETIC_CARGO_PROFILE}/libkinetic_backend.a")
+
+set(KINETIC_CPP_PLUGIN_DIR "${CMAKE_BINARY_DIR}/cpp-support-cargo")
+set(KINETIC_CPP_PLUGIN
+    "${KINETIC_CPP_PLUGIN_DIR}/${KINETIC_CARGO_PROFILE}/libkineticCppSupport.dylib")
+set_source_files_properties("${KINETIC_CPP_PLUGIN}" PROPERTIES
+    GENERATED TRUE MACOSX_PACKAGE_LOCATION "PlugIns")
+add_custom_command(
+    OUTPUT "${KINETIC_CPP_PLUGIN}"
+    COMMAND "${CMAKE_COMMAND}" -E env "CARGO_TARGET_DIR=${KINETIC_CPP_PLUGIN_DIR}"
+            "RUSTFLAGS=${KINETIC_RUSTFLAGS}"
+            cargo build --offline --manifest-path
+            "${CMAKE_SOURCE_DIR}/plugins/builtin/cppSupport/Cargo.toml" ${KINETIC_CARGO_ARGS}
+    DEPENDS
+        "${CMAKE_SOURCE_DIR}/plugins/builtin/cppSupport/Cargo.toml"
+        "${CMAKE_SOURCE_DIR}/plugins/builtin/cppSupport/Cargo.lock"
+        "${CMAKE_SOURCE_DIR}/plugins/builtin/cppSupport/src/lib.rs"
+        "${CMAKE_SOURCE_DIR}/plugins/builtin/cppSupport/src/language.rs"
+        "${CMAKE_SOURCE_DIR}/plugins/builtin/cppSupport/src/lsp.rs"
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    COMMENT "Building the bundled C/C++ Support plugin"
+    VERBATIM)
+add_custom_target(kinetic_cpp_support DEPENDS "${KINETIC_CPP_PLUGIN}")
 
 add_custom_command(
     OUTPUT "${KINETIC_RUST_LIBRARY}"
     COMMAND
         "${CMAKE_COMMAND}" -E env
         "CARGO_TARGET_DIR=${KINETIC_CARGO_TARGET_DIR}"
+        "RUSTFLAGS=${KINETIC_RUSTFLAGS}"
         cargo build --manifest-path "${CMAKE_SOURCE_DIR}/Cargo.toml" ${KINETIC_CARGO_ARGS}
     DEPENDS
         "${CMAKE_SOURCE_DIR}/Cargo.toml"
@@ -67,7 +92,7 @@ add_executable(
                               src/C++/ui/searchPopover.mm
                               src/C++/ui/syntaxHighlight.mm
                               src/C++/ui/trafficBar.mm src/C++/ui/tween.mm
-                              "${KINETIC_APP_ICON}")
+                              "${KINETIC_APP_ICON}" "${KINETIC_CPP_PLUGIN}")
 target_include_directories(Kinetic PRIVATE include src/C++/app src/C++/bridge src/C++/ui)
 target_compile_options(Kinetic PRIVATE "-fobjc-arc")
 target_link_libraries(
@@ -91,11 +116,18 @@ add_custom_command(
             "$<TARGET_BUNDLE_DIR:Kinetic>/Contents/Resources/bin"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:kinetic_cli>"
             "$<TARGET_BUNDLE_DIR:Kinetic>/Contents/Resources/bin/kinetic"
+    COMMENT "Embedding the Kinetic CLI")
+add_dependencies(Kinetic kinetic_cli kinetic_cpp_support)
+add_custom_target(
+    kinetic_sign_bundle ALL
+    COMMAND codesign --force --sign -
+            "$<TARGET_BUNDLE_DIR:Kinetic>/Contents/PlugIns/libkineticCppSupport.dylib"
     COMMAND codesign --force --sign -
             "$<TARGET_BUNDLE_DIR:Kinetic>/Contents/Resources/bin/kinetic"
     COMMAND codesign --force --sign - "$<TARGET_BUNDLE_DIR:Kinetic>"
-    COMMENT "Embedding the Kinetic CLI and signing the completed app bundle")
-add_dependencies(Kinetic kinetic_cli)
+    DEPENDS Kinetic
+    COMMENT "Signing the completed Kinetic app bundle"
+    VERBATIM)
 
 enable_testing()
 add_test(NAME kinetic_cli_version COMMAND kinetic_cli --version)
@@ -155,6 +187,14 @@ target_compile_options(kineticPluginHostTests PRIVATE "-fobjc-arc")
 target_link_libraries(kineticPluginHostTests PRIVATE kinetic_backend "-framework AppKit")
 add_dependencies(kineticPluginHostTests kineticSamplePlugin)
 add_test(NAME kineticPluginHost COMMAND kineticPluginHostTests "$<TARGET_FILE_DIR:kineticSamplePlugin>")
+
+add_executable(kineticCppSupportPluginTests tests/cppSupportPluginTests.mm src/C++/app/pluginHost.mm)
+target_include_directories(kineticCppSupportPluginTests PRIVATE include src/C++/app src/C++/bridge)
+target_compile_options(kineticCppSupportPluginTests PRIVATE "-fobjc-arc")
+target_link_libraries(kineticCppSupportPluginTests PRIVATE kinetic_backend "-framework AppKit")
+add_dependencies(kineticCppSupportPluginTests kinetic_cpp_support)
+add_test(NAME kineticCppSupportPlugin COMMAND kineticCppSupportPluginTests
+    "${KINETIC_CPP_PLUGIN_DIR}/${KINETIC_CARGO_PROFILE}")
 
 add_executable(kineticGitHubAccountTests tests/githubAccountTests.mm
                                          src/C++/app/githubAccount.mm)

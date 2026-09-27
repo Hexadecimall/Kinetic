@@ -2,7 +2,22 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.21.0 - Unreleased
+## 0.22.0 - Unreleased
+
+### Added
+
+- Bundled the first-party C/C++ Support plugin with C/C++ syntax tokens, a Rust-owned clangd
+  session, live inline diagnostics, Go to Definition, header/source switching, and explicit
+  clang-format formatting when the tools are available.
+- Expanded the public plugin ABI with syntax providers, active file/workspace paths, diagnostics,
+  source navigation, and an optional unload callback. Existing ABI-1 plugin prefixes remain valid.
+- Added an actual clangd integration test and plugin lexer/LSP protocol tests.
+
+### Fixed
+
+- Re-sign the app bundle after a bundled plugin changes, even when the app executable is unchanged.
+
+## 0.21.0
 
 ### Added
 

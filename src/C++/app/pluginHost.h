@@ -15,6 +15,15 @@
 - (BOOL)pluginHost:(KineticPluginHost*)host setSelection:(NSRange)selection;
 - (BOOL)pluginHost:(KineticPluginHost*)host replaceRange:(NSRange)range withString:(NSString*)text;
 @optional
+- (NSString*)pluginHostActiveFilePath:(KineticPluginHost*)host;
+- (NSString*)pluginHostWorkspacePath:(KineticPluginHost*)host;
+- (void)pluginHost:(KineticPluginHost*)host
+    publishDiagnostics:(NSArray<NSDictionary<NSString*, id>*>*)diagnostics
+               forPath:(NSString*)path;
+- (void)pluginHost:(KineticPluginHost*)host
+    openLocationAtPath:(NSString*)path
+                  line:(NSUInteger)line
+                column:(NSUInteger)column;
 - (void)pluginHostContributionsDidChange:(KineticPluginHost*)host;
 @end
 
@@ -32,5 +41,7 @@
 - (BOOL)hasFormatterForFileName:(NSString*)fileName;
 - (NSString*)formatDocument:(NSString*)text fileName:(NSString*)fileName;
 - (void)drawOverlaysInRect:(NSRect)rect;
+- (NSArray<NSArray<NSDictionary<NSString*, id>*>*>*)syntaxTokensForLines:(NSArray<NSString*>*)lines
+                                                                fileName:(NSString*)fileName;
 - (void)emitEvent:(NSString*)eventName;
 @end

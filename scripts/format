@@ -22,10 +22,16 @@ fi
 
 if [ "$MODE" = "check" ]; then
     cargo fmt --all -- --check
-    find "$KINETIC_ROOT/src/C++" -type f \( -name '*.cpp' -o -name '*.mm' -o -name '*.h' \) \
+    cargo fmt --manifest-path "$KINETIC_ROOT/plugins/builtin/cppSupport/Cargo.toml" -- --check
+    find "$KINETIC_ROOT/src/C++" "$KINETIC_ROOT/include" \
+        -type f \( -name '*.cpp' -o -name '*.mm' -o -name '*.h' \) \
         -exec sh -c "$CLANG_FORMAT --dry-run --Werror \"\$@\"" sh {} +
+    $CLANG_FORMAT --dry-run --Werror "$KINETIC_ROOT/tests/cppSupportPluginTests.mm"
 else
     cargo fmt --all
-    find "$KINETIC_ROOT/src/C++" -type f \( -name '*.cpp' -o -name '*.mm' -o -name '*.h' \) \
+    cargo fmt --manifest-path "$KINETIC_ROOT/plugins/builtin/cppSupport/Cargo.toml"
+    find "$KINETIC_ROOT/src/C++" "$KINETIC_ROOT/include" \
+        -type f \( -name '*.cpp' -o -name '*.mm' -o -name '*.h' \) \
         -exec sh -c "$CLANG_FORMAT -i \"\$@\"" sh {} +
+    $CLANG_FORMAT -i "$KINETIC_ROOT/tests/cppSupportPluginTests.mm"
 fi

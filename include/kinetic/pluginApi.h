@@ -43,6 +43,36 @@ typedef uint32_t (*KineticPluginOverlay)(void* userData, float viewportWidth, fl
 typedef uint64_t (*KineticPluginFormatter)(void* userData, const char* input, uint64_t inputLength,
                                            char* output, uint64_t outputCapacity);
 
+typedef struct KineticPluginSyntaxToken {
+    uint32_t startUtf16;
+    uint32_t lengthUtf16;
+    uint32_t kind;
+} KineticPluginSyntaxToken;
+enum {
+    kineticPluginSyntaxKeyword = 0,
+    kineticPluginSyntaxString = 1,
+    kineticPluginSyntaxComment = 2,
+    kineticPluginSyntaxNumber = 3,
+    kineticPluginSyntaxConstant = 4,
+    kineticPluginSyntaxType = 5,
+    kineticPluginSyntaxFunction = 6,
+    kineticPluginSyntaxVariable = 7,
+    kineticPluginSyntaxKey = 8,
+    kineticPluginSyntaxDirective = 9,
+};
+typedef uint32_t (*KineticPluginSyntaxTokens)(void* userData, const char* line, uint64_t byteLength,
+                                              uint32_t* state, KineticPluginSyntaxToken* tokens,
+                                              uint32_t capacity);
+
+typedef struct KineticPluginDiagnostic {
+    uint32_t line;
+    uint32_t columnUtf16;
+    uint32_t lengthUtf16;
+    uint32_t severity;
+    char message[256];
+} KineticPluginDiagnostic;
+enum { kineticPluginError = 1, kineticPluginWarning = 2, kineticPluginInformation = 3 };
+
 typedef struct KineticPluginApi {
     uint32_t abiVersion;
     uint32_t structSize;
@@ -71,6 +101,14 @@ typedef struct KineticPluginApi {
                                void* userData);
     int32_t (*registerFormatter)(void* context, const char* extension,
                                  KineticPluginFormatter callback, void* userData);
+    int32_t (*registerSyntaxProvider)(void* context, const char* extension,
+                                      KineticPluginSyntaxTokens callback, void* userData);
+    uint64_t (*copyActiveFilePath)(void* context, char* buffer, uint64_t capacity);
+    uint64_t (*copyWorkspacePath)(void* context, char* buffer, uint64_t capacity);
+    int32_t (*publishDiagnostics)(void* context, const char* filePath,
+                                  const KineticPluginDiagnostic* diagnostics, uint32_t count);
+    int32_t (*openLocation)(void* context, const char* filePath, uint32_t line,
+                            uint32_t columnUtf16);
 } KineticPluginApi;
 
 typedef struct KineticPluginDescriptor {
@@ -80,6 +118,8 @@ typedef struct KineticPluginDescriptor {
     const char* displayName;
     const char* version;
     int32_t (*start)(const KineticPluginApi* api);
+    // Optional trailing callback, checked against structSize before use.
+    void (*stop)(void);
 } KineticPluginDescriptor;
 
 // Export this exact symbol from a plugin dylib. Return static storage; Kinetic never frees it.

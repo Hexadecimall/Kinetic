@@ -17,6 +17,8 @@ fi
 "$SCRIPT_DIR/build" --debug
 
 CARGO_TARGET_DIR="$KINETIC_ROOT/build/cargo-tests" cargo test --workspace --all-targets
+CARGO_TARGET_DIR="$KINETIC_ROOT/build/cpp-support-tests" cargo test --offline \
+    --manifest-path "$KINETIC_ROOT/plugins/builtin/cppSupport/Cargo.toml" --all-targets
 ctest --test-dir "$(kinetic_build_dir debug)" --output-on-failure
 PYTHONPATH="$KINETIC_ROOT" python3 -m unittest discover -s "$KINETIC_ROOT/tests" \
     -p 'pluginRegistryTests.py'

@@ -70,7 +70,7 @@ pub extern "C" fn kineticExtensionRegister(
     ) else {
         return -1;
     };
-    if !(1..=6).contains(&kind)
+    if !(1..=7).contains(&kind)
         || registry
             .contributions
             .iter()

@@ -22,9 +22,12 @@ enabled = true
 disabledFiles = ["example.dylib"]
 ```
 
-The file is optional. If it is absent, installed local plugins load by default. If the plugin
+The file is optional. If it is absent, the bundled C/C++ Support plugin and installed local plugins
+load by default. Add `"libkineticCppSupport.dylib"` to `disabledFiles` to skip the bundled plugin.
+If the plugin
 table is invalid or unreadable, no native plugin loads and the Plugins panel displays the error.
-Disabled filenames are checked before opening libraries in `~/.kinetic/plugins/`. Changes take
+Disabled filenames are checked before opening libraries in the app bundle or
+`~/.kinetic/plugins/`. Changes take
 effect on the next launch;
 loaded native plugins cannot be safely unloaded in place. Other configuration sections in this
 file are currently ignored.

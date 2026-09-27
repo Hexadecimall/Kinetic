@@ -20,6 +20,7 @@ enum {
     kineticExtensionPanel = 4,
     kineticExtensionOverlay = 5,
     kineticExtensionFormatter = 6,
+    kineticExtensionSyntax = 7,
 };
 
 KineticExtensionRegistry* kineticExtensionRegistryCreate(void);

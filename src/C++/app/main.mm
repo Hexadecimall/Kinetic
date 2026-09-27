@@ -133,6 +133,8 @@
 @property(nonatomic, strong) KineticGitHubAccount* githubAccount;
 @property(nonatomic, strong) NSMutableDictionary<NSString*, NSNumber*>* pluginNumberOverrides;
 @property(nonatomic, strong) NSMutableDictionary<NSString*, NSString*>* pluginStringOverrides;
+@property(nonatomic, strong)
+    NSMutableDictionary<NSString*, NSArray<NSDictionary<NSString*, id>*>*>* diagnosticsByPath;
 @property(nonatomic, strong) NSURL* workspaceUrl;
 @property(nonatomic, copy) NSDictionary* workspaceUiState;
 @property(nonatomic, copy) NSDictionary* searchUiState;
@@ -149,6 +151,7 @@
     self.editors = [NSMutableArray array];
     self.pluginNumberOverrides = [NSMutableDictionary dictionary];
     self.pluginStringOverrides = [NSMutableDictionary dictionary];
+    self.diagnosticsByPath = [NSMutableDictionary dictionary];
     self.workspaceUiState = @{};
     self.searchUiState = @{};
     self.activitySection = KineticActivitySectionNone;
@@ -280,12 +283,19 @@
     [nextEditor applySearchUiState:self.searchUiState];
     [nextEditor setActivitySection:self.activitySection animated:NO];
     self.editor = nextEditor;
+    nextEditor.diagnostics =
+        nextEditor.fileUrl.path == nil
+            ? @[]
+            : (self.diagnosticsByPath[nextEditor.fileUrl.path.stringByResolvingSymlinksInPath]
+                   ?: @[]);
     if (self.pluginHost == nil) {
         self.pluginHost = [[KineticPluginHost alloc] init];
         self.pluginHost.delegate = self;
         NSURL* pluginRootUrl = [KineticPluginHost userPluginRootUrl];
         NSURL* pluginsUrl = [pluginRootUrl URLByAppendingPathComponent:@"plugins" isDirectory:YES];
         NSURL* configurationUrl = [pluginRootUrl URLByAppendingPathComponent:@"config.toml"];
+        [self.pluginHost loadPluginsAtUrl:NSBundle.mainBundle.builtInPlugInsURL
+                         configurationUrl:configurationUrl];
         [self.pluginHost loadPluginsAtUrl:pluginsUrl configurationUrl:configurationUrl];
         for (KineticEditorView* editor in self.editors) {
             [editor setPluginNames:self.pluginHost.loadedPluginNames
@@ -438,6 +448,12 @@
     [self.pluginHost drawOverlaysInRect:rect];
 }
 
+- (NSArray<NSArray<NSDictionary<NSString*, id>*>*>*)pluginSyntaxTokensForLines:
+                                                        (NSArray<NSString*>*)lines
+                                                                      fileName:(NSString*)fileName {
+    return [self.pluginHost syntaxTokensForLines:lines fileName:fileName];
+}
+
 - (void)pluginHostContributionsDidChange:(KineticPluginHost*)host {
     [self refreshPluginFileMenu];
     for (KineticEditorView* editor in self.editors) {
@@ -507,6 +523,43 @@
 - (NSString*)pluginHostActiveDocument:(KineticPluginHost*)host {
     (void)host;
     return self.editor.documentText;
+}
+
+- (NSString*)pluginHostActiveFilePath:(KineticPluginHost*)host {
+    (void)host;
+    return self.editor.fileUrl.path;
+}
+
+- (NSString*)pluginHostWorkspacePath:(KineticPluginHost*)host {
+    (void)host;
+    return self.workspaceUrl.path;
+}
+
+- (void)pluginHost:(KineticPluginHost*)host
+    publishDiagnostics:(NSArray<NSDictionary<NSString*, id>*>*)diagnostics
+               forPath:(NSString*)path {
+    (void)host;
+    NSString* resolvedPath = path.stringByResolvingSymlinksInPath;
+    self.diagnosticsByPath[resolvedPath] = diagnostics;
+    for (KineticEditorView* editor in self.editors) {
+        if ([editor.fileUrl.path.stringByResolvingSymlinksInPath isEqualToString:resolvedPath]) {
+            editor.diagnostics = diagnostics;
+        }
+    }
+    [self.editor setPluginPanels:self.pluginHost.panels];
+}
+
+- (void)pluginHost:(KineticPluginHost*)host
+    openLocationAtPath:(NSString*)path
+                  line:(NSUInteger)line
+                column:(NSUInteger)column {
+    (void)host;
+    NSURL* url = [NSURL fileURLWithPath:path];
+    if (![NSFileManager.defaultManager fileExistsAtPath:path]) {
+        return;
+    }
+    [self openFileAtUrl:url];
+    [self.editor revealLine:line column:column + 1 length:0];
 }
 
 - (BOOL)pluginHost:(KineticPluginHost*)host replaceSelection:(NSString*)text {

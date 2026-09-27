@@ -8,6 +8,8 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 "$SCRIPT_DIR/version" check
 "$SCRIPT_DIR/generate-macports" --check-template
 CARGO_TARGET_DIR="$KINETIC_ROOT/build/cargo-lint" cargo clippy --workspace --all-targets -- -D warnings
+CARGO_TARGET_DIR="$KINETIC_ROOT/build/cpp-support-lint" cargo clippy --offline \
+    --manifest-path "$KINETIC_ROOT/plugins/builtin/cppSupport/Cargo.toml" --all-targets -- -D warnings
 CLANG=$(xcrun --find clang)
 CLANGXX=$(xcrun --find clang++)
 cmake -S "$KINETIC_ROOT" -B "$KINETIC_ROOT/build/lint" \

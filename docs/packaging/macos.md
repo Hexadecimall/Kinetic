@@ -1,7 +1,9 @@
 # macOS packaging
 
-`Kinetic.app` is the canonical product. It contains the GUI executable and the matching `kinetic`
-command-line client at `Contents/Resources/bin/kinetic`.
+`Kinetic.app` is the canonical product. It contains the GUI executable, the matching `kinetic`
+command-line client at `Contents/Resources/bin/kinetic`, and the first-party C/C++ Support plugin
+at `Contents/PlugIns/libkineticCppSupport.dylib`. The plugin, CLI, and app are signed in that
+order after the bundle is assembled; a changed plugin cannot leave a stale bundle signature.
 
 The installer creates a symlink to that embedded CLI rather than copying it, ensuring the app and
 CLI always share a version. The default user installation uses:

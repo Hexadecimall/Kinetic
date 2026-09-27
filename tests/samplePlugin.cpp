@@ -1,5 +1,6 @@
 #include "kinetic/pluginApi.h"
 
+#include <cstddef>
 #include <cstring>
 
 namespace {
@@ -104,11 +105,12 @@ int32_t startPlugin(const KineticPluginApi* api) {
 
 const KineticPluginDescriptor descriptor = {
     kineticPluginAbiVersion,
-    sizeof(KineticPluginDescriptor),
+    offsetof(KineticPluginDescriptor, stop),
     "sample.structure",
     "Sample Structure Plugin",
     "1.0.0",
     startPlugin,
+    nullptr,
 };
 
 } // namespace

@@ -7,12 +7,16 @@
 </p>
 
 > [!IMPORTANT]
-> Kinetic `0.21.0` is an early functional preview. Editing, retained multi-document tabs, persisted
+> Kinetic `0.22.0` is an early functional preview. Editing, retained multi-document tabs, persisted
 > recent projects, mouse selection, undo/redo, basic syntax highlighting, auto-indentation,
 > matching delimiters, custom context menus, in-file and project search, the activity bar, GitHub
 > account sign-in, native plugin host, hidden-file browsing, project file and folder creation,
 > opening, saving, scrolling, shortcuts, and the macOS shell work, but production editor features
 > are still under active development.
+
+The bundled [C/C++ Support](plugins/builtin/cppSupport/README.md) plugin adds C/C++ syntax,
+clangd diagnostics and Go to Definition, clang-format, and header/source switching. It uses the
+same public plugin API available to third-party native plugins.
 
 ## Direction
 

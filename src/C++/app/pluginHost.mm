@@ -24,6 +24,8 @@
     NSMutableArray<NSDictionary<NSString*, id>*>* _panelCallbacks;
     NSMutableArray<NSDictionary<NSString*, id>*>* _overlayCallbacks;
     NSMutableArray<NSDictionary<NSString*, id>*>* _formatterCallbacks;
+    NSMutableArray<NSDictionary<NSString*, id>*>* _syntaxCallbacks;
+    NSMutableArray<NSValue*>* _stopCallbacks;
     NSMutableArray<NSValue*>* _libraryHandles;
     NSMutableArray<KineticPluginSession*>* _sessions;
     NSMutableArray<NSValue*>* _apiTables;
@@ -59,6 +61,14 @@ static int32_t registerOverlay(void* context, const char* overlayId, KineticPlug
                                void* userData);
 static int32_t registerFormatter(void* context, const char* extension,
                                  KineticPluginFormatter callback, void* userData);
+static int32_t registerSyntaxProvider(void* context, const char* extension,
+                                      KineticPluginSyntaxTokens callback, void* userData);
+static uint64_t copyActiveFilePath(void* context, char* buffer, uint64_t capacity);
+static uint64_t copyWorkspacePath(void* context, char* buffer, uint64_t capacity);
+static int32_t publishDiagnostics(void* context, const char* filePath,
+                                  const KineticPluginDiagnostic* diagnostics, uint32_t count);
+static int32_t openLocation(void* context, const char* filePath, uint32_t line,
+                            uint32_t columnUtf16);
 static NSString* registryField(KineticExtensionRegistry* registry, uint32_t kind, uint64_t index,
                                uint32_t field);
 
@@ -208,6 +218,8 @@ static BOOL readPluginConfiguration(NSURL* configurationUrl, BOOL* enabled,
         _panelCallbacks = [NSMutableArray array];
         _overlayCallbacks = [NSMutableArray array];
         _formatterCallbacks = [NSMutableArray array];
+        _syntaxCallbacks = [NSMutableArray array];
+        _stopCallbacks = [NSMutableArray array];
         _libraryHandles = [NSMutableArray array];
         _sessions = [NSMutableArray array];
         _apiTables = [NSMutableArray array];
@@ -232,12 +244,20 @@ static BOOL readPluginConfiguration(NSURL* configurationUrl, BOOL* enabled,
             registerPanel,
             registerOverlay,
             registerFormatter,
+            registerSyntaxProvider,
+            copyActiveFilePath,
+            copyWorkspacePath,
+            publishDiagnostics,
+            openLocation,
         };
     }
     return self;
 }
 
 - (void)dealloc {
+    for (NSValue* stop in [_stopCallbacks reverseObjectEnumerator]) {
+        ((void (*)(void))stop.pointerValue)();
+    }
     kineticExtensionRegistryDestroy(_registry);
     for (NSValue* table in _apiTables) {
         delete (KineticPluginApi*)table.pointerValue;
@@ -486,6 +506,109 @@ static int32_t registerFormatter(void* context, const char* extension,
     return 0;
 }
 
+static int32_t registerSyntaxProvider(void* context, const char* extension,
+                                      KineticPluginSyntaxTokens callback, void* userData) {
+    if (![NSThread isMainThread] || callback == nullptr) {
+        return -1;
+    }
+    KineticPluginHost* host = hostForContext(context);
+    NSString* owner = ownerForContext(context);
+    NSString* name = stringForUtf8(extension).lowercaseString;
+    if (owner == nil || name.length == 0 || name.length > 24 ||
+        [name rangeOfCharacterFromSet:NSCharacterSet.alphanumericCharacterSet.invertedSet]
+                .location != NSNotFound ||
+        kineticExtensionRegister(host->_registry, owner.UTF8String, kineticExtensionSyntax,
+                                 name.UTF8String, name.UTF8String, name.UTF8String) != 0) {
+        return -1;
+    }
+    [host->_syntaxCallbacks addObject:@{
+        @"extension" : name,
+        @"callback" : [NSValue valueWithPointer:(void*)callback],
+        @"userData" : [NSValue valueWithPointer:userData],
+    }];
+    [host contributionsDidChange];
+    return 0;
+}
+
+static uint64_t copyPath(void* context, char* buffer, uint64_t capacity, BOOL workspace) {
+    if (![NSThread isMainThread]) {
+        return UINT64_MAX;
+    }
+    KineticPluginHost* host = hostForContext(context);
+    NSString* value = workspace ? [host.delegate pluginHostWorkspacePath:host]
+                                : [host.delegate pluginHostActiveFilePath:host];
+    NSData* bytes = [value dataUsingEncoding:NSUTF8StringEncoding];
+    if (bytes == nil) {
+        return UINT64_MAX;
+    }
+    if (buffer != nullptr && capacity > bytes.length) {
+        memcpy(buffer, bytes.bytes, bytes.length);
+        buffer[bytes.length] = '\0';
+    }
+    return bytes.length;
+}
+
+static uint64_t copyActiveFilePath(void* context, char* buffer, uint64_t capacity) {
+    return copyPath(context, buffer, capacity, NO);
+}
+
+static uint64_t copyWorkspacePath(void* context, char* buffer, uint64_t capacity) {
+    return copyPath(context, buffer, capacity, YES);
+}
+
+static int32_t publishDiagnostics(void* context, const char* filePath,
+                                  const KineticPluginDiagnostic* diagnostics, uint32_t count) {
+    if (count > 2048 || (count > 0 && diagnostics == nullptr)) {
+        return -1;
+    }
+    NSString* path = stringForUtf8(filePath);
+    if (path.length == 0 || !path.isAbsolutePath) {
+        return -1;
+    }
+    NSMutableArray<NSDictionary<NSString*, id>*>* items = [NSMutableArray arrayWithCapacity:count];
+    for (uint32_t index = 0; index < count; ++index) {
+        const KineticPluginDiagnostic& diagnostic = diagnostics[index];
+        size_t length = strnlen(diagnostic.message, sizeof(diagnostic.message));
+        NSString* message = [[NSString alloc] initWithBytes:diagnostic.message
+                                                     length:length
+                                                   encoding:NSUTF8StringEncoding];
+        if (message == nil || diagnostic.line == 0 || diagnostic.severity < 1 ||
+            diagnostic.severity > 3) {
+            continue;
+        }
+        [items addObject:@{
+            @"line" : @(diagnostic.line),
+            @"column" : @(diagnostic.columnUtf16),
+            @"length" : @(diagnostic.lengthUtf16),
+            @"severity" : @(diagnostic.severity),
+            @"message" : message,
+        }];
+    }
+    KineticPluginHost* host = hostForContext(context);
+    dispatch_async(dispatch_get_main_queue(), ^{
+      if ([host.delegate respondsToSelector:@selector(pluginHost:publishDiagnostics:forPath:)]) {
+          [host.delegate pluginHost:host publishDiagnostics:items forPath:path];
+      }
+    });
+    return 0;
+}
+
+static int32_t openLocation(void* context, const char* filePath, uint32_t line,
+                            uint32_t columnUtf16) {
+    NSString* path = stringForUtf8(filePath);
+    if (path.length == 0 || !path.isAbsolutePath || line == 0) {
+        return -1;
+    }
+    KineticPluginHost* host = hostForContext(context);
+    dispatch_async(dispatch_get_main_queue(), ^{
+      if ([host.delegate respondsToSelector:@selector(pluginHost:
+                                                openLocationAtPath:line:column:)]) {
+          [host.delegate pluginHost:host openLocationAtPath:path line:line column:columnUtf16];
+      }
+    });
+    return 0;
+}
+
 static int32_t subscribeEvent(void* context, const char* eventName, KineticPluginEvent callback,
                               void* userData) {
     if (![NSThread isMainThread]) {
@@ -650,7 +773,7 @@ static int32_t replaceRangeUtf8(void* context, uint64_t startUtf16, uint64_t len
         auto entry = (const KineticPluginDescriptor* (*)(void))dlsym(handle, "kineticPluginEntry");
         const KineticPluginDescriptor* descriptor = entry == nullptr ? nullptr : entry();
         if (descriptor == nullptr || descriptor->abiVersion != kineticPluginAbiVersion ||
-            descriptor->structSize < sizeof(KineticPluginDescriptor) ||
+            descriptor->structSize < offsetof(KineticPluginDescriptor, stop) ||
             descriptor->start == nullptr || descriptor->pluginId == nullptr ||
             descriptor->displayName == nullptr || descriptor->version == nullptr) {
             dlclose(handle);
@@ -668,6 +791,7 @@ static int32_t replaceRangeUtf8(void* context, uint64_t startUtf16, uint64_t len
         NSUInteger panelCount = _panelCallbacks.count;
         NSUInteger overlayCount = _overlayCallbacks.count;
         NSUInteger formatterCount = _formatterCallbacks.count;
+        NSUInteger syntaxCount = _syntaxCallbacks.count;
         KineticPluginSession* session = [[KineticPluginSession alloc] init];
         session.host = self;
         session.pluginId = pluginId;
@@ -690,6 +814,8 @@ static int32_t replaceRangeUtf8(void* context, uint64_t startUtf16, uint64_t len
             [_formatterCallbacks
                 removeObjectsInRange:NSMakeRange(formatterCount,
                                                  _formatterCallbacks.count - formatterCount)];
+            [_syntaxCallbacks removeObjectsInRange:NSMakeRange(syntaxCount, _syntaxCallbacks.count -
+                                                                                syntaxCount)];
             dlclose(handle);
             delete apiTable;
             _loadingPluginId = nil;
@@ -699,8 +825,18 @@ static int32_t replaceRangeUtf8(void* context, uint64_t startUtf16, uint64_t len
         [_sessions addObject:session];
         [_apiTables addObject:[NSValue valueWithPointer:apiTable]];
         [_libraryHandles addObject:[NSValue valueWithPointer:handle]];
+        if (descriptor->structSize >= sizeof(KineticPluginDescriptor) &&
+            descriptor->stop != nullptr) {
+            [_stopCallbacks addObject:[NSValue valueWithPointer:(void*)descriptor->stop]];
+        }
         [_loadedPluginIds addObject:pluginId];
-        [_loadedPluginNames addObject:displayName];
+        BOOL bundledOfficial = [pluginId isEqualToString:@"kinetic.cpp-support"] &&
+                               [directoryUrl.URLByResolvingSymlinksInPath.path
+                                   isEqualToString:NSBundle.mainBundle.builtInPlugInsURL
+                                                       .URLByResolvingSymlinksInPath.path];
+        [_loadedPluginNames addObject:bundledOfficial
+                                          ? [displayName stringByAppendingString:@" · Official"]
+                                          : displayName];
     }
 }
 
@@ -770,6 +906,44 @@ static int32_t replaceRangeUtf8(void* context, uint64_t startUtf16, uint64_t len
         }
     }
     return result;
+}
+
+- (NSArray<NSArray<NSDictionary<NSString*, id>*>*>*)syntaxTokensForLines:(NSArray<NSString*>*)lines
+                                                                fileName:(NSString*)fileName {
+    NSString* extension = fileName.pathExtension.lowercaseString;
+    for (NSDictionary<NSString*, id>* provider in _syntaxCallbacks) {
+        if (![provider[@"extension"] isEqualToString:extension]) {
+            continue;
+        }
+        auto callback = (KineticPluginSyntaxTokens)[provider[@"callback"] pointerValue];
+        void* userData = [provider[@"userData"] pointerValue];
+        uint32_t state = 0;
+        NSMutableArray<NSArray<NSDictionary<NSString*, id>*>*>* result =
+            [NSMutableArray arrayWithCapacity:lines.count];
+        for (NSString* line in lines) {
+            NSData* utf8 = [line dataUsingEncoding:NSUTF8StringEncoding];
+            KineticPluginSyntaxToken tokens[128] = {};
+            uint32_t count =
+                MIN(callback(userData, (const char*)utf8.bytes, utf8.length, &state, tokens, 128),
+                    128u);
+            NSMutableArray<NSDictionary<NSString*, id>*>* row = [NSMutableArray array];
+            for (uint32_t index = 0; index < count; ++index) {
+                KineticPluginSyntaxToken token = tokens[index];
+                if (token.kind >= 10 || token.lengthUtf16 == 0 ||
+                    (uint64_t)token.startUtf16 + token.lengthUtf16 > line.length) {
+                    continue;
+                }
+                [row addObject:@{
+                    @"range" :
+                        [NSValue valueWithRange:NSMakeRange(token.startUtf16, token.lengthUtf16)],
+                    @"kind" : @(token.kind),
+                }];
+            }
+            [result addObject:row];
+        }
+        return result;
+    }
+    return nil;
 }
 
 - (BOOL)hasFormatterForFileName:(NSString*)fileName {

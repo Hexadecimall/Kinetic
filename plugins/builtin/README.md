@@ -6,3 +6,6 @@ and integration rather than duplicating those systems.
 
 Built-ins use the same documented settings, command, theme, and capability registries available to
 third-party plugins. Shipping a built-in-only customization hook is not acceptable.
+
+[`cppSupport/`](cppSupport/) is the bundled C/C++ Support plugin. Its syntax, diagnostics,
+navigation, and formatting use the public native plugin ABI.

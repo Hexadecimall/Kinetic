@@ -61,10 +61,11 @@ The Plugins panel lists locally loaded native plugins, their registered commands
 contributed panel rows. A plugin can set supported numeric and string properties, including letter
 spacing, font, and editor canvas
 color; subscribe to document events; edit an explicit UTF-16 range or selection; and register
-shortcuts, File menu items, viewport overlays, and extension-specific formatters. Rust owns the
+shortcuts, File menu items, viewport overlays, extension-specific formatters, syntax providers,
+diagnostics, and source navigation. Rust owns the
 contribution registry; the Objective-C++ host retains callbacks and renders the custom UI in
-process. Settings registration, language tools, diagnostics, and arbitrary widget layouts are
-not yet exposed.
+process. The bundled Rust C/C++ Support plugin runs clangd for live errors and Go to Definition.
+Settings registration, completion UI, and arbitrary widget layouts are not yet exposed.
 
 Opening a workspace folder populates an expandable file tree without using a native outline view.
 The Explorer shows hidden entries and creates files and folders through Kinetic-drawn dialogs; the

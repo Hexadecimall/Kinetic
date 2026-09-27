@@ -7,6 +7,9 @@
 
 @protocol KineticEditorOverlayRenderer <NSObject>
 - (void)drawPluginOverlaysInRect:(NSRect)rect;
+- (NSArray<NSArray<NSDictionary<NSString*, id>*>*>*)pluginSyntaxTokensForLines:
+                                                        (NSArray<NSString*>*)lines
+                                                                      fileName:(NSString*)fileName;
 @end
 
 @interface KineticEditorView : NSView
@@ -23,6 +26,7 @@
 @property(nonatomic, copy) NSIndexSet* dirtyTabIndexes;
 @property(nonatomic) NSUInteger activeTabIndex;
 @property(nonatomic, readonly) BOOL dirty;
+@property(nonatomic, copy) NSArray<NSDictionary<NSString*, id>*>* diagnostics;
 @property(nonatomic, readonly) KineticActivitySection activeActivitySection;
 @property(nonatomic, readonly, copy) NSDictionary* workspaceUiState;
 @property(nonatomic, readonly, copy) NSDictionary* searchUiState;
