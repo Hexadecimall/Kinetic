@@ -1,5 +1,7 @@
 #import <AppKit/AppKit.h>
 #import <MetalKit/MetalKit.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include "editorView.h"
 #include "fileDialog.h"
@@ -527,6 +529,21 @@
                         initialPath:self.workspaceUrl.path];
 }
 
+- (void)createFileInDirectory:(NSURL*)directoryUrl {
+    if (self.workspaceUrl == nil || directoryUrl == nil) {
+        return;
+    }
+    [self presentFileDialogWithMode:KineticFileDialogModeCreateFile initialPath:directoryUrl.path];
+}
+
+- (void)createFolderInDirectory:(NSURL*)directoryUrl {
+    if (self.workspaceUrl == nil || directoryUrl == nil) {
+        return;
+    }
+    [self presentFileDialogWithMode:KineticFileDialogModeCreateFolder
+                        initialPath:directoryUrl.path];
+}
+
 - (BOOL)writeEditorToUrl:(NSURL*)fileUrl {
     NSError* error = nil;
     if (![self.editor.documentText writeToURL:fileUrl
@@ -586,7 +603,7 @@
      didChoosePath:(NSString*)path
               mode:(KineticFileDialogMode)mode {
     NSURL* fileUrl = [NSURL fileURLWithPath:path];
-    if (mode == KineticFileDialogModeCreateFolder) {
+    if (mode == KineticFileDialogModeCreateFolder || mode == KineticFileDialogModeCreateFile) {
         NSURL* parentUrl = [fileUrl URLByDeletingLastPathComponent];
         NSString* workspacePath =
             [[[self.workspaceUrl URLByResolvingSymlinksInPath] path] stringByStandardizingPath];
@@ -603,16 +620,30 @@
             return;
         }
         NSError* error = nil;
-        if (![NSFileManager.defaultManager createDirectoryAtURL:fileUrl
-                                    withIntermediateDirectories:NO
-                                                     attributes:nil
-                                                          error:&error]) {
-            [dialog showError:@"Kinetic could not create this folder."];
-            return;
+        if (mode == KineticFileDialogModeCreateFolder) {
+            if (![NSFileManager.defaultManager createDirectoryAtURL:fileUrl
+                                        withIntermediateDirectories:NO
+                                                         attributes:nil
+                                                              error:&error]) {
+                [dialog showError:@"Kinetic could not create this folder."];
+                return;
+            }
+            [self.editor revealCreatedFolderAtUrl:fileUrl];
+        } else {
+            int descriptor =
+                open(fileUrl.fileSystemRepresentation, O_CREAT | O_EXCL | O_WRONLY, 0666);
+            if (descriptor < 0) {
+                [dialog showError:@"Kinetic could not create this file."];
+                return;
+            }
+            close(descriptor);
+            [self.editor revealCreatedFileAtUrl:fileUrl];
         }
-        [self.editor revealCreatedFolderAtUrl:fileUrl];
         self.workspaceUiState = self.editor.workspaceUiState;
         [self dismissFileDialog];
+        if (mode == KineticFileDialogModeCreateFile) {
+            [self openFileAtUrl:fileUrl];
+        }
         return;
     }
     if (mode == KineticFileDialogModeOpenFolder) {

@@ -49,6 +49,7 @@ collapseAnimationMilliseconds = 150
 sectionHeaders = true
 preserveSectionAcrossTabs = true
 showExplorer = true
+showHiddenFiles = true
 showSourceControl = true
 showPlugins = true
 showSettings = true
@@ -69,7 +70,7 @@ showParentPath = true
 rowHeight = 30.0
 naturalScrolling = true
 foldersFirst = true
-showHiddenFiles = false
+showHiddenFiles = true
 
 [shortcuts]
 newTextFile = "cmd-n"

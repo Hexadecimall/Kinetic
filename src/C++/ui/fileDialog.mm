@@ -1,4 +1,5 @@
 #import "fileDialog.h"
+#import "contextMenu.h"
 
 namespace {
 constexpr CGFloat kRowHeight = 30.0;
@@ -51,8 +52,9 @@ NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
         _dialogDelegate = delegate;
         _selectedIndex = -1;
         _hoveredButton = -1;
-        _editingFileName =
-            mode == KineticFileDialogModeSave || mode == KineticFileDialogModeCreateFolder;
+        _editingFileName = mode == KineticFileDialogModeSave ||
+                           mode == KineticFileDialogModeCreateFolder ||
+                           mode == KineticFileDialogModeCreateFile;
         NSString* expandedPath = [initialPath stringByExpandingTildeInPath];
         if (mode == KineticFileDialogModeSave) {
             _directoryUrl = [NSURL fileURLWithPath:expandedPath.stringByDeletingLastPathComponent
@@ -61,7 +63,8 @@ NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
         } else {
             _directoryUrl = [NSURL fileURLWithPath:expandedPath isDirectory:YES];
             _fileName = [[NSMutableString alloc] init];
-            if (mode == KineticFileDialogModeCreateFolder) {
+            if (mode == KineticFileDialogModeCreateFolder ||
+                mode == KineticFileDialogModeCreateFile) {
                 _creationRootUrl = _directoryUrl;
             }
         }
@@ -80,7 +83,8 @@ NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
 }
 
 - (BOOL)requiresName {
-    return _mode == KineticFileDialogModeSave || _mode == KineticFileDialogModeCreateFolder;
+    return _mode == KineticFileDialogModeSave || _mode == KineticFileDialogModeCreateFolder ||
+           _mode == KineticFileDialogModeCreateFile;
 }
 
 - (void)layoutRects {
@@ -100,11 +104,11 @@ NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
 
 - (void)reloadEntries {
     NSError* error = nil;
-    NSArray<NSURL*>* urls = [NSFileManager.defaultManager
-          contentsOfDirectoryAtURL:_directoryUrl
-        includingPropertiesForKeys:@[ NSURLIsDirectoryKey ]
-                           options:NSDirectoryEnumerationSkipsHiddenFiles
-                             error:&error];
+    NSArray<NSURL*>* urls =
+        [NSFileManager.defaultManager contentsOfDirectoryAtURL:_directoryUrl
+                                    includingPropertiesForKeys:@[ NSURLIsDirectoryKey ]
+                                                       options:0
+                                                         error:&error];
     if (urls == nil) {
         _entries = @[];
         _errorMessage = @"Kinetic cannot read this folder.";
@@ -209,6 +213,8 @@ NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
         title = @"Save File";
     } else if (_mode == KineticFileDialogModeCreateFolder) {
         title = @"New Folder";
+    } else if (_mode == KineticFileDialogModeCreateFile) {
+        title = @"New File";
     }
     [title drawAtPoint:NSMakePoint(NSMinX(_panelRect) + 24.0, NSMinY(_panelRect) + 22.0)
         withAttributes:titleAttributes];
@@ -319,9 +325,11 @@ NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     }
     [self drawButtonInRect:_cancelRect title:@"Cancel" primary:NO hovered:_hoveredButton == 0];
     [self drawButtonInRect:_confirmRect
-                     title:_mode == KineticFileDialogModeSave           ? @"Save"
-                           : _mode == KineticFileDialogModeCreateFolder ? @"Create"
-                                                                        : @"Open"
+                     title:_mode == KineticFileDialogModeSave ? @"Save"
+                           : _mode == KineticFileDialogModeCreateFolder ||
+                                   _mode == KineticFileDialogModeCreateFile
+                               ? @"Create"
+                               : @"Open"
                    primary:YES
                    hovered:_hoveredButton == 1];
 }
@@ -362,17 +370,19 @@ NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
         [_dialogDelegate fileDialog:self didChoosePath:selectedUrl.path mode:_mode];
         return;
     }
-    if (_mode == KineticFileDialogModeCreateFolder) {
+    if (_mode == KineticFileDialogModeCreateFolder || _mode == KineticFileDialogModeCreateFile) {
         NSString* name = [_fileName
             stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
         if (name.length == 0) {
-            [self showError:@"Enter a folder name."];
+            [self showError:_mode == KineticFileDialogModeCreateFolder ? @"Enter a folder name."
+                                                                       : @"Enter a file name."];
             return;
         }
-        if ([name hasPrefix:@"."] || [name containsString:@"/"] || [name containsString:@":"] ||
+        if ([name isEqualToString:@"."] || [name isEqualToString:@".."] ||
+            [name containsString:@"/"] || [name containsString:@":"] ||
             [name rangeOfCharacterFromSet:NSCharacterSet.controlCharacterSet].location !=
                 NSNotFound) {
-            [self showError:@"Use a visible folder name without slashes or colons."];
+            [self showError:@"Use a name without slashes or colons."];
             return;
         }
         NSURL* parentUrl = _directoryUrl;
@@ -453,7 +463,8 @@ NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
         NSInteger index = [self entryIndexAtPoint:point];
         if (index >= 0) {
             _selectedIndex = index;
-            _editingFileName = _mode == KineticFileDialogModeCreateFolder;
+            _editingFileName = _mode == KineticFileDialogModeCreateFolder ||
+                               _mode == KineticFileDialogModeCreateFile;
             if (event.clickCount == 2) {
                 [self openSelectedEntry];
             } else if (_mode == KineticFileDialogModeSave &&
@@ -463,6 +474,71 @@ NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
             self.needsDisplay = YES;
         }
     }
+}
+
+- (void)rightMouseDown:(NSEvent*)event {
+    [self layoutRects];
+    NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+    if (!NSPointInRect(point, _panelRect)) {
+        return;
+    }
+    if ([self requiresName] && NSPointInRect(point, _nameFieldRect)) {
+        NSString* pasted = [NSPasteboard.generalPasteboard stringForType:NSPasteboardTypeString];
+        [KineticContextMenu
+            showInView:self
+               atPoint:point
+                 items:@[
+                     @{@"title" : @"Copy Name", @"enabled" : @(_fileName.length > 0)},
+                     @{@"title" : @"Paste", @"enabled" : @(pasted.length > 0)},
+                     @{@"title" : @"Clear", @"enabled" : @(_fileName.length > 0)}
+                 ]
+               handler:^(NSUInteger selected) {
+                 if (selected == 0) {
+                     [NSPasteboard.generalPasteboard clearContents];
+                     [NSPasteboard.generalPasteboard setString:_fileName
+                                                       forType:NSPasteboardTypeString];
+                 } else if (selected == 1) {
+                     NSString* oneLine = [[pasted
+                         componentsSeparatedByCharactersInSet:NSCharacterSet.newlineCharacterSet]
+                         componentsJoinedByString:@" "];
+                     [_fileName appendString:oneLine];
+                 } else {
+                     [_fileName setString:@""];
+                 }
+                 _editingFileName = YES;
+                 self.needsDisplay = YES;
+               }];
+        return;
+    }
+    NSInteger index = [self entryIndexAtPoint:point];
+    NSURL* url = index >= 0 ? _entries[(NSUInteger)index].url : _directoryUrl;
+    BOOL directory = index < 0 || _entries[(NSUInteger)index].directory;
+    if (index >= 0) {
+        _selectedIndex = index;
+        self.needsDisplay = YES;
+    }
+    NSMutableArray<NSDictionary<NSString*, id>*>* items = [NSMutableArray array];
+    if (index >= 0) {
+        [items addObject:@{
+            @"title" : directory ? @"Open Folder" : @"Select File",
+            @"enabled" : @(directory || _mode == KineticFileDialogModeOpen ||
+                           _mode == KineticFileDialogModeSave)
+        }];
+    }
+    [items addObject:@{@"title" : index >= 0 ? @"Copy Path" : @"Copy Folder Path"}];
+    NSUInteger copyIndex = items.count - 1;
+    [KineticContextMenu showInView:self
+                           atPoint:point
+                             items:items
+                           handler:^(NSUInteger selected) {
+                             if (selected == copyIndex) {
+                                 [NSPasteboard.generalPasteboard clearContents];
+                                 [NSPasteboard.generalPasteboard setString:url.path
+                                                                   forType:NSPasteboardTypeString];
+                             } else if (index >= 0) {
+                                 [self openSelectedEntry];
+                             }
+                           }];
 }
 
 - (void)scrollWheel:(NSEvent*)event {

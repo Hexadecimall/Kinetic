@@ -92,6 +92,7 @@
         "sectionHeaders": { "type": "boolean" },
         "preserveSectionAcrossTabs": { "type": "boolean" },
         "showExplorer": { "type": "boolean" },
+        "showHiddenFiles": { "type": "boolean" },
         "showSourceControl": { "type": "boolean" },
         "showPlugins": { "type": "boolean" },
         "showSettings": { "type": "boolean" }

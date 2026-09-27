@@ -34,6 +34,7 @@
 - (void)focusSearchQuery;
 - (void)revealLine:(NSUInteger)line column:(NSUInteger)column length:(NSUInteger)length;
 - (void)revealCreatedFolderAtUrl:(NSURL*)url;
+- (void)revealCreatedFileAtUrl:(NSURL*)url;
 - (void)setActivitySection:(KineticActivitySection)section animated:(BOOL)animated;
 - (void)markSaved;
 - (BOOL)setPluginNumber:(double)value property:(NSString*)property;

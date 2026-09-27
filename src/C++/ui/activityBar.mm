@@ -1,4 +1,5 @@
 #import "activityBar.h"
+#import "contextMenu.h"
 
 #import "tween.h"
 
@@ -139,6 +140,10 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
     self.needsDisplay = YES;
 }
 
+- (void)revealCreatedFileAtUrl:(NSURL*)url {
+    [self revealCreatedFolderAtUrl:url];
+}
+
 - (void)activateSection:(KineticActivitySection)section animated:(BOOL)animated {
     if (section == KineticActivitySectionNone) {
         if (animated) {
@@ -219,11 +224,11 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
     if (depth > 12 || entries.count >= 500) {
         return;
     }
-    NSArray<NSURL*>* urls = [NSFileManager.defaultManager
-          contentsOfDirectoryAtURL:directory
-        includingPropertiesForKeys:@[ NSURLIsDirectoryKey ]
-                           options:NSDirectoryEnumerationSkipsHiddenFiles
-                             error:nil];
+    NSArray<NSURL*>* urls =
+        [NSFileManager.defaultManager contentsOfDirectoryAtURL:directory
+                                    includingPropertiesForKeys:@[ NSURLIsDirectoryKey ]
+                                                       options:0
+                                                         error:nil];
     urls = [urls sortedArrayUsingComparator:^NSComparisonResult(NSURL* left, NSURL* right) {
       NSNumber* leftDirectory = nil;
       NSNumber* rightDirectory = nil;
@@ -379,6 +384,10 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
     return NSMakeRect(kRailWidth + kPanelWidth - 30.0, 183.0, 23.0, 20.0);
 }
 
+- (NSRect)newFileButtonRect {
+    return NSMakeRect(kRailWidth + kPanelWidth - 55.0, 183.0, 23.0, 20.0);
+}
+
 - (NSRect)treeRowRectAtIndex:(NSUInteger)index {
     return NSMakeRect(kRailWidth + 7.0, kTreeStartY + index * kTreeRowHeight - _treeScrollOffset,
                       kPanelWidth - 14.0, kTreeRowHeight);
@@ -423,6 +432,27 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
     [icon lineToPoint:NSMakePoint(NSMinX(rect) + 16.0, NSMinY(rect) + 14.0)];
     [icon moveToPoint:NSMakePoint(NSMinX(rect) + 13.0, NSMinY(rect) + 11.0)];
     [icon lineToPoint:NSMakePoint(NSMinX(rect) + 19.0, NSMinY(rect) + 11.0)];
+    [activityColor(155, 181, 220) setStroke];
+    [icon stroke];
+}
+
+- (void)drawNewFileButton {
+    NSRect rect = [self newFileButtonRect];
+    if (_hoveredPanelAction == 3) {
+        [activityColor(77, 141, 255, 0.16) setFill];
+        [[NSBezierPath bezierPathWithRoundedRect:rect xRadius:3.0 yRadius:3.0] fill];
+    }
+    NSBezierPath* icon = [NSBezierPath bezierPath];
+    icon.lineWidth = 1.15;
+    icon.lineCapStyle = NSLineCapStyleRound;
+    [icon appendBezierPathWithRoundedRect:NSMakeRect(NSMinX(rect) + 4.0, NSMinY(rect) + 3.0, 11.0,
+                                                     14.0)
+                                  xRadius:1.3
+                                  yRadius:1.3];
+    [icon moveToPoint:NSMakePoint(NSMinX(rect) + 16.0, NSMinY(rect) + 9.0)];
+    [icon lineToPoint:NSMakePoint(NSMinX(rect) + 22.0, NSMinY(rect) + 9.0)];
+    [icon moveToPoint:NSMakePoint(NSMinX(rect) + 19.0, NSMinY(rect) + 6.0)];
+    [icon lineToPoint:NSMakePoint(NSMinX(rect) + 19.0, NSMinY(rect) + 12.0)];
     [activityColor(155, 181, 220) setStroke];
     [icon stroke];
 }
@@ -485,7 +515,7 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
     [self drawSectionHeader:workspaceTitle.uppercaseString
                         atY:181.0
                  attributes:headingAttributes
-              trailingInset:_workspaceUrl == nil ? 0.0 : 24.0];
+              trailingInset:_workspaceUrl == nil ? 0.0 : 49.0];
     if (_workspaceUrl == nil) {
         [@"Open a folder to show its files."
                 drawInRect:NSMakeRect(kRailWidth + 14.0, kTreeStartY + 7.0, kPanelWidth - 28.0,
@@ -493,6 +523,7 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
             withAttributes:mutedAttributes];
         return;
     }
+    [self drawNewFileButton];
     [self drawNewFolderButton];
 
     NSRect treeClip = NSMakeRect(kRailWidth + 1.0, kTreeStartY, kPanelWidth - 1.0,
@@ -702,6 +733,10 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
             [self.delegate activityBarDidRequestCreateFolder:self];
             return;
         }
+        if (_workspaceUrl != nil && NSPointInRect(point, [self newFileButtonRect])) {
+            [self.delegate activityBar:self didRequestCreateFileInDirectory:_workspaceUrl];
+            return;
+        }
         for (NSUInteger index = 0; point.y >= kTreeStartY && index < _treeEntries.count; ++index) {
             if (!NSPointInRect(point, [self treeRowRectAtIndex:index])) {
                 continue;
@@ -731,6 +766,76 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
             }
         }
     }
+}
+
+- (void)rightMouseDown:(NSEvent*)event {
+    if (_animating || _activeSection != KineticActivitySectionExplorer) {
+        return;
+    }
+    NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+    if (point.x < kRailWidth) {
+        return;
+    }
+    NSURL* targetUrl = nil;
+    BOOL targetDirectory = YES;
+    BOOL documentRow = NSPointInRect(point, NSMakeRect(kRailWidth, 70.0, kPanelWidth, 28.0));
+    if (point.y >= kTreeStartY) {
+        for (NSUInteger index = 0; index < _treeEntries.count; ++index) {
+            if (NSPointInRect(point, [self treeRowRectAtIndex:index])) {
+                targetUrl = _treeEntries[index].url;
+                targetDirectory = _treeEntries[index].directory;
+                break;
+            }
+        }
+    }
+    if (documentRow) {
+        [KineticContextMenu showInView:self
+                               atPoint:point
+                                 items:@[
+                                     @{@"title" : @"Save", @"shortcut" : @"⌘S"},
+                                     @{@"title" : @"Close Tab", @"shortcut" : @"⌘W"}
+                                 ]
+                               handler:^(NSUInteger index) {
+                                 if (index == 0) {
+                                     [self.delegate activityBarDidRequestSaveFile:self];
+                                 } else {
+                                     [self.delegate activityBarDidRequestCloseTab:self];
+                                 }
+                               }];
+        return;
+    }
+    if (_workspaceUrl == nil) {
+        return;
+    }
+    NSURL* directoryUrl = targetDirectory ? (targetUrl != nil ? targetUrl : _workspaceUrl)
+                                          : [targetUrl URLByDeletingLastPathComponent];
+    NSMutableArray<NSDictionary<NSString*, id>*>* items = [NSMutableArray array];
+    if (targetUrl != nil && !targetDirectory) {
+        [items addObject:@{@"title" : @"Open File"}];
+    }
+    [items addObject:@{@"title" : @"New File"}];
+    [items addObject:@{@"title" : @"New Folder"}];
+    if (targetUrl != nil) {
+        [items addObject:@{@"title" : @"Copy Path"}];
+    }
+    NSUInteger firstCreationIndex = targetUrl != nil && !targetDirectory ? 1 : 0;
+    [KineticContextMenu
+        showInView:self
+           atPoint:point
+             items:items
+           handler:^(NSUInteger index) {
+             if (index < firstCreationIndex) {
+                 [self.delegate activityBar:self didRequestOpenUrl:targetUrl];
+             } else if (index == firstCreationIndex) {
+                 [self.delegate activityBar:self didRequestCreateFileInDirectory:directoryUrl];
+             } else if (index == firstCreationIndex + 1) {
+                 [self.delegate activityBar:self didRequestCreateFolderInDirectory:directoryUrl];
+             } else if (targetUrl != nil) {
+                 [NSPasteboard.generalPasteboard clearContents];
+                 [NSPasteboard.generalPasteboard setString:targetUrl.path
+                                                   forType:NSPasteboardTypeString];
+             }
+           }];
 }
 
 - (void)resetCursorRects {
@@ -771,6 +876,8 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
             panelAction = 1;
         } else if (_workspaceUrl != nil && NSPointInRect(point, [self newFolderButtonRect])) {
             panelAction = 2;
+        } else if (_workspaceUrl != nil && NSPointInRect(point, [self newFileButtonRect])) {
+            panelAction = 3;
         } else {
             for (NSUInteger index = 0; point.y >= kTreeStartY && index < _treeEntries.count;
                  ++index) {

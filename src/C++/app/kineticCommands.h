@@ -8,6 +8,8 @@
 - (void)openFileAtUrl:(NSURL*)fileUrl;
 - (void)openFolder;
 - (void)createFolder;
+- (void)createFileInDirectory:(NSURL*)directoryUrl;
+- (void)createFolderInDirectory:(NSURL*)directoryUrl;
 - (void)searchWorkspaceForQuery:(NSString*)query matchCase:(BOOL)matchCase;
 - (void)focusWorkspaceSearch;
 - (void)focusFileSearch;

@@ -1,4 +1,5 @@
 #import "searchPopover.h"
+#import "contextMenu.h"
 
 namespace {
 
@@ -396,6 +397,40 @@ NSColor* searchColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
         }
     }
     self.needsDisplay = YES;
+}
+
+- (void)rightMouseDown:(NSEvent*)event {
+    NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+    if (!NSPointInRect(point, [self queryRect])) {
+        return;
+    }
+    NSString* pasted = [NSPasteboard.generalPasteboard stringForType:NSPasteboardTypeString];
+    [KineticContextMenu
+        showInView:self
+           atPoint:point
+             items:@[
+                 @{@"title" : @"Copy Query", @"enabled" : @(_query.length > 0)},
+                 @{@"title" : @"Paste", @"enabled" : @(pasted.length > 0)},
+                 @{@"title" : @"Select All", @"enabled" : @(_query.length > 0)},
+                 @{@"title" : @"Clear", @"enabled" : @(_query.length > 0)}
+             ]
+           handler:^(NSUInteger index) {
+             if (index == 0) {
+                 [NSPasteboard.generalPasteboard clearContents];
+                 [NSPasteboard.generalPasteboard setString:_query forType:NSPasteboardTypeString];
+             } else if (index == 1) {
+                 NSString* oneLine = [[pasted
+                     componentsSeparatedByCharactersInSet:NSCharacterSet.newlineCharacterSet]
+                     componentsJoinedByString:@" "];
+                 [self replaceSelectionWithText:oneLine];
+             } else if (index == 2) {
+                 _selectAll = YES;
+                 self.needsDisplay = YES;
+             } else {
+                 _selectAll = YES;
+                 [self replaceSelectionWithText:@""];
+             }
+           }];
 }
 
 - (void)scrollWheel:(NSEvent*)event {

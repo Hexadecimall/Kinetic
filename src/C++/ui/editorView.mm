@@ -1,6 +1,7 @@
 #import "editorView.h"
 
 #import "activityBar.h"
+#import "contextMenu.h"
 #import "editorStructure.h"
 #import "syntaxHighlight.h"
 #import "tween.h"
@@ -417,6 +418,10 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 
 - (void)revealCreatedFolderAtUrl:(NSURL*)url {
     [_activityBar revealCreatedFolderAtUrl:url];
+}
+
+- (void)revealCreatedFileAtUrl:(NSURL*)url {
+    [_activityBar revealCreatedFileAtUrl:url];
 }
 
 - (void)setActivitySection:(KineticActivitySection)section animated:(BOOL)animated {
@@ -1520,10 +1525,32 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 }
 
 - (void)rightMouseDown:(NSEvent*)event {
+    NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+    if (point.y >= kTabBarY && point.y < kTabBarY + kTabBarHeight) {
+        for (NSUInteger index = 0; index < [self visibleTabCount]; ++index) {
+            if (!NSPointInRect(point, [self tabRectAtIndex:index])) {
+                continue;
+            }
+            BOOL settingsTab = index == _tabTitles.count;
+            [KineticContextMenu showInView:self
+                                   atPoint:point
+                                     items:@[ @{@"title" : @"Close Tab", @"shortcut" : @"⌘W"} ]
+                                   handler:^(NSUInteger selected) {
+                                     (void)selected;
+                                     if (settingsTab) {
+                                         _settingsVisible = NO;
+                                         [_activityBar deactivateSection];
+                                         self.needsDisplay = YES;
+                                     } else {
+                                         [self.commandHandler closeTabAtIndex:index];
+                                     }
+                                   }];
+            return;
+        }
+    }
     if (_settingsVisible) {
         return;
     }
-    NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
     if (point.y < 68.0) {
         [self hideContextMenu];
         return;
@@ -1599,6 +1626,26 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 - (void)activityBarDidRequestCreateFolder:(KineticActivityBar*)activityBar {
     (void)activityBar;
     [self.commandHandler createFolder];
+}
+
+- (void)activityBar:(KineticActivityBar*)activityBar didRequestCreateFileInDirectory:(NSURL*)url {
+    (void)activityBar;
+    [self.commandHandler createFileInDirectory:url];
+}
+
+- (void)activityBar:(KineticActivityBar*)activityBar didRequestCreateFolderInDirectory:(NSURL*)url {
+    (void)activityBar;
+    [self.commandHandler createFolderInDirectory:url];
+}
+
+- (void)activityBarDidRequestSaveFile:(KineticActivityBar*)activityBar {
+    (void)activityBar;
+    [self.commandHandler saveFile];
+}
+
+- (void)activityBarDidRequestCloseTab:(KineticActivityBar*)activityBar {
+    (void)activityBar;
+    [self.commandHandler closeActiveTab];
 }
 
 - (void)activityBar:(KineticActivityBar*)activityBar didRequestPluginCommand:(NSString*)commandId {

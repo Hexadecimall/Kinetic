@@ -2,7 +2,21 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.18.1 - Unreleased
+## 0.19.0 - Unreleased
+
+### Added
+
+- Show hidden files and folders in the Explorer tree and Kinetic's Open, Save, and folder dialogs.
+- Add a project New File control and dialog. Created files are opened immediately, revealed in the
+  shared Explorer tree, and never overwrite an existing path.
+- Add Kinetic-drawn context menus to tabs, Explorer rows and background, file-browser entries and
+  filename field, Home recent projects, and the Search query.
+
+### Changed
+
+- Allow dot-prefixed names when creating project files and folders.
+
+## 0.18.1
 
 ### Fixed
 

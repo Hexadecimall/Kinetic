@@ -1,4 +1,5 @@
 #import "homeView.h"
+#import "contextMenu.h"
 
 namespace {
 
@@ -307,6 +308,30 @@ NSColor* homeColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0
             [self.commandHandler openRecentProjectAtUrl:_recentProjects[index]];
             return;
         }
+    }
+}
+
+- (void)rightMouseDown:(NSEvent*)event {
+    NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+    for (NSUInteger index = 0; index < _recentRects.count; ++index) {
+        if (!NSPointInRect(point, _recentRects[index].rectValue)) {
+            continue;
+        }
+        NSURL* projectUrl = _recentProjects[index];
+        [KineticContextMenu
+            showInView:self
+               atPoint:point
+                 items:@[ @{@"title" : @"Open Project"}, @{@"title" : @"Copy Path"} ]
+               handler:^(NSUInteger selected) {
+                 if (selected == 0) {
+                     [self.commandHandler openRecentProjectAtUrl:projectUrl];
+                 } else {
+                     [NSPasteboard.generalPasteboard clearContents];
+                     [NSPasteboard.generalPasteboard setString:projectUrl.path
+                                                       forType:NSPasteboardTypeString];
+                 }
+               }];
+        return;
     }
 }
 

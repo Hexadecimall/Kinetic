@@ -10,15 +10,19 @@ The editor viewport, gutter, caret, selections, hit testing, and scroll bounds f
 live animated width, so expanded workspace UI never overlays or clips document text.
 
 Explorer labels the current document as Open in Editor and provides distinct Open File and Open
-Folder actions. Opening a folder builds a sorted, expandable, scrollable file tree; selecting a file
-opens it in the editor. The project header's folder-plus control opens a Kinetic-drawn New Folder
-dialog. It creates a folder at the project root or inside a browsed/selected subfolder, rejects
-duplicate and invalid names, and reveals the result in the shared Explorer tree. Creation stays
-inside the active window's project. Compact low-contrast header strips and single-edge dividers
+Folder actions. Opening a folder builds a sorted, expandable, scrollable file tree, including
+dotfiles and hidden folders; selecting a file opens it in the editor. The project header has
+New File and New Folder controls. Their Kinetic-drawn dialogs create inside the current project,
+including a selected subfolder, reject duplicates, and reveal the result in the shared tree. A new
+file opens in its own tab. Dot-prefixed names are valid. The same hidden entries appear in custom
+Open and Save browsers. Kinetic-drawn context menus provide file/folder creation and path copying
+from the Explorer, and opening or path copying from file-browser rows. Compact low-contrast header
+strips and single-edge dividers
 group the open document, workspace, repository, and installed-plugin sections without accordion
 styling or non-functional disclosure affordances. Source Control/GitHub remains an integration
 placeholder. Plugins lists locally loaded native libraries and exposes their registered commands;
-publishing, online installation, and account connections are not implemented.
+publishing and online installation are not implemented; GitHub account connection lives in the
+titlebar.
 
 Search lives in a Kinetic-drawn dropdown anchored beneath the Search icon at the right edge of the
 custom titlebar. The icon appears only while an editor is open; it no longer occupies the tab strip.

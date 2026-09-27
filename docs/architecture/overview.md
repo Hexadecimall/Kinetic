@@ -35,7 +35,7 @@ plugins never receive view-object pointers.
 The current macOS preview has a custom text surface, retained multi-document tabs with independent
 editing state, dirty-state presentation, persisted recent projects, a custom folder/file browser,
 UTF-8 open/save flow, mouse caret placement and drag selection, editing shortcuts, bounded undo/redo
-history, basic syntax highlighting, indentation and delimiter assists, a custom editor context menu,
+history, basic syntax highlighting, indentation and delimiter assists, Kinetic-drawn context menus,
 central shortcut router, and a
 frame-driven cubic tween engine. AppKit supplies the window/event bridge, pasteboard access, and
 compositor backdrop sampling; controls, browser rows, selection presentation, text presentation,
@@ -57,7 +57,9 @@ Panels, language-tool registries, and arbitrary UI contributions are future API 
 implemented plugin features in this preview.
 
 Opening a workspace folder populates an expandable file tree without using a native outline view.
-The Explorer creates folders through a Kinetic-drawn dialog and refreshes the window's project tree.
+The Explorer shows hidden entries and creates files and folders through Kinetic-drawn dialogs; the
+custom Open and Save browsers show hidden entries too. Context menus serve tabs, project files,
+browser rows and fields, recent projects, and search alongside the editor surface.
 The dedicated Settings page exposes only controls already connected to editor behavior.
 
 See [`tabs-and-recents.md`](tabs-and-recents.md) for document retention, tab switching, closing, and

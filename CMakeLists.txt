@@ -57,7 +57,8 @@ add_executable(
     Kinetic MACOSX_BUNDLE src/C++/app/main.mm src/C++/app/githubAccount.mm
                               src/C++/app/keyboardShortcuts.mm
                               src/C++/app/pluginHost.mm src/C++/app/workspaceSearch.mm
-                              src/C++/ui/activityBar.mm src/C++/ui/editorView.mm
+                              src/C++/ui/activityBar.mm src/C++/ui/contextMenu.mm
+                              src/C++/ui/editorView.mm
                               src/C++/ui/editorStructure.mm
                               src/C++/ui/fileDialog.mm
                               src/C++/ui/homeView.mm

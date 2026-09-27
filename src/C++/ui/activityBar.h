@@ -16,6 +16,10 @@ typedef NS_ENUM(NSInteger, KineticActivitySection) {
 - (void)activityBarDidRequestOpenFile:(KineticActivityBar*)activityBar;
 - (void)activityBarDidRequestOpenFolder:(KineticActivityBar*)activityBar;
 - (void)activityBarDidRequestCreateFolder:(KineticActivityBar*)activityBar;
+- (void)activityBar:(KineticActivityBar*)activityBar didRequestCreateFileInDirectory:(NSURL*)url;
+- (void)activityBar:(KineticActivityBar*)activityBar didRequestCreateFolderInDirectory:(NSURL*)url;
+- (void)activityBarDidRequestSaveFile:(KineticActivityBar*)activityBar;
+- (void)activityBarDidRequestCloseTab:(KineticActivityBar*)activityBar;
 - (void)activityBar:(KineticActivityBar*)activityBar didRequestOpenUrl:(NSURL*)url;
 - (void)activityBar:(KineticActivityBar*)activityBar
     didActivateSection:(KineticActivitySection)section;
@@ -34,6 +38,7 @@ typedef NS_ENUM(NSInteger, KineticActivitySection) {
 + (CGFloat)railWidth;
 - (void)applyWorkspaceUiState:(NSDictionary*)state;
 - (void)revealCreatedFolderAtUrl:(NSURL*)url;
+- (void)revealCreatedFileAtUrl:(NSURL*)url;
 - (void)activateSection:(KineticActivitySection)section animated:(BOOL)animated;
 - (void)deactivateSection;
 @end

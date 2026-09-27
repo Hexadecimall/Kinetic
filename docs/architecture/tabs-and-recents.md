@@ -8,9 +8,11 @@ closing, or switching documents carries the project folder, expanded directories
 position, and active panel forward instead of attaching them to the old tab. Closing the final
 document retains that project state for the next document opened in the same window.
 
-Tabs are drawn by Kinetic. Clicking a tab activates it, its close control removes that document, and
-closing the active tab selects the nearest remaining document. Closing the final tab returns to
-Home. Command-Shift-Left Bracket and Command-Shift-Right Bracket cycle through tabs with wrapping.
+Tabs are drawn by Kinetic. Clicking a tab activates it, its close control removes that document,
+and right-clicking it offers a custom Close Tab menu. Closing the active tab selects the nearest
+remaining document; closing the final tab returns to Home. Command-Shift-Left Bracket and
+Command-Shift-Right Bracket cycle through tabs with wrapping. Recent-project rows have custom
+Open Project and Copy Path menus.
 
 Opening a workspace folder moves it to the front of a bounded recent-project list stored in the
 application defaults domain. Missing folders are filtered before display. Home draws the project
