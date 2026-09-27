@@ -45,5 +45,6 @@
                                                                 fileName:(NSString*)fileName;
 - (NSArray<NSDictionary<NSString*, NSString*>*>*)completionItemsForPrefix:(NSString*)prefix
                                                                  fileName:(NSString*)fileName;
+- (BOOL)hasCompletionProviderForFileName:(NSString*)fileName;
 - (void)emitEvent:(NSString*)eventName;
 @end

@@ -12,8 +12,28 @@ use std::sync::atomic::Ordering;
 struct State {
     ready: bool,
     documents: HashMap<String, u32>,
+    documentTexts: HashMap<String, String>,
     pending: HashMap<String, String>,
+    pendingCompletions: HashMap<u64, CompletionQuery>,
+    lastCompletionQuery: Option<CompletionQuery>,
+    completionItems: Vec<CompletionItem>,
     nextRequestId: u64,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+struct CompletionQuery {
+    path: String,
+    version: u32,
+    line: u32,
+    column: u32,
+    prefix: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CompletionItem {
+    pub label: String,
+    pub insertText: String,
+    pub detail: String,
 }
 
 pub struct LanguageServer {
@@ -167,6 +187,48 @@ fn definition(message: &Value) -> Option<(String, u32, u32)> {
     ))
 }
 
+fn completionItems(message: &Value) -> Vec<CompletionItem> {
+    let result = message.get("result");
+    let values = result.and_then(Value::as_array).or_else(|| {
+        result
+            .and_then(|value| value.get("items"))
+            .and_then(Value::as_array)
+    });
+    let Some(values) = values else {
+        return Vec::new();
+    };
+    values
+        .iter()
+        .filter_map(|item| {
+            let label = item.get("label")?.as_str()?.trim();
+            let insertion = item
+                .pointer("/textEdit/newText")
+                .or_else(|| item.get("insertText"))
+                .and_then(Value::as_str)
+                .unwrap_or(label);
+            let insertText = if item.get("insertTextFormat").and_then(Value::as_u64) == Some(2)
+                || insertion.contains('$')
+            {
+                item.get("filterText")
+                    .and_then(Value::as_str)
+                    .unwrap_or_else(|| label.split('(').next().unwrap_or(label))
+            } else {
+                insertion
+            };
+            if label.is_empty() || insertText.is_empty() {
+                return None;
+            }
+            let detail = item.get("detail").and_then(Value::as_str).unwrap_or("");
+            Some(CompletionItem {
+                label: label.chars().take(95).collect(),
+                insertText: insertText.chars().take(95).collect(),
+                detail: detail.chars().take(95).collect(),
+            })
+        })
+        .take(32)
+        .collect()
+}
+
 impl LanguageServer {
     pub fn start(workspace: Option<String>) -> io::Result<Self> {
         let mut process = Command::new("clangd")
@@ -201,7 +263,11 @@ impl LanguageServer {
         let state = Arc::new(Mutex::new(State {
             ready: false,
             documents: HashMap::new(),
+            documentTexts: HashMap::new(),
             pending: HashMap::new(),
+            pendingCompletions: HashMap::new(),
+            lastCompletionQuery: None,
+            completionItems: Vec::new(),
             nextRequestId: 2,
         }));
         let readerState = Arc::clone(&state);
@@ -220,6 +286,7 @@ impl LanguageServer {
                         let pending = std::mem::take(&mut state.pending);
                         for (path, text) in pending {
                             state.documents.insert(path.clone(), 1);
+                            state.documentTexts.insert(path.clone(), text.clone());
                             let _ = readerSender.send(didOpen(&path, &text));
                         }
                     }
@@ -230,10 +297,20 @@ impl LanguageServer {
                     if let Some((path, diagnostics)) = parseDiagnostics(&message) {
                         publish(&path, &diagnostics);
                     }
-                } else if message.get("id").and_then(Value::as_u64).is_some()
-                    && let Some((path, line, column)) = definition(&message)
-                {
-                    navigate(&path, line, column);
+                } else if let Some(id) = message.get("id").and_then(Value::as_u64) {
+                    let completion = readerState
+                        .lock()
+                        .ok()
+                        .and_then(|mut state| state.pendingCompletions.remove(&id));
+                    if let Some(query) = completion {
+                        if let Ok(mut state) = readerState.lock()
+                            && state.lastCompletionQuery.as_ref() == Some(&query)
+                        {
+                            state.completionItems = completionItems(&message);
+                        }
+                    } else if let Some((path, line, column)) = definition(&message) {
+                        navigate(&path, line, column);
+                    }
                 }
             }
             STATUS.store(0, Ordering::Release);
@@ -243,8 +320,9 @@ impl LanguageServer {
             json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{
                 "processId":std::process::id(),"rootUri":rootUri,
                 "capabilities":{"general":{"positionEncodings":["utf-16"]},
-                                "textDocument":{"publishDiagnostics":{}}},
-                "clientInfo":{"name":"Kinetic C/C++ Support","version":"0.1.0"}
+                                "textDocument":{"publishDiagnostics":{},
+                                                "completion":{"completionItem":{"snippetSupport":false}}}},
+                "clientInfo":{"name":"Kinetic C/C++ Support","version":"0.2.0"}
             }}),
         );
         Ok(Self {
@@ -270,6 +348,12 @@ impl LanguageServer {
             state.pending.insert(path, text);
             return;
         }
+        if state.documentTexts.get(&path) == Some(&text) {
+            return;
+        }
+        state.documentTexts.insert(path.clone(), text.clone());
+        state.lastCompletionQuery = None;
+        state.completionItems.clear();
         let message = if let Some(version) = state.documents.get_mut(&path) {
             *version = version.saturating_add(1);
             didChange(&path, &text, *version)
@@ -278,6 +362,49 @@ impl LanguageServer {
             didOpen(&path, &text)
         };
         let _ = self.sender.send(message);
+    }
+
+    pub fn requestCompletions(
+        &self,
+        path: String,
+        text: String,
+        line: u32,
+        column: u32,
+        prefix: String,
+    ) -> Vec<CompletionItem> {
+        self.updateDocument(path.clone(), text);
+        let Ok(mut state) = self.state.lock() else {
+            return Vec::new();
+        };
+        let Some(&version) = state.documents.get(&path) else {
+            return Vec::new();
+        };
+        if !state.ready {
+            return Vec::new();
+        }
+        let query = CompletionQuery {
+            path: path.clone(),
+            version,
+            line,
+            column,
+            prefix,
+        };
+        if state.lastCompletionQuery.as_ref() == Some(&query) {
+            return state.completionItems.clone();
+        }
+        state.lastCompletionQuery = Some(query.clone());
+        state.completionItems.clear();
+        state.pendingCompletions.clear();
+        let id = state.nextRequestId;
+        state.nextRequestId += 1;
+        state.pendingCompletions.insert(id, query);
+        let _ = self.sender.send(json!({"jsonrpc":"2.0","id":id,
+        "method":"textDocument/completion","params":{
+            "textDocument":{"uri":uri(&path)},
+            "position":{"line":line,"character":column},
+            "context":{"triggerKind":1}
+        }}));
+        Vec::new()
     }
 
     pub fn goToDefinition(&self, path: String, line: u32, column: u32) {

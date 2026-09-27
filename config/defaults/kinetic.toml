@@ -21,6 +21,7 @@ modalMilliseconds = 140
 fontSize = 13.0
 lineHeight = 20.0
 tabWidth = 4
+insertTabs = false
 autoIndent = true
 autoPairs = true
 verticalScrolling = true

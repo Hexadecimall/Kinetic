@@ -70,6 +70,7 @@ Supported numeric property keys and ranges:
 | `editor.text.fontSize` | 8 to 28 points |
 | `editor.text.lineHeight` | 14 to 40 points |
 | `editor.indentation.tabWidth` | Integer 1 to 16 |
+| `editor.indentation.insertTabs` | 0 for spaces, 1 for literal tab characters |
 | `editor.syntax.enabled` | 0 or 1 |
 | `editor.gutter.lineNumbers` | 0 or 1 |
 | `editor.scroll.indicators` | 0 or 1 |

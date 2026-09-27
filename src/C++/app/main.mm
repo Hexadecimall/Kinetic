@@ -43,6 +43,9 @@
     case KineticShortcutCommandSearchFile:
         [(id<KineticCommandHandler>)self.delegate focusFileSearch];
         return;
+    case KineticShortcutCommandSettings:
+        [(id<KineticCommandHandler>)self.delegate showSettings];
+        return;
     case KineticShortcutCommandPreviousTab:
         [(id<KineticCommandHandler>)self.delegate selectPreviousTab];
         return;
@@ -262,6 +265,9 @@
     NSMutableIndexSet* dirtyIndexes = [NSMutableIndexSet indexSet];
     for (NSUInteger index = 0; index < self.editors.count; ++index) {
         KineticEditorView* editor = self.editors[index];
+        if (editor.workspacePlaceholder) {
+            continue;
+        }
         [titles addObject:editor.documentTitle];
         if (editor.dirty) {
             [dirtyIndexes addIndex:index];
@@ -377,6 +383,24 @@
 }
 
 - (void)openEditorWithContents:(NSString*)contents fileUrl:(NSURL*)fileUrl {
+    [self openEditorWithContents:contents fileUrl:fileUrl workspacePlaceholder:NO];
+}
+
+- (void)openWorkspacePlaceholder {
+    [self openEditorWithContents:@"" fileUrl:nil workspacePlaceholder:YES];
+}
+
+- (void)openEditorWithContents:(NSString*)contents
+                       fileUrl:(NSURL*)fileUrl
+          workspacePlaceholder:(BOOL)workspacePlaceholder {
+    if (!workspacePlaceholder && self.editor.workspacePlaceholder) {
+        self.workspaceUiState = self.editor.workspaceUiState;
+        self.searchUiState = self.editor.searchUiState;
+        self.activitySection = self.editor.activeActivitySection;
+        [self.editor removeFromSuperview];
+        [self.editors removeObject:self.editor];
+        self.editor = nil;
+    }
     if (fileUrl != nil) {
         for (NSUInteger index = 0; index < self.editors.count; ++index) {
             if ([self.editors[index].fileUrl.path isEqualToString:fileUrl.path]) {
@@ -389,6 +413,7 @@
     KineticEditorView* editor = [[KineticEditorView alloc] initWithFrame:self.content.bounds
                                                                 contents:contents
                                                                  fileUrl:fileUrl];
+    editor.workspacePlaceholder = workspacePlaceholder;
     editor.commandHandler = self;
     editor.overlayRenderer = self;
     [editor setPluginNames:self.pluginHost.loadedPluginNames
@@ -407,7 +432,9 @@
     [editor applyWorkspaceUiState:self.workspaceUiState];
     [editor applySearchUiState:self.searchUiState];
     [editor setActivitySection:self.activitySection animated:NO];
-    if (fileUrl == nil) {
+    if (workspacePlaceholder) {
+        editor.documentTitle = @"";
+    } else if (fileUrl == nil) {
         self.untitledCounter += 1;
         editor.documentTitle =
             [NSString stringWithFormat:@"Untitled-%lu", (unsigned long)self.untitledCounter];
@@ -424,6 +451,13 @@
     [self updateTabMetadata];
     [self.pluginHost emitEvent:@"document.changed"];
     [self.editor setPluginPanels:self.pluginHost.panels];
+}
+
+- (void)editorSettingDidChange:(NSString*)property value:(double)value {
+    self.pluginNumberOverrides[property] = @(value);
+    for (KineticEditorView* editor in self.editors) {
+        [editor setPluginNumber:value property:property];
+    }
 }
 
 - (void)executePluginCommand:(NSString*)commandId {
@@ -612,6 +646,10 @@
                                                                        fileName:
                                                                            (NSString*)fileName {
     return [self.pluginHost completionItemsForPrefix:prefix fileName:fileName];
+}
+
+- (BOOL)hasPluginCompletionProviderForFileName:(NSString*)fileName {
+    return [self.pluginHost hasCompletionProviderForFileName:fileName];
 }
 
 - (void)pluginHostContributionsDidChange:(KineticPluginHost*)host {
@@ -821,6 +859,14 @@
     self.searchUiState = self.editor.searchUiState;
 }
 
+- (void)showSettings {
+    if (self.editor == nil) {
+        return;
+    }
+    self.activitySection = KineticActivitySectionSettings;
+    [self.editor setActivitySection:KineticActivitySectionSettings animated:YES];
+}
+
 - (void)toggleFileSearch {
     if (self.editor == nil) {
         return;
@@ -983,15 +1029,17 @@
         ++self.searchGeneration;
         self.workspaceUrl = fileUrl;
         self.searchUiState = @{};
+        self.activitySection = KineticActivitySectionExplorer;
         [self recordRecentProject:fileUrl];
         [self dismissFileDialog];
         if (self.editor == nil) {
             self.workspaceUiState = @{};
-            [self openEditorWithContents:@"" fileUrl:nil];
+            [self openWorkspacePlaceholder];
         } else {
             for (KineticEditorView* editor in self.editors) {
                 editor.workspaceUrl = fileUrl;
                 [editor applySearchUiState:@{}];
+                [editor setActivitySection:self.activitySection animated:YES];
             }
             self.workspaceUiState = self.editor.workspaceUiState;
         }
@@ -1051,6 +1099,9 @@
     }
 
     KineticEditorView* closingEditor = self.editors[index];
+    if (closingEditor.workspacePlaceholder) {
+        return NO;
+    }
     KineticEditorView* stateOwner = self.editor ?: closingEditor;
     self.workspaceUiState = stateOwner.workspaceUiState;
     self.searchUiState = stateOwner.searchUiState;
@@ -1067,6 +1118,12 @@
         NSUInteger nextIndex = MIN(index, self.editors.count - 1);
         [closingEditor removeFromSuperview];
         [self activateTabAtIndex:nextIndex];
+        return YES;
+    }
+
+    if (self.workspaceUrl != nil) {
+        [closingEditor removeFromSuperview];
+        [self openWorkspacePlaceholder];
         return YES;
     }
 
@@ -1099,10 +1156,12 @@
     ++self.searchGeneration;
     self.workspaceUrl = projectUrl;
     self.searchUiState = @{};
+    self.activitySection = KineticActivitySectionExplorer;
     [self recordRecentProject:projectUrl];
     for (KineticEditorView* editor in self.editors) {
         editor.workspaceUrl = projectUrl;
         [editor applySearchUiState:@{}];
+        [editor setActivitySection:self.activitySection animated:YES];
     }
     if (self.editor != nil) {
         self.workspaceUiState = self.editor.workspaceUiState;
@@ -1110,7 +1169,7 @@
         self.workspaceUiState = @{};
     }
     if (self.editor == nil) {
-        [self openEditorWithContents:@"" fileUrl:nil];
+        [self openWorkspacePlaceholder];
     }
 }
 

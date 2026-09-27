@@ -13,9 +13,11 @@
 - (void)searchWorkspaceForQuery:(NSString*)query matchCase:(BOOL)matchCase;
 - (void)focusWorkspaceSearch;
 - (void)focusFileSearch;
+- (void)showSettings;
 - (void)toggleFileSearch;
 - (void)searchVisibilityDidChange:(BOOL)visible;
 - (void)editorDocumentDidChange;
+- (void)editorSettingDidChange:(NSString*)property value:(double)value;
 - (void)executePluginCommand:(NSString*)commandId;
 - (void)refreshPluginCatalog;
 - (void)managePlugin:(NSDictionary<NSString*, id>*)plugin action:(NSString*)action;

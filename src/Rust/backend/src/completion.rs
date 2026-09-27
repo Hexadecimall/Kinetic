@@ -1,11 +1,15 @@
-//! Document-word completion and its portable dotfile settings.
+//! Document-word completion and portable editor settings.
 
 #![allow(non_snake_case)]
 
 use std::collections::HashMap;
 use std::env;
-use std::fs;
+use std::fmt::Write as _;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
+use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -26,6 +30,7 @@ impl Default for KineticCompletionItem {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct KineticCompletionConfig {
     pub enabled: bool,
     pub minPrefix: u32,
@@ -38,6 +43,24 @@ impl Default for KineticCompletionConfig {
             enabled: true,
             minPrefix: 2,
             maxResults: 8,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct KineticIndentationConfig {
+    pub tabWidth: u32,
+    pub insertTabs: bool,
+    pub autoIndent: bool,
+}
+
+impl Default for KineticIndentationConfig {
+    fn default() -> Self {
+        Self {
+            tabWidth: 4,
+            insertTabs: false,
+            autoIndent: true,
         }
     }
 }
@@ -208,6 +231,213 @@ fn parseConfiguration(text: &str) -> Result<KineticCompletionConfig, ()> {
     Ok(config)
 }
 
+fn updateConfiguration(text: &str, config: KineticCompletionConfig) -> Result<String, ()> {
+    parseConfiguration(text)?;
+    let mut output = String::new();
+    let mut inAutocomplete = false;
+    let mut found = false;
+    let mut seen = [false; 3];
+    for raw in text.split_inclusive('\n') {
+        let line = raw.trim_end_matches(['\r', '\n']);
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') {
+            if inAutocomplete {
+                appendMissing(&mut output, config, seen);
+                inAutocomplete = false;
+            }
+            if trimmed == "[autocomplete]" {
+                inAutocomplete = true;
+                found = true;
+                seen = [false; 3];
+            }
+        }
+        if inAutocomplete && !trimmed.starts_with('[') {
+            if let Some((key, _)) = line.split_once('=') {
+                let index = match key.trim() {
+                    "enabled" => Some(0),
+                    "minPrefix" => Some(1),
+                    "maxResults" => Some(2),
+                    _ => None,
+                };
+                if let Some(index) = index {
+                    seen[index] = true;
+                    let comment = line.find('#').map_or("", |offset| &line[offset..]);
+                    let value = match index {
+                        0 => config.enabled.to_string(),
+                        1 => config.minPrefix.to_string(),
+                        _ => config.maxResults.to_string(),
+                    };
+                    let _ = write!(output, "{} = {value}", key.trim());
+                    if !comment.is_empty() {
+                        output.push(' ');
+                        output.push_str(comment);
+                    }
+                    if raw.ends_with('\n') {
+                        output.push('\n');
+                    }
+                    continue;
+                }
+            }
+        }
+        output.push_str(raw);
+    }
+    if inAutocomplete {
+        if !output.ends_with('\n') {
+            output.push('\n');
+        }
+        appendMissing(&mut output, config, seen);
+    }
+    if !found {
+        if !output.is_empty() && !output.ends_with('\n') {
+            output.push('\n');
+        }
+        if !output.is_empty() {
+            output.push('\n');
+        }
+        output.push_str("[autocomplete]\n");
+        appendMissing(&mut output, config, [false; 3]);
+    }
+    Ok(output)
+}
+
+fn appendMissing(output: &mut String, config: KineticCompletionConfig, seen: [bool; 3]) {
+    if !seen[0] {
+        let _ = writeln!(output, "enabled = {}", config.enabled);
+    }
+    if !seen[1] {
+        let _ = writeln!(output, "minPrefix = {}", config.minPrefix);
+    }
+    if !seen[2] {
+        let _ = writeln!(output, "maxResults = {}", config.maxResults);
+    }
+}
+
+fn parseIndentation(text: &str) -> Result<KineticIndentationConfig, ()> {
+    let mut config = KineticIndentationConfig::default();
+    let mut inEditor = false;
+    let mut seen = [false; 3];
+    for raw in text.lines() {
+        let line = raw.split('#').next().unwrap_or("").trim();
+        if line.starts_with('[') {
+            inEditor = line == "[editor]";
+            continue;
+        }
+        if !inEditor || line.is_empty() {
+            continue;
+        }
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        let value = value.trim();
+        match key.trim() {
+            "tabWidth" if !seen[0] => {
+                config.tabWidth = value.parse().map_err(|_| ())?;
+                if !(1..=16).contains(&config.tabWidth) {
+                    return Err(());
+                }
+                seen[0] = true;
+            }
+            "insertTabs" if !seen[1] => {
+                config.insertTabs = value.parse().map_err(|_| ())?;
+                seen[1] = true;
+            }
+            "autoIndent" if !seen[2] => {
+                config.autoIndent = value.parse().map_err(|_| ())?;
+                seen[2] = true;
+            }
+            "tabWidth" | "insertTabs" | "autoIndent" => return Err(()),
+            _ => {}
+        }
+    }
+    Ok(config)
+}
+
+fn appendMissingIndentation(
+    output: &mut String,
+    config: KineticIndentationConfig,
+    seen: [bool; 3],
+) {
+    if !seen[0] {
+        let _ = writeln!(output, "tabWidth = {}", config.tabWidth);
+    }
+    if !seen[1] {
+        let _ = writeln!(output, "insertTabs = {}", config.insertTabs);
+    }
+    if !seen[2] {
+        let _ = writeln!(output, "autoIndent = {}", config.autoIndent);
+    }
+}
+
+fn updateIndentation(text: &str, config: KineticIndentationConfig) -> Result<String, ()> {
+    parseIndentation(text)?;
+    let mut output = String::new();
+    let mut inEditor = false;
+    let mut found = false;
+    let mut seen = [false; 3];
+    for raw in text.split_inclusive('\n') {
+        let line = raw.trim_end_matches(['\r', '\n']);
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') {
+            if inEditor {
+                appendMissingIndentation(&mut output, config, seen);
+                inEditor = false;
+            }
+            if trimmed == "[editor]" {
+                inEditor = true;
+                found = true;
+                seen = [false; 3];
+            }
+        }
+        if inEditor
+            && !trimmed.starts_with('[')
+            && let Some((key, _)) = line.split_once('=')
+        {
+            let index = match key.trim() {
+                "tabWidth" => Some(0),
+                "insertTabs" => Some(1),
+                "autoIndent" => Some(2),
+                _ => None,
+            };
+            if let Some(index) = index {
+                seen[index] = true;
+                let comment = line.find('#').map_or("", |offset| &line[offset..]);
+                let value = match index {
+                    0 => config.tabWidth.to_string(),
+                    1 => config.insertTabs.to_string(),
+                    _ => config.autoIndent.to_string(),
+                };
+                let _ = write!(output, "{} = {value}", key.trim());
+                if !comment.is_empty() {
+                    output.push(' ');
+                    output.push_str(comment);
+                }
+                if raw.ends_with('\n') {
+                    output.push('\n');
+                }
+                continue;
+            }
+        }
+        output.push_str(raw);
+    }
+    if inEditor {
+        if !output.ends_with('\n') {
+            output.push('\n');
+        }
+        appendMissingIndentation(&mut output, config, seen);
+    }
+    if !found {
+        if !output.is_empty() && !output.ends_with('\n') {
+            output.push('\n');
+        }
+        if !output.is_empty() {
+            output.push('\n');
+        }
+        output.push_str("[editor]\n");
+        appendMissingIndentation(&mut output, config, [false; 3]);
+    }
+    Ok(output)
+}
+
 #[allow(unsafe_code, reason = "the editor uses the stable C ABI")]
 #[unsafe(no_mangle)]
 pub extern "C" fn kineticCompletionReadConfig(output: *mut KineticCompletionConfig) -> i32 {
@@ -241,6 +471,121 @@ pub extern "C" fn kineticCompletionReadConfig(output: *mut KineticCompletionConf
     0
 }
 
+#[allow(unsafe_code, reason = "the editor uses the stable C ABI")]
+#[unsafe(no_mangle)]
+pub extern "C" fn kineticCompletionWriteConfig(input: *const KineticCompletionConfig) -> i32 {
+    if input.is_null() {
+        return -1;
+    }
+    // SAFETY: The caller provides a readable config structure.
+    let config = unsafe { *input };
+    if !(1..=8).contains(&config.minPrefix) || !(1..=32).contains(&config.maxResults) {
+        return -1;
+    }
+    persistConfiguration(|previous| updateConfiguration(previous, config))
+}
+
+fn persistConfiguration(update: impl FnOnce(&str) -> Result<String, ()>) -> i32 {
+    let Some(path) = configurationPath() else {
+        return -1;
+    };
+    let Some(parent) = path.parent() else {
+        return -1;
+    };
+    if fs::create_dir_all(parent).is_err() {
+        return -1;
+    }
+    let metadata = match fs::symlink_metadata(&path) {
+        Ok(metadata) if metadata.file_type().is_file() => Some(metadata),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Ok(_) | Err(_) => return -1,
+    };
+    let previous = if metadata.is_some() {
+        let Ok(bytes) = fs::read(&path) else {
+            return -1;
+        };
+        if bytes.len() > 65_536 {
+            return -1;
+        }
+        let Ok(text) = String::from_utf8(bytes) else {
+            return -1;
+        };
+        text
+    } else {
+        String::new()
+    };
+    let Ok(updated) = update(&previous) else {
+        return -1;
+    };
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |time| time.as_nanos());
+    let temporary = parent.join(format!(".config.toml.{}.{stamp}.tmp", std::process::id()));
+    let result = (|| -> std::io::Result<()> {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)?;
+        let permissions = metadata.map_or(0o600, |value| value.permissions().mode() & 0o777);
+        file.set_permissions(fs::Permissions::from_mode(permissions))?;
+        file.write_all(updated.as_bytes())?;
+        file.sync_all()?;
+        fs::rename(&temporary, &path)
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+        return -1;
+    }
+    0
+}
+
+#[allow(unsafe_code, reason = "the editor uses the stable C ABI")]
+#[unsafe(no_mangle)]
+pub extern "C" fn kineticIndentationReadConfig(output: *mut KineticIndentationConfig) -> i32 {
+    if output.is_null() {
+        return -1;
+    }
+    let Some(path) = configurationPath() else {
+        return -1;
+    };
+    let config = if path.exists() {
+        let Ok(bytes) = fs::read(&path) else {
+            return -1;
+        };
+        if bytes.len() > 65_536 {
+            return -1;
+        }
+        let Ok(text) = String::from_utf8(bytes) else {
+            return -1;
+        };
+        let Ok(config) = parseIndentation(&text) else {
+            return -1;
+        };
+        config
+    } else {
+        KineticIndentationConfig::default()
+    };
+    // SAFETY: The caller provides a writable config structure.
+    unsafe {
+        *output = config;
+    }
+    0
+}
+
+#[allow(unsafe_code, reason = "the editor uses the stable C ABI")]
+#[unsafe(no_mangle)]
+pub extern "C" fn kineticIndentationWriteConfig(input: *const KineticIndentationConfig) -> i32 {
+    if input.is_null() {
+        return -1;
+    }
+    // SAFETY: The caller provides a readable config structure.
+    let config = unsafe { *input };
+    if !(1..=16).contains(&config.tabWidth) {
+        return -1;
+    }
+    persistConfiguration(|previous| updateIndentation(previous, config))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -260,5 +605,32 @@ mod tests {
         assert_eq!(config.minPrefix, 3);
         assert_eq!(config.maxResults, 12);
         assert!(parseConfiguration("[autocomplete]\nmaxResults = 0").is_err());
+    }
+
+    #[test]
+    fn updatesOnlyAutocompleteValues() {
+        let original = "[plugins]\nenabled = true\n\n[autocomplete]\n# Keep this note\nenabled = false # toggle\nminPrefix = 3\n\n[search]\nshowButton = true\n";
+        let updated = updateConfiguration(original, KineticCompletionConfig::default()).unwrap();
+        assert!(updated.contains("[plugins]\nenabled = true"));
+        assert!(updated.contains("# Keep this note\nenabled = true # toggle"));
+        assert!(updated.contains("minPrefix = 2\n\nmaxResults = 8\n[search]"));
+        assert!(updated.ends_with("[search]\nshowButton = true\n"));
+    }
+
+    #[test]
+    fn indentationSettingsKeepOtherEditorValues() {
+        let original = "[editor]\nfontSize = 13\ntabWidth = 2 # style\nautoIndent = true\n\n[search]\nshowButton = true\n";
+        let config = KineticIndentationConfig {
+            tabWidth: 4,
+            insertTabs: true,
+            autoIndent: false,
+        };
+        let updated = updateIndentation(original, config).unwrap();
+        assert!(updated.contains("fontSize = 13"));
+        assert!(updated.contains("tabWidth = 4 # style"));
+        assert!(updated.contains("insertTabs = true"));
+        assert!(updated.contains("autoIndent = false"));
+        assert!(updated.contains("[search]\nshowButton = true"));
+        assert_eq!(parseIndentation(&updated).unwrap().tabWidth, 4);
     }
 }

@@ -12,6 +12,7 @@
                                                                       fileName:(NSString*)fileName;
 - (NSArray<NSDictionary<NSString*, NSString*>*>*)pluginCompletionItemsForPrefix:(NSString*)prefix
                                                                        fileName:(NSString*)fileName;
+- (BOOL)hasPluginCompletionProviderForFileName:(NSString*)fileName;
 @end
 
 @interface KineticEditorView : NSView
@@ -24,6 +25,7 @@
 @property(nonatomic, strong) NSURL* fileUrl;
 @property(nonatomic, strong) NSURL* workspaceUrl;
 @property(nonatomic, copy) NSString* documentTitle;
+@property(nonatomic) BOOL workspacePlaceholder;
 @property(nonatomic, copy) NSArray<NSString*>* tabTitles;
 @property(nonatomic, copy) NSIndexSet* dirtyTabIndexes;
 @property(nonatomic) NSUInteger activeTabIndex;

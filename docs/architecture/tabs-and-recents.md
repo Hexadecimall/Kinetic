@@ -10,14 +10,16 @@ document retains that project state for the next document opened in the same win
 
 Tabs are drawn by Kinetic. Clicking a tab activates it, its close control removes that document,
 and right-clicking it offers a custom Close Tab menu. Closing the active tab selects the nearest
-remaining document; closing the final tab returns to Home. Command-Shift-Left Bracket and
+remaining document; closing the final tab returns to Home when no project is open. An open project
+instead retains an empty workspace, not a new Untitled document. Opening a folder or recent project
+also uses that empty workspace until an actual file is opened. Command-Shift-Left Bracket and
 Command-Shift-Right Bracket cycle through tabs with wrapping. Recent-project rows have custom
 Open Project and Copy Path menus.
 
 Opening a workspace folder moves it to the front of a bounded recent-project list stored in the
 application defaults domain. Missing folders are filtered before display. Home draws the project
-name and truncated parent path as custom rows; selecting one restores that workspace and opens an
-editor when needed.
+name and truncated parent path as custom rows; selecting one restores that workspace without
+creating an Untitled file.
 
 Tab widths, dirty markers, recent-list limits, path visibility, colors, shortcuts, and transition
 timings are settings and plugin API contract points. The current implementation establishes their

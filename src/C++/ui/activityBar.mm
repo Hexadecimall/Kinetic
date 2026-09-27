@@ -10,7 +10,7 @@ constexpr CGFloat kPanelWidth = 224.0;
 constexpr CGFloat kButtonSize = 30.0;
 constexpr CGFloat kButtonGap = 5.0;
 constexpr CGFloat kTreeRowHeight = 23.0;
-constexpr CGFloat kTreeStartY = 218.0;
+constexpr CGFloat kTreeStartY = 255.0;
 
 NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
     return [NSColor colorWithSRGBRed:red / 255.0 green:green / 255.0 blue:blue / 255.0 alpha:alpha];
@@ -26,6 +26,7 @@ BOOL activityIsDirectory(NSURL* url) {
 
 @interface KineticActivityTreeEntry : NSObject
 @property(nonatomic, strong) NSURL* url;
+@property(nonatomic, copy) NSString* displayName;
 @property(nonatomic) NSUInteger depth;
 @property(nonatomic) BOOL directory;
 @end
@@ -33,13 +34,14 @@ BOOL activityIsDirectory(NSURL* url) {
 @implementation KineticActivityTreeEntry
 @end
 
-@interface KineticActivityBar () {
+@interface KineticActivityBar () <NSTextFieldDelegate> {
     KineticActivitySection _activeSection;
     KineticActivitySection _displayedSection;
     KineticActivitySection _hoveredSection;
     NSTrackingArea* _trackingArea;
     NSMutableSet<NSString*>* _expandedPaths;
     NSArray<KineticActivityTreeEntry*>* _treeEntries;
+    NSTextField* _searchField;
     NSInteger _hoveredPanelAction;
     CGFloat _treeScrollOffset;
     CGFloat _pluginScrollOffset;
@@ -69,6 +71,18 @@ BOOL activityIsDirectory(NSURL* url) {
         _treeScrollOffset = 0.0;
         _pluginScrollOffset = 0.0;
         _animating = NO;
+        _searchField = [[NSTextField alloc]
+            initWithFrame:NSMakeRect(kRailWidth + 22.0, 221.0, kPanelWidth - 42.0, 21.0)];
+        _searchField.placeholderString = @"Find files";
+        _searchField.font = [NSFont systemFontOfSize:11.5];
+        _searchField.textColor = activityColor(215, 224, 237);
+        _searchField.backgroundColor = NSColor.clearColor;
+        _searchField.drawsBackground = NO;
+        _searchField.bordered = NO;
+        _searchField.focusRingType = NSFocusRingTypeNone;
+        _searchField.delegate = self;
+        _searchField.hidden = YES;
+        [self addSubview:_searchField];
         self.autoresizingMask = NSViewHeightSizable;
     }
     return self;
@@ -156,6 +170,7 @@ BOOL activityIsDirectory(NSURL* url) {
     return @{
         @"expandedPaths" : _expandedPaths.allObjects,
         @"treeScrollOffset" : @(_treeScrollOffset),
+        @"fileQuery" : _searchField.stringValue ?: @"",
     };
 }
 
@@ -166,6 +181,8 @@ BOOL activityIsDirectory(NSURL* url) {
     if ([expandedPaths isKindOfClass:NSArray.class]) {
         [_expandedPaths addObjectsFromArray:expandedPaths];
     }
+    _searchField.stringValue =
+        [state[@"fileQuery"] isKindOfClass:NSString.class] ? state[@"fileQuery"] : @"";
     [self reloadTreeEntries];
     if ([treeScrollOffset isKindOfClass:NSNumber.class]) {
         _treeScrollOffset = MIN(treeScrollOffset.doubleValue, [self maximumTreeScroll]);
@@ -274,6 +291,7 @@ BOOL activityIsDirectory(NSURL* url) {
 - (void)setWorkspaceUrl:(NSURL*)workspaceUrl {
     _workspaceUrl = workspaceUrl;
     [_expandedPaths removeAllObjects];
+    _searchField.stringValue = @"";
     _treeScrollOffset = 0.0;
     [self reloadTreeEntries];
 }
@@ -300,6 +318,7 @@ BOOL activityIsDirectory(NSURL* url) {
     for (NSURL* url in urls) {
         KineticActivityTreeEntry* entry = [[KineticActivityTreeEntry alloc] init];
         entry.url = url;
+        entry.displayName = url.lastPathComponent;
         entry.depth = depth;
         entry.directory = activityIsDirectory(url);
         [entries addObject:entry];
@@ -312,16 +331,62 @@ BOOL activityIsDirectory(NSURL* url) {
     }
 }
 
+- (void)appendMatchingEntries:(NSMutableArray<KineticActivityTreeEntry*>*)entries {
+    NSString* query = _searchField.stringValue;
+    NSDirectoryEnumerator<NSURL*>* enumerator =
+        [NSFileManager.defaultManager enumeratorAtURL:_workspaceUrl
+                           includingPropertiesForKeys:@[ NSURLIsDirectoryKey ]
+                                              options:0
+                                         errorHandler:nil];
+    NSUInteger visited = 0;
+    for (NSURL* url in enumerator) {
+        if (++visited > 10000 || entries.count >= 500) {
+            break;
+        }
+        if ([url.lastPathComponent rangeOfString:query options:NSCaseInsensitiveSearch].location ==
+            NSNotFound) {
+            continue;
+        }
+        KineticActivityTreeEntry* entry = [[KineticActivityTreeEntry alloc] init];
+        entry.url = url;
+        entry.directory = activityIsDirectory(url);
+        NSString* rootPath = [_workspaceUrl.path stringByStandardizingPath];
+        NSString* entryPath = [url.path stringByStandardizingPath];
+        NSUInteger start = MIN(rootPath.length, entryPath.length);
+        if (start < entryPath.length && [entryPath characterAtIndex:start] == '/') {
+            ++start;
+        }
+        entry.displayName = [entryPath substringFromIndex:start];
+        entry.depth = 0;
+        [entries addObject:entry];
+    }
+    [entries sortUsingComparator:^NSComparisonResult(KineticActivityTreeEntry* left,
+                                                     KineticActivityTreeEntry* right) {
+      return [left.displayName localizedCaseInsensitiveCompare:right.displayName];
+    }];
+}
+
 - (void)reloadTreeEntries {
     if (_workspaceUrl == nil) {
         _treeEntries = @[];
     } else {
         NSMutableArray<KineticActivityTreeEntry*>* entries = [NSMutableArray array];
-        [self appendDirectory:_workspaceUrl depth:0 toEntries:entries];
+        if (_searchField.stringValue.length > 0) {
+            [self appendMatchingEntries:entries];
+        } else {
+            [self appendDirectory:_workspaceUrl depth:0 toEntries:entries];
+        }
         _treeEntries = entries;
     }
     _treeScrollOffset = MIN(_treeScrollOffset, [self maximumTreeScroll]);
     self.needsDisplay = YES;
+}
+
+- (void)controlTextDidChange:(NSNotification*)notification {
+    if (notification.object == _searchField) {
+        _treeScrollOffset = 0.0;
+        [self reloadTreeEntries];
+    }
 }
 
 - (CGFloat)maximumTreeScroll {
@@ -563,10 +628,15 @@ BOOL activityIsDirectory(NSURL* url) {
     truncatingStyle.lineBreakMode = NSLineBreakByTruncatingTail;
     NSMutableDictionary* documentAttributes = [bodyAttributes mutableCopy];
     documentAttributes[NSParagraphStyleAttributeName] = truncatingStyle;
-    [activityColor(103, 158, 255, 0.68) setFill];
-    NSRectFill(NSMakeRect(kRailWidth + 10.0, 78.0, 1.5, 15.0));
-    [_documentTitle drawInRect:NSMakeRect(kRailWidth + 18.0, 77.0, kPanelWidth - 32.0, 18.0)
-                withAttributes:documentAttributes];
+    if (_documentTitle.length > 0) {
+        [activityColor(103, 158, 255, 0.68) setFill];
+        NSRectFill(NSMakeRect(kRailWidth + 10.0, 78.0, 1.5, 15.0));
+        [_documentTitle drawInRect:NSMakeRect(kRailWidth + 18.0, 77.0, kPanelWidth - 32.0, 18.0)
+                    withAttributes:documentAttributes];
+    } else {
+        [@"No file open" drawInRect:NSMakeRect(kRailWidth + 18.0, 77.0, kPanelWidth - 32.0, 18.0)
+                     withAttributes:mutedAttributes];
+    }
 
     [self drawPanelButtonInRect:[self panelButtonRectAtY:110.0]
                           title:@"Open File…"
@@ -590,6 +660,12 @@ BOOL activityIsDirectory(NSURL* url) {
     [self drawNewFileButton];
     [self drawNewFolderButton];
 
+    NSRect searchRect = NSMakeRect(kRailWidth + 10.0, 214.0, kPanelWidth - 20.0, 32.0);
+    [activityColor(35, 44, 57, 0.84) setFill];
+    [[NSBezierPath bezierPathWithRoundedRect:searchRect xRadius:4.0 yRadius:4.0] fill];
+    [activityColor(75, 92, 118, 0.65) setStroke];
+    [[NSBezierPath bezierPathWithRoundedRect:searchRect xRadius:4.0 yRadius:4.0] stroke];
+
     NSRect treeClip = NSMakeRect(kRailWidth + 1.0, kTreeStartY, kPanelWidth - 1.0,
                                  MAX(0.0, NSHeight(self.bounds) - kTreeStartY));
     [NSGraphicsContext saveGraphicsState];
@@ -612,11 +688,15 @@ BOOL activityIsDirectory(NSURL* url) {
             NSMakeRect(NSMinX(rowRect) + 7.0 + indentation, NSMidY(rowRect) - 5.5, 13.0, 11.0);
         [self drawTreeIconForEntry:entry inRect:iconRect];
         CGFloat textX = NSMaxX(iconRect) + 7.0;
-        [entry.url.lastPathComponent drawInRect:NSMakeRect(textX, NSMinY(rowRect) + 4.0,
-                                                           NSMaxX(rowRect) - textX - 6.0, 17.0)
-                                 withAttributes:documentAttributes];
+        [entry.displayName drawInRect:NSMakeRect(textX, NSMinY(rowRect) + 4.0,
+                                                 NSMaxX(rowRect) - textX - 6.0, 17.0)
+                       withAttributes:documentAttributes];
     }
     [NSGraphicsContext restoreGraphicsState];
+    if (_treeEntries.count == 0 && _searchField.stringValue.length > 0) {
+        [@"No matching files" drawAtPoint:NSMakePoint(kRailWidth + 15.0, kTreeStartY + 8.0)
+                           withAttributes:mutedAttributes];
+    }
 }
 
 - (void)drawPanel {
@@ -696,6 +776,8 @@ BOOL activityIsDirectory(NSURL* url) {
 
 - (void)drawRect:(NSRect)dirtyRect {
     (void)dirtyRect;
+    _searchField.hidden = _displayedSection != KineticActivitySectionExplorer ||
+                          _workspaceUrl == nil || NSWidth(self.bounds) <= kRailWidth;
     [activityColor(44, 53, 66, 0.92) setFill];
     NSRectFill(NSMakeRect(0.0, 0.0, kRailWidth, NSHeight(self.bounds)));
     [self drawPanel];
@@ -793,6 +875,12 @@ BOOL activityIsDirectory(NSURL* url) {
             }
             KineticActivityTreeEntry* entry = _treeEntries[index];
             if (entry.directory) {
+                if (_searchField.stringValue.length > 0) {
+                    _searchField.stringValue = @"";
+                    [_expandedPaths addObject:entry.url.path];
+                    [self revealCreatedFolderAtUrl:entry.url];
+                    return;
+                }
                 if ([_expandedPaths containsObject:entry.url.path]) {
                     [_expandedPaths removeObject:entry.url.path];
                 } else {

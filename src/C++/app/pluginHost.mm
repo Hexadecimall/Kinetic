@@ -1014,6 +1014,16 @@ static int32_t replaceRangeUtf8(void* context, uint64_t startUtf16, uint64_t len
     return result;
 }
 
+- (BOOL)hasCompletionProviderForFileName:(NSString*)fileName {
+    NSString* extension = fileName.pathExtension.lowercaseString;
+    for (NSDictionary<NSString*, id>* provider in _completionCallbacks) {
+        if ([provider[@"extension"] isEqualToString:extension]) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
 - (BOOL)hasFormatterForFileName:(NSString*)fileName {
     NSString* extension = fileName.pathExtension.lowercaseString;
     for (NSDictionary<NSString*, id>* formatter in _formatterCallbacks) {

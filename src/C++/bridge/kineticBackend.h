@@ -25,6 +25,14 @@ uint32_t kineticCompletionCollect(const uint8_t* bytes, uint64_t length, uint64_
                                   uint32_t minPrefix, KineticCompletionItem* items,
                                   uint32_t capacity, uint64_t* prefixStartUtf16);
 int32_t kineticCompletionReadConfig(KineticCompletionConfig* output);
+int32_t kineticCompletionWriteConfig(const KineticCompletionConfig* input);
+typedef struct KineticIndentationConfig {
+    uint32_t tabWidth;
+    bool insertTabs;
+    bool autoIndent;
+} KineticIndentationConfig;
+int32_t kineticIndentationReadConfig(KineticIndentationConfig* output);
+int32_t kineticIndentationWriteConfig(const KineticIndentationConfig* input);
 
 typedef struct KineticDocument KineticDocument;
 typedef struct KineticExtensionRegistry KineticExtensionRegistry;

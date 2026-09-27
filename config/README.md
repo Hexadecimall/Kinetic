@@ -7,7 +7,8 @@ registered typed setting.
 - `defaults/kinetic.toml` records the product defaults currently represented by the interface.
 - `schemas/settings.schema.json` describes the public settings shape.
 
-The current preview loads `[plugins]` and `[autocomplete]` user settings at runtime; other sections remain a
+The current preview loads `[plugins]`, `[autocomplete]`, and indentation fields under `[editor]`
+at runtime; other sections remain a
 migration contract for replacing temporary in-code defaults with the Rust settings registry. A
 setting becomes supported only when its runtime wiring, validation, documentation, and plugin API
 exposure land together.
@@ -40,10 +41,24 @@ minPrefix = 2
 maxResults = 8
 ```
 
-`minPrefix` accepts 1–8 characters and `maxResults` accepts 1–32 suggestions. These settings
-control document-word and plugin suggestions. Control-Space requests suggestions after one
+`minPrefix` accepts 1–8 characters and `maxResults` accepts 1–32 suggestions. C/C++ Support
+uses clangd completion when installed; otherwise native document-word completion remains available.
+Control-Space requests suggestions after one
 character; arrow keys select, Return or Tab inserts, and Escape dismisses. Invalid autocomplete
-values fall back to defaults. Other configuration sections in this file are currently ignored.
+values fall back to defaults.
+
+The editor also reads and saves indentation preferences:
+
+```toml
+[editor]
+tabWidth = 4
+insertTabs = false
+autoIndent = true
+```
+
+`insertTabs = false` inserts spaces to the next tab stop; `true` inserts a literal tab. Backspace
+removes one indentation unit while the caret is in leading whitespace. Other editor configuration
+keys remain part of the future settings registry.
 
 Tab sizing and recent-project presentation are recorded in the same contract; recent paths are
 runtime user data stored by the application and never written into the repository.

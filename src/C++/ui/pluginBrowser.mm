@@ -1,5 +1,4 @@
 #import "pluginBrowser.h"
-#import "contextMenu.h"
 
 namespace {
 constexpr CGFloat kListWidth = 340.0;
@@ -27,6 +26,8 @@ NSDictionary* browserText(CGFloat size, NSFontWeight weight, NSColor* color) {
     CGFloat _listScroll;
     NSString* _selectedId;
     NSInteger _hoveredCard;
+    NSDictionary* _pendingPlugin;
+    NSString* _pendingAction;
 }
 @end
 
@@ -57,6 +58,10 @@ NSDictionary* browserText(CGFloat size, NSFontWeight weight, NSColor* color) {
     return YES;
 }
 
+- (BOOL)acceptsFirstResponder {
+    return YES;
+}
+
 - (void)layout {
     [super layout];
     _searchField.frame = NSMakeRect(47.0, 92.0, MIN(420.0, NSWidth(self.bounds) - 94.0), 24.0);
@@ -64,6 +69,9 @@ NSDictionary* browserText(CGFloat size, NSFontWeight weight, NSColor* color) {
 
 - (void)setPlugins:(NSArray<NSDictionary<NSString*, id>*>*)plugins {
     _plugins = [plugins copy] ?: @[];
+    _pendingPlugin = nil;
+    _pendingAction = nil;
+    _searchField.enabled = YES;
     if (_selectedId.length == 0 && _plugins.count > 0) {
         _selectedId = [_plugins.firstObject[@"id"] copy];
     }
@@ -120,6 +128,18 @@ NSDictionary* browserText(CGFloat size, NSFontWeight weight, NSColor* color) {
 
 - (NSRect)secondaryActionRect {
     return NSMakeRect([self detailX] + 153.0, 371.0, 120.0, 34.0);
+}
+
+- (NSRect)confirmationRect {
+    CGFloat width = MIN(420.0, NSWidth(self.bounds) - 48.0);
+    return NSMakeRect(floor((NSWidth(self.bounds) - width) * 0.5),
+                      floor((NSHeight(self.bounds) - 170.0) * 0.5), width, 170.0);
+}
+
+- (NSRect)confirmationButtonRect:(BOOL)confirm {
+    NSRect panel = [self confirmationRect];
+    return NSMakeRect(NSMaxX(panel) - (confirm ? 116.0 : 206.0), NSMaxY(panel) - 49.0,
+                      confirm ? 92.0 : 82.0, 30.0);
 }
 
 - (void)drawIconForPlugin:(NSDictionary*)plugin inRect:(NSRect)rect {
@@ -269,6 +289,36 @@ NSDictionary* browserText(CGFloat size, NSFontWeight weight, NSColor* color) {
     [@"Native plugins run with Kinetic's permissions. Restart after changes."
             drawInRect:NSMakeRect(x, 664.0, width, 34.0)
         withAttributes:muted];
+    if (_pendingPlugin != nil) {
+        [browserColor(8, 13, 21, 0.67) setFill];
+        NSRectFill(self.bounds);
+        NSRect panel = [self confirmationRect];
+        [browserColor(39, 49, 64) setFill];
+        [[NSBezierPath bezierPathWithRoundedRect:panel xRadius:8.0 yRadius:8.0] fill];
+        [browserColor(83, 103, 132, 0.8) setStroke];
+        [[NSBezierPath bezierPathWithRoundedRect:panel xRadius:8.0 yRadius:8.0] stroke];
+        NSString* verb = [_pendingAction isEqualToString:@"uninstall"] ? @"Remove"
+                         : [_pendingAction isEqualToString:@"update"]  ? @"Update"
+                                                                       : @"Install";
+        [[NSString stringWithFormat:@"%@ %@?", verb, _pendingPlugin[@"name"] ?: @"plugin"]
+                drawInRect:NSMakeRect(NSMinX(panel) + 22.0, NSMinY(panel) + 21.0,
+                                      NSWidth(panel) - 44.0, 28.0)
+            withAttributes:browserText(18.0, NSFontWeightSemibold, browserColor(235, 241, 249))];
+        [[NSString
+            stringWithFormat:@"%@ · %@", _pendingPlugin[@"publisher"] ?: @"Unknown",
+                             [_pendingPlugin[@"official"] boolValue] ? @"Official" : @"Community"]
+                drawInRect:NSMakeRect(NSMinX(panel) + 22.0, NSMinY(panel) + 56.0,
+                                      NSWidth(panel) - 44.0, 20.0)
+            withAttributes:muted];
+        NSString* detail = [_pendingAction isEqualToString:@"uninstall"]
+                               ? @"The plugin will be removed after Kinetic restarts."
+                               : @"Native code can access files you open in Kinetic.";
+        [detail drawInRect:NSMakeRect(NSMinX(panel) + 22.0, NSMinY(panel) + 84.0,
+                                      NSWidth(panel) - 44.0, 20.0)
+            withAttributes:muted];
+        [self drawAction:@"Cancel" inRect:[self confirmationButtonRect:NO] enabled:YES];
+        [self drawAction:verb inRect:[self confirmationButtonRect:YES] enabled:YES];
+    }
 }
 
 - (void)controlTextDidChange:(NSNotification*)notification {
@@ -280,33 +330,31 @@ NSDictionary* browserText(CGFloat size, NSFontWeight weight, NSColor* color) {
 - (void)showConfirmationForPlugin:(NSDictionary*)plugin
                            action:(NSString*)action
                           atPoint:(NSPoint)point {
-    NSString* publisher = plugin[@"publisher"] ?: @"Unknown";
-    NSString* trust = [plugin[@"official"] boolValue] ? @"Official" : @"Community";
-    NSArray* items = @[
-        @{@"title" : [NSString stringWithFormat:@"Publisher: %@", publisher], @"enabled" : @NO},
-        @{@"title" : [NSString stringWithFormat:@"%@ native plugin", trust], @"enabled" : @NO},
-        @{
-            @"title" : [action isEqualToString:@"uninstall"] ? @"Remove plugin"
-                                                             : @"Runs with file access",
-            @"enabled" : @NO
-        },
-        @{@"title" : [action.capitalizedString stringByAppendingString:@" plugin"]},
-        @{@"title" : @"Cancel"},
-    ];
-    [KineticContextMenu showInView:self
-                           atPoint:point
-                             items:items
-                           handler:^(NSUInteger index) {
-                             if (index == 3) {
-                                 [self.delegate pluginBrowser:self
-                                             didRequestAction:action
-                                                    forPlugin:plugin];
-                             }
-                           }];
+    (void)point;
+    _pendingPlugin = plugin;
+    _pendingAction = [action copy];
+    _searchField.enabled = NO;
+    self.needsDisplay = YES;
 }
 
 - (void)mouseDown:(NSEvent*)event {
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+    if (_pendingPlugin != nil) {
+        BOOL confirm = NSPointInRect(point, [self confirmationButtonRect:YES]);
+        BOOL cancel = NSPointInRect(point, [self confirmationButtonRect:NO]);
+        if (confirm || cancel) {
+            NSDictionary* plugin = _pendingPlugin;
+            NSString* action = _pendingAction;
+            _pendingPlugin = nil;
+            _pendingAction = nil;
+            _searchField.enabled = YES;
+            self.needsDisplay = YES;
+            if (confirm) {
+                [self.delegate pluginBrowser:self didRequestAction:action forPlugin:plugin];
+            }
+        }
+        return;
+    }
     if (point.y >= 135.0 && point.y < 169.0) {
         if (point.x < 99.0) {
             _installedOnly = NO;
@@ -343,6 +391,27 @@ NSDictionary* browserText(CGFloat size, NSFontWeight weight, NSColor* color) {
         ![state isEqualToString:@"available"]) {
         [self showConfirmationForPlugin:selected action:@"uninstall" atPoint:point];
     }
+}
+
+- (void)keyDown:(NSEvent*)event {
+    if (_pendingPlugin != nil && event.keyCode == 53) {
+        _pendingPlugin = nil;
+        _pendingAction = nil;
+        _searchField.enabled = YES;
+        self.needsDisplay = YES;
+        return;
+    }
+    if (_pendingPlugin != nil && (event.keyCode == 36 || event.keyCode == 76)) {
+        NSDictionary* plugin = _pendingPlugin;
+        NSString* action = _pendingAction;
+        _pendingPlugin = nil;
+        _pendingAction = nil;
+        _searchField.enabled = YES;
+        self.needsDisplay = YES;
+        [self.delegate pluginBrowser:self didRequestAction:action forPlugin:plugin];
+        return;
+    }
+    [super keyDown:event];
 }
 
 - (void)scrollWheel:(NSEvent*)event {

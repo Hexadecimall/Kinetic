@@ -36,6 +36,13 @@ pub struct PanelRow {
 }
 
 #[repr(C)]
+pub struct CompletionRow {
+    label: [c_char; 96],
+    insertText: [c_char; 96],
+    detail: [c_char; 96],
+}
+
+#[repr(C)]
 pub struct PluginApi {
     abiVersion: u32,
     structSize: u32,
@@ -89,6 +96,12 @@ pub struct PluginApi {
     publishDiagnostics:
         unsafe extern "C" fn(*mut c_void, *const c_char, *const Diagnostic, u32) -> i32,
     openLocation: unsafe extern "C" fn(*mut c_void, *const c_char, u32, u32) -> i32,
+    registerCompletionProvider: unsafe extern "C" fn(
+        *mut c_void,
+        *const c_char,
+        extern "C" fn(*mut c_void, *const c_char, u64, *mut CompletionRow, u32) -> u32,
+        *mut c_void,
+    ) -> i32,
 }
 
 #[repr(C)]
@@ -156,20 +169,10 @@ extern "C" fn documentEvent(_userData: *mut c_void, _eventName: *const c_char) {
     }
 }
 
-extern "C" fn goToDefinition(_userData: *mut c_void) {
-    let Some((path, text)) = activeDocument() else {
-        return;
-    };
-    let Some(api) = api() else { return };
-    let mut caret = 0_u64;
-    let mut length = 0_u64;
-    // SAFETY: The host writes two u64 values.
-    if unsafe { (api.getSelection)(api.context, &mut caret, &mut length) } != 0 {
-        return;
-    }
+fn positionAtCaret(text: &str, caret: u64) -> (u32, u32) {
+    let mut remaining = caret;
     let mut line = 0_u32;
     let mut column = 0_u32;
-    let mut remaining = caret;
     for character in text.chars() {
         if remaining == 0 {
             break;
@@ -186,6 +189,77 @@ extern "C" fn goToDefinition(_userData: *mut c_void) {
             column += units as u32;
         }
     }
+    (line, column)
+}
+
+extern "C" fn completeDocument(
+    _userData: *mut c_void,
+    prefix: *const c_char,
+    prefixLength: u64,
+    rows: *mut CompletionRow,
+    capacity: u32,
+) -> u32 {
+    if prefix.is_null() || rows.is_null() || prefixLength > 95 || capacity > 32 {
+        return 0;
+    }
+    // SAFETY: The host supplies prefixLength readable bytes and capacity writable rows.
+    let bytes = unsafe { std::slice::from_raw_parts(prefix.cast::<u8>(), prefixLength as usize) };
+    let Ok(prefix) = std::str::from_utf8(bytes) else {
+        return 0;
+    };
+    let Some((path, text)) = activeDocument() else {
+        return 0;
+    };
+    let Some(api) = api() else { return 0 };
+    let mut caret = 0_u64;
+    let mut selectionLength = 0_u64;
+    // SAFETY: The host writes two u64 values.
+    if unsafe { (api.getSelection)(api.context, &mut caret, &mut selectionLength) } != 0 {
+        return 0;
+    }
+    let (line, column) = positionAtCaret(&text, caret);
+    let Ok(guard) = server().lock() else { return 0 };
+    let Some(server) = guard.as_ref() else {
+        return 0;
+    };
+    let suggestions = server.requestCompletions(path, text, line, column, prefix.into());
+    // SAFETY: The host allocates capacity rows for this callback.
+    let output = unsafe { std::slice::from_raw_parts_mut(rows, capacity as usize) };
+    let mut count = 0;
+    for item in suggestions.iter().filter(|item| {
+        item.label
+            .to_lowercase()
+            .starts_with(&prefix.to_lowercase())
+            && item.insertText != prefix
+    }) {
+        if count >= output.len() {
+            break;
+        }
+        output[count] = CompletionRow {
+            label: [0; 96],
+            insertText: [0; 96],
+            detail: [0; 96],
+        };
+        writeField(&mut output[count].label, &item.label);
+        writeField(&mut output[count].insertText, &item.insertText);
+        writeField(&mut output[count].detail, &item.detail);
+        count += 1;
+    }
+    count as u32
+}
+
+extern "C" fn goToDefinition(_userData: *mut c_void) {
+    let Some((path, text)) = activeDocument() else {
+        return;
+    };
+    let Some(api) = api() else { return };
+    let mut caret = 0_u64;
+    let mut length = 0_u64;
+    // SAFETY: The host writes two u64 values.
+    if unsafe { (api.getSelection)(api.context, &mut caret, &mut length) } != 0 {
+        return;
+    }
+    let (line, column) = positionAtCaret(&text, caret);
     if let Ok(guard) = server().lock()
         && let Some(server) = guard.as_ref()
     {
@@ -348,6 +422,19 @@ extern "C" fn start(apiPointer: *const PluginApi) -> i32 {
             return -1;
         }
     }
+    for extension in [c"c", c"h", c"cc", c"cpp", c"cxx", c"hpp", c"hh", c"hxx"] {
+        if unsafe {
+            (api.registerCompletionProvider)(
+                context,
+                extension.as_ptr(),
+                completeDocument,
+                std::ptr::null_mut(),
+            )
+        } != 0
+        {
+            return -1;
+        }
+    }
     let command = c"kinetic.cpp.goToDefinition";
     // SAFETY: Registration occurs on the host main thread.
     if unsafe {
@@ -451,7 +538,7 @@ static DESCRIPTOR: PluginDescriptor = PluginDescriptor {
     structSize: std::mem::size_of::<PluginDescriptor>() as u32,
     pluginId: c"kinetic.cpp-support".as_ptr(),
     displayName: c"C/C++ Support".as_ptr(),
-    version: c"0.1.0".as_ptr(),
+    version: c"0.2.0".as_ptr(),
     start,
     stop,
 };

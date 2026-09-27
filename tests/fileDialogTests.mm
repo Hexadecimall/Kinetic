@@ -2,6 +2,10 @@
 
 #import <AppKit/AppKit.h>
 
+@interface KineticFileDialog (SearchTest)
+- (void)controlTextDidChange:(NSNotification*)notification;
+@end
+
 static BOOL check(BOOL condition, NSString* message) {
     if (!condition) {
         NSLog(@"%@", message);
@@ -60,6 +64,13 @@ int main() {
                            @"Hidden file missing from Open Folder") &&
                      check([directories[@"linkedFolder"] boolValue],
                            @"Directory symlink did not behave as a folder");
+            NSTextField* search = [dialog valueForKey:@"_searchField"];
+            search.stringValue = @"hidden";
+            [dialog controlTextDidChange:[NSNotification notificationWithName:NSControlTextDidChangeNotification
+                                                                        object:search]];
+            NSArray* filtered = [dialog valueForKey:@"_entries"];
+            passed = check(filtered.count == 2, @"File picker search did not filter entries") &&
+                     passed;
         } else {
             NSLog(@"Could not populate dialog test fixture: %@", error);
         }

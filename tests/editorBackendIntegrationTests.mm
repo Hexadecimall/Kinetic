@@ -1,10 +1,16 @@
 #import "editorView.h"
+#import "activityBar.h"
 
 #import <AppKit/AppKit.h>
 
 @interface KineticEditorView (HistoryTest)
 - (void)undoEdit;
 - (void)redoEdit;
+- (NSRect)completionPopupRect;
+@end
+
+@interface KineticActivityBar (SearchTest)
+- (void)controlTextDidChange:(NSNotification*)notification;
 @end
 
 static BOOL check(BOOL condition, NSString* message) {
@@ -87,6 +93,49 @@ int main() {
         [editor keyDown:acceptKey];
         passed = check([editor.documentText isEqualToString:@"helper helper"],
                        @"native completion accepted") && passed;
+        [editor setValue:@[ @{@"label" : @"using", @"insertText" : @"using", @"detail" : @"Word"} ]
+                    forKey:@"_completionItems"];
+        NSRect compactPopup = [editor completionPopupRect];
+        passed = check(NSWidth(compactPopup) < 200.0 && NSHeight(compactPopup) < 40.0,
+                       @"one suggestion uses a compact popup") && passed;
+        KineticEditorView* placeholder =
+            [[KineticEditorView alloc] initWithFrame:NSMakeRect(0, 0, 1180, 760)
+                                            contents:@""
+                                             fileUrl:nil];
+        placeholder.workspacePlaceholder = YES;
+        [placeholder keyDown:key];
+        passed = check(placeholder.documentText.length == 0 && !placeholder.dirty,
+                       @"workspace placeholder does not create an untitled document") && passed;
+        NSString* root = [NSTemporaryDirectory()
+            stringByAppendingPathComponent:[NSString stringWithFormat:@"kinetic-tree-%@",
+                                                                      NSUUID.UUID.UUIDString]];
+        NSURL* rootUrl = [NSURL fileURLWithPath:root isDirectory:YES];
+        NSURL* nestedUrl = [rootUrl URLByAppendingPathComponent:@"nested" isDirectory:YES];
+        BOOL fixture = [NSFileManager.defaultManager createDirectoryAtURL:nestedUrl
+                                              withIntermediateDirectories:YES
+                                                               attributes:nil
+                                                                    error:nil] &&
+                       [@"" writeToURL:[nestedUrl URLByAppendingPathComponent:@"found.cpp"]
+                            atomically:YES
+                              encoding:NSUTF8StringEncoding
+                                 error:nil];
+        passed = check(fixture, @"tree search fixture") && passed;
+        if (fixture) {
+            KineticActivityBar* bar =
+                [[KineticActivityBar alloc] initWithFrame:NSMakeRect(0, 0, 262, 700)];
+            bar.workspaceUrl = rootUrl;
+            NSTextField* query = [bar valueForKey:@"_searchField"];
+            query.stringValue = @"found";
+            [bar controlTextDidChange:[NSNotification
+                                          notificationWithName:NSControlTextDidChangeNotification
+                                                        object:query]];
+            NSArray* results = [bar valueForKey:@"_treeEntries"];
+            passed = check(results.count == 1, @"explorer searches nested files") && passed;
+            passed = check([[[results firstObject] valueForKey:@"displayName"]
+                               isEqualToString:@"nested/found.cpp"],
+                           @"explorer shows result path") && passed;
+        }
+        [NSFileManager.defaultManager removeItemAtURL:rootUrl error:nil];
         return passed ? 0 : 1;
     }
 }

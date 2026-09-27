@@ -2,7 +2,25 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.24.0 - Unreleased
+## 0.25.0 - Unreleased
+
+### Added
+
+- Added a compact, animated Settings page with Command-Comma access, shared live controls,
+  dotfile-backed autocomplete and indentation preferences, and spaces-or-tabs selection.
+- Added file-name search in Explorer and custom Open File/Open Folder pickers.
+- Connected installable C/C++ Support 0.2.0 to clangd completion, including an actual clangd
+  integration test. Its registry update follows publication of the immutable 0.2.0 asset.
+
+### Fixed
+
+- Opening a project no longer creates an Untitled document; closing the last real document keeps
+  an empty workspace when a project remains open.
+- Backspace removes one indentation unit from leading whitespace.
+- Plugin install/update/remove use a dedicated confirmation panel rather than a context menu.
+- Suggestion popups fit their contents and omit redundant headings and generic word labels.
+
+## 0.24.0
 
 ### Added
 

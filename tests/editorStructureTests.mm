@@ -40,6 +40,21 @@ int main() {
         edit = kineticTabEdit(@"    abc", NSMakeRange(4, 0), 4, YES);
         require([applyEdit(@"    abc", edit) isEqualToString:@"abc"],
                 @"Shift-Tab removes one indentation level");
+        edit = kineticTabEditWithTabs(@"  abc", NSMakeRange(2, 0), 4, NO, YES);
+        require([applyEdit(@"  abc", edit) isEqualToString:@"  \tabc"],
+                @"Tab-character setting inserts a literal tab");
+        edit = kineticNewlineEditWithTabs(@"if ready:", NSMakeRange(9, 0), @"main.py", 4,
+                                          YES, YES);
+        require([applyEdit(@"if ready:", edit) isEqualToString:@"if ready:\n\t"],
+                @"Auto indent follows the tab-character setting");
+        edit = kineticIndentBackspaceEdit(@"        value", 8, 4);
+        require([applyEdit(@"        value", edit) isEqualToString:@"    value"],
+                @"Backspace removes one indentation unit");
+        edit = kineticIndentBackspaceEdit(@"   value", 3, 4);
+        require([applyEdit(@"   value", edit) isEqualToString:@"value"],
+                @"Backspace removes partial indentation");
+        require(kineticIndentBackspaceEdit(@"    value", 5, 4) == nil,
+                @"Backspace inside code is a normal character edit");
 
         edit = kineticTypedStructureEdit(@"", NSMakeRange(0, 0), @"{", 4, YES);
         require([applyEdit(@"", edit) isEqualToString:@"{}"] && edit.caretOffset == 1,

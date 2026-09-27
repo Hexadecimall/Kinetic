@@ -25,6 +25,10 @@ constexpr CGFloat kTabBarHeight = 34.0;
 constexpr CGFloat kPreferredTabWidth = 148.0;
 constexpr CGFloat kMinimumTabWidth = 92.0;
 constexpr CGFloat kSearchPopoverWidth = 354.0;
+constexpr CGFloat kSettingsRowStep = 44.0;
+constexpr CGFloat kSettingsRowHeight = 39.0;
+constexpr CGFloat kSettingsRowCount = 13.0;
+constexpr CGFloat kSettingsStartY = 139.0;
 
 enum class EditorMenuCommand : NSInteger {
     undo,
@@ -96,15 +100,25 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     NSString* _canvasColorHex;
     NSColor* _canvasColor;
     NSUInteger _tabWidth;
+    BOOL _insertTabs;
     BOOL _autoIndent;
     BOOL _autoPairs;
+    BOOL _workspacePlaceholder;
     BOOL _autocompleteEnabled;
     NSUInteger _autocompleteMinPrefix;
     NSUInteger _autocompleteMaxResults;
     NSArray<NSDictionary<NSString*, NSString*>*>* _completionItems;
     NSUInteger _completionPrefixStart;
     NSInteger _completionSelectedIndex;
+    NSTimer* _completionPollTimer;
+    NSUInteger _completionPollCount;
     CGFloat _settingsScroll;
+    NSString* _settingsStatus;
+    CGFloat _settingsProgress;
+    CGFloat _settingsAnimationFrom;
+    CGFloat _settingsAnimationTo;
+    NSTimeInterval _settingsAnimationStart;
+    NSTimer* _settingsTimer;
     NSString* _appPackageStatus;
     NSArray<NSArray<NSDictionary<NSString*, id>*>*>* _syntaxTokens;
     NSArray<NSDictionary<NSString*, id>*>* _diagnostics;
@@ -125,6 +139,8 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 @end
 
 @implementation KineticEditorView
+
+@synthesize workspacePlaceholder = _workspacePlaceholder;
 
 - (instancetype)initWithFrame:(NSRect)frameRect {
     return [self initWithFrame:frameRect contents:@"" fileUrl:nil];
@@ -160,8 +176,13 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         _fontName = @"";
         _canvasColorHex = @"#2F3947";
         _canvasColor = editorColor(47, 57, 71, 0.9);
-        _tabWidth = 4;
-        _autoIndent = YES;
+        KineticIndentationConfig indentationConfig = {};
+        if (kineticIndentationReadConfig(&indentationConfig) != 0) {
+            indentationConfig = {4, false, true};
+        }
+        _tabWidth = indentationConfig.tabWidth;
+        _insertTabs = indentationConfig.insertTabs;
+        _autoIndent = indentationConfig.autoIndent;
         _autoPairs = YES;
         KineticCompletionConfig completionConfig = {};
         if (kineticCompletionReadConfig(&completionConfig) != 0) {
@@ -208,6 +229,8 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 }
 
 - (void)dealloc {
+    [_settingsTimer invalidate];
+    [_completionPollTimer invalidate];
     kineticDocumentDestroy(_document);
 }
 
@@ -463,11 +486,45 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 }
 
 - (void)setActivitySection:(KineticActivitySection)section animated:(BOOL)animated {
-    _settingsVisible = section == KineticActivitySectionSettings;
+    [self setSettingsVisible:section == KineticActivitySectionSettings animated:animated];
     _pluginsVisible = section == KineticActivitySectionPlugins;
     _pluginBrowser.hidden = !_pluginsVisible;
     [_activityBar activateSection:section animated:animated];
     self.needsDisplay = YES;
+}
+
+- (void)setSettingsVisible:(BOOL)visible animated:(BOOL)animated {
+    _settingsVisible = visible;
+    [_settingsTimer invalidate];
+    _settingsTimer = nil;
+    CGFloat target = visible ? 1.0 : 0.0;
+    if (!animated || fabs(_settingsProgress - target) < 0.001) {
+        _settingsProgress = target;
+        self.needsDisplay = YES;
+        return;
+    }
+    _settingsAnimationFrom = _settingsProgress;
+    _settingsAnimationTo = target;
+    _settingsAnimationStart = NSProcessInfo.processInfo.systemUptime;
+    _settingsTimer = [NSTimer scheduledTimerWithTimeInterval:1.0 / 60.0
+                                                      target:self
+                                                    selector:@selector(stepSettingsAnimation:)
+                                                    userInfo:nil
+                                                     repeats:YES];
+    self.needsDisplay = YES;
+}
+
+- (void)stepSettingsAnimation:(NSTimer*)timer {
+    CGFloat progress =
+        MIN(1.0, (NSProcessInfo.processInfo.systemUptime - _settingsAnimationStart) / 0.18);
+    CGFloat eased = 1.0 - pow(1.0 - progress, 3.0);
+    _settingsProgress =
+        _settingsAnimationFrom + (_settingsAnimationTo - _settingsAnimationFrom) * eased;
+    self.needsDisplay = YES;
+    if (progress >= 1.0) {
+        [timer invalidate];
+        _settingsTimer = nil;
+    }
 }
 
 - (void)markSaved {
@@ -491,6 +548,9 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     } else if ([property isEqualToString:@"editor.indentation.tabWidth"] && value >= 1.0 &&
                value <= 16.0 && floor(value) == value) {
         _tabWidth = (NSUInteger)value;
+    } else if ([property isEqualToString:@"editor.indentation.insertTabs"] &&
+               (value == 0.0 || value == 1.0)) {
+        _insertTabs = value == 1.0;
     } else if ([property isEqualToString:@"editor.syntax.enabled"] &&
                (value == 0.0 || value == 1.0)) {
         _syntaxHighlighting = value == 1.0;
@@ -541,6 +601,8 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         *value = _lineHeight;
     } else if ([property isEqualToString:@"editor.indentation.tabWidth"]) {
         *value = _tabWidth;
+    } else if ([property isEqualToString:@"editor.indentation.insertTabs"]) {
+        *value = _insertTabs;
     } else if ([property isEqualToString:@"editor.syntax.enabled"]) {
         *value = _syntaxHighlighting;
     } else if ([property isEqualToString:@"editor.gutter.lineNumbers"]) {
@@ -1217,12 +1279,15 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 }
 
 - (NSRect)settingsRowRect:(NSInteger)index {
-    CGFloat x = KineticActivityBar.railWidth + 42.0;
-    CGFloat width = MIN(620.0, NSWidth(self.bounds) - x - 42.0);
-    return NSMakeRect(x, 154.0 + index * 56.0 - _settingsScroll, MAX(320.0, width), 44.0);
+    CGFloat x = KineticActivityBar.railWidth + 36.0;
+    CGFloat width = MIN(470.0, NSWidth(self.bounds) - x - 36.0);
+    return NSMakeRect(x, kSettingsStartY + index * kSettingsRowStep - _settingsScroll,
+                      MAX(320.0, width), kSettingsRowHeight);
 }
 
 - (void)closeCompletions {
+    [_completionPollTimer invalidate];
+    _completionPollTimer = nil;
     _completionItems = @[];
     _completionSelectedIndex = 0;
     self.needsDisplay = YES;
@@ -1260,6 +1325,8 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     NSArray* provided = [self.overlayRenderer
         pluginCompletionItemsForPrefix:prefix
                               fileName:_fileUrl.lastPathComponent ?: _documentTitle];
+    BOOL pluginProvider = [self.overlayRenderer
+        hasPluginCompletionProviderForFileName:_fileUrl.lastPathComponent ?: _documentTitle];
     for (NSDictionary<NSString*, NSString*>* item in provided) {
         NSString* insertText = item[@"insertText"];
         if (insertText.length == 0 || insertText.length > 95 ||
@@ -1269,19 +1336,43 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         [seen addObject:insertText];
         [result addObject:item];
     }
-    for (uint32_t index = 0; index < count; ++index) {
-        NSString* label = [NSString stringWithUTF8String:(const char*)words[index].label];
-        if (label.length == 0 || [seen containsObject:label]) {
-            continue;
+    if (!pluginProvider) {
+        for (uint32_t index = 0; index < count; ++index) {
+            NSString* label = [NSString stringWithUTF8String:(const char*)words[index].label];
+            if (label.length == 0 || [seen containsObject:label]) {
+                continue;
+            }
+            [seen addObject:label];
+            [result addObject:@{@"label" : label, @"insertText" : label, @"detail" : @"Word"}];
         }
-        [seen addObject:label];
-        [result addObject:@{@"label" : label, @"insertText" : label, @"detail" : @"Word"}];
+    }
+    if (pluginProvider && provided.count == 0 && _completionPollTimer == nil) {
+        _completionPollCount = 0;
+        _completionPollTimer = [NSTimer scheduledTimerWithTimeInterval:0.1
+                                                                target:self
+                                                              selector:@selector(pollCompletions:)
+                                                              userInfo:nil
+                                                               repeats:YES];
+    } else if (provided.count > 0 && _completionPollTimer != nil) {
+        [_completionPollTimer invalidate];
+        _completionPollTimer = nil;
     }
     _completionPrefixStart = (NSUInteger)prefixStart;
     _completionItems =
         [result subarrayWithRange:NSMakeRange(0, MIN(result.count, _autocompleteMaxResults))];
     _completionSelectedIndex = 0;
     self.needsDisplay = YES;
+}
+
+- (void)pollCompletions:(NSTimer*)timer {
+    (void)timer;
+    if (++_completionPollCount > 20 || !_autocompleteEnabled || _settingsVisible ||
+        _pluginsVisible) {
+        [_completionPollTimer invalidate];
+        _completionPollTimer = nil;
+        return;
+    }
+    [self refreshCompletionsWithMinimum:_autocompleteMinPrefix];
 }
 
 - (NSRect)completionPopupRect {
@@ -1295,8 +1386,20 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     CGFloat caretX =
         textX - _horizontalScroll + [line sizeWithAttributes:[self editorTextAttributes]].width;
     CGFloat caretY = kFirstLineY + (lines.count - 1) * _lineHeight - _verticalScroll;
-    CGFloat height = 29.0 + _completionItems.count * 27.0;
-    CGFloat width = MIN(330.0, NSWidth(self.bounds) - textX - 12.0);
+    CGFloat height = 8.0 + _completionItems.count * 26.0;
+    CGFloat contentWidth = 0.0;
+    NSDictionary* labelFont = @{NSFontAttributeName : [NSFont systemFontOfSize:13.0]};
+    NSDictionary* detailFont = @{NSFontAttributeName : [NSFont systemFontOfSize:11.0]};
+    for (NSDictionary* item in _completionItems) {
+        NSString* detail = item[@"detail"];
+        CGFloat detailWidth = detail.length > 0 && ![detail isEqualToString:@"Word"]
+                                  ? [detail sizeWithAttributes:detailFont].width + 18.0
+                                  : 0.0;
+        contentWidth =
+            MAX(contentWidth, [item[@"label"] sizeWithAttributes:labelFont].width + detailWidth);
+    }
+    CGFloat width =
+        MIN(MAX(130.0, contentWidth + 26.0), MIN(300.0, NSWidth(self.bounds) - textX - 12.0));
     CGFloat x = MIN(MAX(textX, caretX), NSWidth(self.bounds) - width - 10.0);
     CGFloat y = caretY + _lineHeight + 3.0;
     if (y + height > NSHeight(self.bounds) - 8.0) {
@@ -1314,30 +1417,39 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     [[NSBezierPath bezierPathWithRoundedRect:popup xRadius:6.0 yRadius:6.0] fill];
     [editorColor(87, 108, 139, 0.8) setStroke];
     [[NSBezierPath bezierPathWithRoundedRect:popup xRadius:6.0 yRadius:6.0] stroke];
-    [@"SUGGESTIONS" drawAtPoint:NSMakePoint(NSMinX(popup) + 10.0, NSMinY(popup) + 6.0)
-                 withAttributes:@{
-                     NSFontAttributeName : [NSFont systemFontOfSize:10.0
-                                                             weight:NSFontWeightSemibold],
-                     NSForegroundColorAttributeName : editorColor(142, 178, 231),
-                 }];
     for (NSUInteger index = 0; index < _completionItems.count; ++index) {
-        CGFloat y = NSMinY(popup) + 28.0 + index * 27.0;
+        CGFloat y = NSMinY(popup) + 4.0 + index * 26.0;
         if ((NSInteger)index == _completionSelectedIndex) {
             [editorColor(61, 83, 120, 0.9) setFill];
-            NSRectFill(NSMakeRect(NSMinX(popup) + 4.0, y, NSWidth(popup) - 8.0, 26.0));
+            [[NSBezierPath bezierPathWithRoundedRect:NSMakeRect(NSMinX(popup) + 4.0, y,
+                                                                NSWidth(popup) - 8.0, 25.0)
+                                             xRadius:3.0
+                                             yRadius:3.0] fill];
         }
         NSDictionary* item = _completionItems[index];
-        [item[@"label"]
-                drawInRect:NSMakeRect(NSMinX(popup) + 12.0, y + 4.0, NSWidth(popup) - 115.0, 20.0)
-            withAttributes:@{
-                NSFontAttributeName : [NSFont systemFontOfSize:13.0],
-                NSForegroundColorAttributeName : editorColor(226, 235, 248),
-            }];
-        [item[@"detail"] drawInRect:NSMakeRect(NSMaxX(popup) - 101.0, y + 5.0, 90.0, 18.0)
-                     withAttributes:@{
-                         NSFontAttributeName : [NSFont systemFontOfSize:11.0],
-                         NSForegroundColorAttributeName : editorColor(145, 162, 184),
-                     }];
+        NSString* detail = item[@"detail"];
+        BOOL showDetail = detail.length > 0 && ![detail isEqualToString:@"Word"];
+        CGFloat detailWidth =
+            showDetail ? MIN(90.0, [detail sizeWithAttributes:@{
+                                       NSFontAttributeName : [NSFont systemFontOfSize:11.0]
+                                   }]
+                                           .width +
+                                       8.0)
+                       : 0.0;
+        [item[@"label"] drawInRect:NSMakeRect(NSMinX(popup) + 11.0, y + 3.0,
+                                              NSWidth(popup) - detailWidth - 20.0, 20.0)
+                    withAttributes:@{
+                        NSFontAttributeName : [NSFont systemFontOfSize:13.0],
+                        NSForegroundColorAttributeName : editorColor(226, 235, 248),
+                    }];
+        if (showDetail) {
+            [detail drawInRect:NSMakeRect(NSMaxX(popup) - detailWidth - 8.0, y + 4.0, detailWidth,
+                                          18.0)
+                withAttributes:@{
+                    NSFontAttributeName : [NSFont systemFontOfSize:11.0],
+                    NSForegroundColorAttributeName : editorColor(145, 162, 184),
+                }];
+        }
     }
 }
 
@@ -1359,31 +1471,35 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 }
 
 - (CGFloat)maximumSettingsScroll {
-    return MAX(0.0, 154.0 + 10.0 * 56.0 + 214.0 - NSHeight(self.bounds));
+    return MAX(0.0, kSettingsStartY + kSettingsRowCount * kSettingsRowStep + 190.0 -
+                        NSHeight(self.bounds));
 }
 
 - (NSRect)appActionRectAtIndex:(NSUInteger)index {
-    CGFloat x = KineticActivityBar.railWidth + 42.0;
-    return NSMakeRect(x + index * 154.0, 154.0 + 10.0 * 56.0 + 19.0 - _settingsScroll, 144.0, 32.0);
+    CGFloat x = KineticActivityBar.railWidth + 36.0;
+    return NSMakeRect(x + index * 154.0,
+                      kSettingsStartY + kSettingsRowCount * kSettingsRowStep + 57.0 -
+                          _settingsScroll,
+                      144.0, 32.0);
 }
 
 - (NSRect)settingsMinusRectForRow:(NSInteger)row {
     NSRect rowRect = [self settingsRowRect:row];
-    return NSMakeRect(NSMaxX(rowRect) - 112.0, NSMinY(rowRect) + 8.0, 28.0, 28.0);
+    return NSMakeRect(NSMaxX(rowRect) - 112.0, NSMinY(rowRect) + 5.5, 28.0, 28.0);
 }
 
 - (NSRect)settingsPlusRectForRow:(NSInteger)row {
     NSRect rowRect = [self settingsRowRect:row];
-    return NSMakeRect(NSMaxX(rowRect) - 34.0, NSMinY(rowRect) + 8.0, 28.0, 28.0);
+    return NSMakeRect(NSMaxX(rowRect) - 34.0, NSMinY(rowRect) + 5.5, 28.0, 28.0);
 }
 
 - (NSRect)settingsToggleRectForRow:(NSInteger)row {
     NSRect rowRect = [self settingsRowRect:row];
-    return NSMakeRect(NSMaxX(rowRect) - 48.0, NSMinY(rowRect) + 11.0, 38.0, 22.0);
+    return NSMakeRect(NSMaxX(rowRect) - 48.0, NSMinY(rowRect) + 8.5, 38.0, 22.0);
 }
 
 - (NSInteger)settingsControlAtPoint:(NSPoint)point {
-    if (point.y < 148.0 || point.y > NSHeight(self.bounds)) {
+    if (point.y < kSettingsStartY - 6.0 || point.y > NSHeight(self.bounds)) {
         return -1;
     }
     if (NSPointInRect(point, [self settingsMinusRectForRow:0])) {
@@ -1404,6 +1520,18 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     if (NSPointInRect(point, [self settingsPlusRectForRow:6])) {
         return 9;
     }
+    if (NSPointInRect(point, [self settingsMinusRectForRow:10])) {
+        return 13;
+    }
+    if (NSPointInRect(point, [self settingsPlusRectForRow:10])) {
+        return 14;
+    }
+    if (NSPointInRect(point, [self settingsMinusRectForRow:11])) {
+        return 15;
+    }
+    if (NSPointInRect(point, [self settingsPlusRectForRow:11])) {
+        return 16;
+    }
     for (NSInteger row = 2; row <= 5; ++row) {
         if (NSPointInRect(point, [self settingsToggleRectForRow:row])) {
             return row + 2;
@@ -1413,6 +1541,9 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         if (NSPointInRect(point, [self settingsToggleRectForRow:row])) {
             return row + 3;
         }
+    }
+    if (NSPointInRect(point, [self settingsToggleRectForRow:12])) {
+        return 17;
     }
     return -1;
 }
@@ -1461,8 +1592,79 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
             [self closeCompletions];
         }
         break;
+    case 13:
+        _autocompleteMinPrefix = MAX((NSUInteger)1, _autocompleteMinPrefix - 1);
+        break;
+    case 14:
+        _autocompleteMinPrefix = MIN((NSUInteger)8, _autocompleteMinPrefix + 1);
+        break;
+    case 15:
+        _autocompleteMaxResults = MAX((NSUInteger)1, _autocompleteMaxResults - 1);
+        break;
+    case 16:
+        _autocompleteMaxResults = MIN((NSUInteger)32, _autocompleteMaxResults + 1);
+        break;
+    case 17:
+        _insertTabs = !_insertTabs;
+        break;
     default:
         return;
+    }
+    NSString* property = nil;
+    double value = 0.0;
+    if (control <= 1) {
+        property = @"editor.text.fontSize";
+        value = _fontSize;
+    } else if (control <= 3) {
+        property = @"editor.text.lineHeight";
+        value = _lineHeight;
+    } else if (control == 4) {
+        property = @"editor.gutter.lineNumbers";
+        value = _showLineNumbers;
+    } else if (control == 5) {
+        property = @"editor.scroll.indicators";
+        value = _showScrollIndicators;
+    } else if (control == 6) {
+        property = @"editor.scroll.natural";
+        value = _naturalScrolling;
+    } else if (control == 7) {
+        property = @"editor.syntax.enabled";
+        value = _syntaxHighlighting;
+    } else if (control <= 9) {
+        property = @"editor.indentation.tabWidth";
+        value = _tabWidth;
+    } else if (control == 10) {
+        property = @"editor.indentation.autoIndent";
+        value = _autoIndent;
+    } else if (control == 11) {
+        property = @"editor.delimiters.autoPairs";
+        value = _autoPairs;
+    } else if (control == 12) {
+        property = @"editor.autocomplete.enabled";
+        value = _autocompleteEnabled;
+    } else if (control <= 14) {
+        property = @"editor.autocomplete.minPrefix";
+        value = _autocompleteMinPrefix;
+    } else if (control == 17) {
+        property = @"editor.indentation.insertTabs";
+        value = _insertTabs;
+    } else {
+        property = @"editor.autocomplete.maxResults";
+        value = _autocompleteMaxResults;
+    }
+    [self.commandHandler editorSettingDidChange:property value:value];
+    if (control == 8 || control == 9 || control == 10 || control == 17) {
+        KineticIndentationConfig config = {(uint32_t)_tabWidth, (bool)_insertTabs,
+                                           (bool)_autoIndent};
+        _settingsStatus = kineticIndentationWriteConfig(&config) == 0
+                              ? @"Indentation saved to ~/.kinetic/config.toml"
+                              : @"Indentation applies now, but its config could not be saved.";
+    } else if (control >= 12) {
+        KineticCompletionConfig config = {_autocompleteEnabled, (uint32_t)_autocompleteMinPrefix,
+                                          (uint32_t)_autocompleteMaxResults};
+        _settingsStatus = kineticCompletionWriteConfig(&config) == 0
+                              ? @"Autocomplete saved to ~/.kinetic/config.toml"
+                              : @"Autocomplete applies now, but its config could not be saved.";
     }
     [self clampScroll];
     self.needsDisplay = YES;
@@ -1497,7 +1699,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 - (void)drawSettingsPage {
     CGFloat maxScroll = [self maximumSettingsScroll];
     _settingsScroll = MIN(_settingsScroll, maxScroll);
-    CGFloat x = KineticActivityBar.railWidth + 42.0;
+    CGFloat x = KineticActivityBar.railWidth + 36.0;
     NSDictionary* titleAttributes = @{
         NSFontAttributeName : [NSFont systemFontOfSize:24.0 weight:NSFontWeightSemibold],
         NSForegroundColorAttributeName : editorColor(235, 240, 247),
@@ -1510,41 +1712,26 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         NSFontAttributeName : [NSFont systemFontOfSize:13.0 weight:NSFontWeightMedium],
         NSForegroundColorAttributeName : editorColor(220, 229, 241),
     };
-    NSDictionary* rowDetailAttributes = @{
-        NSFontAttributeName : [NSFont systemFontOfSize:11.0 weight:NSFontWeightRegular],
-        NSForegroundColorAttributeName : editorColor(132, 146, 166),
-    };
-
     [@"Settings" drawAtPoint:NSMakePoint(x, 92.0) withAttributes:titleAttributes];
-    [@"Changes apply immediately to this editor." drawAtPoint:NSMakePoint(x, 124.0)
-                                               withAttributes:subtitleAttributes];
 
     NSArray<NSString*>* titles = @[
         @"Font Size", @"Line Height", @"Line Numbers", @"Scroll Indicators", @"Natural Scrolling",
-        @"Syntax Highlighting", @"Tab Width", @"Auto Indent", @"Auto Pairs", @"Autocomplete"
-    ];
-    NSArray<NSString*>* details = @[
-        @"Editor text size", @"Distance between text rows", @"Show the editor gutter numbers",
-        @"Show horizontal and vertical position markers", @"Match trackpad content direction",
-        @"Color recognized code, comments, strings, and values", @"Spaces to the next tab stop",
-        @"Carry indentation and indent inside blocks", @"Insert and manage matching delimiters",
-        @"Suggest words and plugin completions as you type"
+        @"Syntax Highlighting", @"Tab Width", @"Auto Indent", @"Auto Pairs", @"Autocomplete",
+        @"Minimum Prefix", @"Maximum Results", @"Insert Tab Characters"
     ];
     [NSGraphicsContext saveGraphicsState];
-    [[NSBezierPath bezierPathWithRect:NSMakeRect(0.0, 148.0, NSWidth(self.bounds),
-                                                 MAX(0.0, NSHeight(self.bounds) - 148.0))] addClip];
+    [[NSBezierPath bezierPathWithRect:NSMakeRect(0.0, kSettingsStartY - 6.0, NSWidth(self.bounds),
+                                                 MAX(0.0, NSHeight(self.bounds) - kSettingsStartY +
+                                                              6.0))] addClip];
     for (NSInteger row = 0; row < (NSInteger)titles.count; ++row) {
         NSRect rowRect = [self settingsRowRect:row];
         [editorColor(50, 61, 76, 0.72) setFill];
         [[NSBezierPath bezierPathWithRoundedRect:rowRect xRadius:5.0 yRadius:5.0] fill];
         [titles[(NSUInteger)row]
-               drawAtPoint:NSMakePoint(NSMinX(rowRect) + 13.0, NSMinY(rowRect) + 7.0)
+               drawAtPoint:NSMakePoint(NSMinX(rowRect) + 13.0, NSMinY(rowRect) + 11.0)
             withAttributes:rowTitleAttributes];
-        [details[(NSUInteger)row]
-               drawAtPoint:NSMakePoint(NSMinX(rowRect) + 13.0, NSMinY(rowRect) + 25.0)
-            withAttributes:rowDetailAttributes];
-        if (row < 2 || row == 6) {
-            NSInteger minusControl = row == 6 ? 8 : row * 2;
+        if (row < 2 || row == 6 || row == 10 || row == 11) {
+            NSInteger minusControl = row == 6 ? 8 : row == 10 ? 13 : row == 11 ? 15 : row * 2;
             [self drawSettingsStepButton:[self settingsMinusRectForRow:row]
                                    title:@"−"
                                  hovered:_settingsHoveredControl == minusControl];
@@ -1553,8 +1740,12 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
                                  hovered:_settingsHoveredControl == minusControl + 1];
             NSString* value =
                 row == 6 ? [NSString stringWithFormat:@"%lu", (unsigned long)_tabWidth]
-                         : [NSString stringWithFormat:@"%.0f", row == 0 ? _fontSize : _lineHeight];
-            [value drawInRect:NSMakeRect(NSMaxX(rowRect) - 82.0, NSMinY(rowRect) + 13.0, 46.0, 18.0)
+                : row == 10
+                    ? [NSString stringWithFormat:@"%lu", (unsigned long)_autocompleteMinPrefix]
+                : row == 11
+                    ? [NSString stringWithFormat:@"%lu", (unsigned long)_autocompleteMaxResults]
+                    : [NSString stringWithFormat:@"%.0f", row == 0 ? _fontSize : _lineHeight];
+            [value drawInRect:NSMakeRect(NSMaxX(rowRect) - 82.0, NSMinY(rowRect) + 10.0, 46.0, 18.0)
                 withAttributes:rowTitleAttributes];
         } else {
             BOOL enabled = row == 2   ? _showLineNumbers
@@ -1563,13 +1754,20 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
                            : row == 5 ? _syntaxHighlighting
                            : row == 7 ? _autoIndent
                            : row == 8 ? _autoPairs
-                                      : _autocompleteEnabled;
+                           : row == 9 ? _autocompleteEnabled
+                                      : _insertTabs;
             [self drawSettingsToggle:enabled
                               inRect:[self settingsToggleRectForRow:row]
-                             hovered:_settingsHoveredControl == (row >= 7 ? row + 3 : row + 2)];
+                             hovered:_settingsHoveredControl == (row == 12  ? 17
+                                                                 : row >= 7 ? row + 3
+                                                                            : row + 2)];
         }
     }
-    CGFloat appY = 154.0 + 10.0 * 56.0 - 8.0 - _settingsScroll;
+    CGFloat appY = kSettingsStartY + kSettingsRowCount * kSettingsRowStep + 5.0 - _settingsScroll;
+    if (_settingsStatus.length > 0) {
+        [_settingsStatus drawAtPoint:NSMakePoint(x, appY) withAttributes:subtitleAttributes];
+    }
+    appY += 20.0;
     [@"APPLICATION" drawAtPoint:NSMakePoint(x, appY) withAttributes:subtitleAttributes];
     NSArray<NSString*>* appActions = @[ @"Check Updates", @"Install / Update", @"Uninstall" ];
     for (NSUInteger index = 0; index < appActions.count; ++index) {
@@ -1582,7 +1780,25 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     [(_appPackageStatus ?: @"") drawInRect:NSMakeRect(x, appY + 75.0,
                                                       MIN(620.0, NSWidth(self.bounds) - x - 42.0),
                                                       45.0)
-                            withAttributes:rowDetailAttributes];
+                            withAttributes:subtitleAttributes];
+    [NSGraphicsContext restoreGraphicsState];
+}
+
+- (void)drawSettingsTransition {
+    if (_settingsProgress <= 0.001) {
+        return;
+    }
+    [NSGraphicsContext saveGraphicsState];
+    CGContextRef context = NSGraphicsContext.currentContext.CGContext;
+    CGContextSetAlpha(context, _settingsProgress);
+    [_canvasColor setFill];
+    NSRectFill(NSMakeRect(KineticActivityBar.railWidth, 68.0,
+                          NSWidth(self.bounds) - KineticActivityBar.railWidth,
+                          NSHeight(self.bounds) - 68.0));
+    NSAffineTransform* offset = [NSAffineTransform transform];
+    [offset translateXBy:0.0 yBy:(1.0 - _settingsProgress) * 9.0];
+    [offset concat];
+    [self drawSettingsPage];
     [NSGraphicsContext restoreGraphicsState];
 }
 
@@ -1656,11 +1872,34 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         }
     }
 
-    if (_settingsVisible) {
+    if (_settingsVisible && _settingsProgress >= 0.999) {
         [self drawSettingsPage];
         return;
     }
     if (_pluginsVisible) {
+        return;
+    }
+
+    if (_workspacePlaceholder) {
+        NSString* title = @"No file open";
+        NSString* detail = @"Choose a file in Explorer or create a new text file.";
+        NSDictionary* titleStyle = @{
+            NSFontAttributeName : [NSFont systemFontOfSize:17.0 weight:NSFontWeightMedium],
+            NSForegroundColorAttributeName : editorColor(180, 194, 214),
+        };
+        NSDictionary* detailStyle = @{
+            NSFontAttributeName : [NSFont systemFontOfSize:12.0],
+            NSForegroundColorAttributeName : editorColor(125, 140, 161),
+        };
+        CGFloat centerX = [self editorContentX] + [self editorViewportWidth] * 0.5;
+        [title drawAtPoint:NSMakePoint(centerX - [title sizeWithAttributes:titleStyle].width * 0.5,
+                                       NSHeight(self.bounds) * 0.46)
+            withAttributes:titleStyle];
+        [detail drawAtPoint:NSMakePoint(centerX -
+                                            [detail sizeWithAttributes:detailStyle].width * 0.5,
+                                        NSHeight(self.bounds) * 0.46 + 31.0)
+             withAttributes:detailStyle];
+        [self drawSettingsTransition];
         return;
     }
 
@@ -1861,13 +2100,14 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 
     [self drawCompletions];
     [self drawContextMenu];
+    [self drawSettingsTransition];
 }
 
 - (void)mouseDown:(NSEvent*)event {
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
     NSRect completionPopup = [self completionPopupRect];
     if (!NSIsEmptyRect(completionPopup) && NSPointInRect(point, completionPopup)) {
-        NSInteger index = (NSInteger)floor((point.y - NSMinY(completionPopup) - 28.0) / 27.0);
+        NSInteger index = (NSInteger)floor((point.y - NSMinY(completionPopup) - 4.0) / 26.0);
         if (index >= 0 && index < (NSInteger)_completionItems.count) {
             [self acceptCompletionAtIndex:(NSUInteger)index];
         }
@@ -1891,7 +2131,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
                 BOOL utilityTab =
                     (_settingsVisible || _pluginsVisible) && index == _tabTitles.count;
                 if (utilityTab) {
-                    _settingsVisible = NO;
+                    [self setSettingsVisible:NO animated:YES];
                     _pluginsVisible = NO;
                     _pluginBrowser.hidden = YES;
                     [_activityBar deactivateSection];
@@ -1904,7 +2144,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
             if (NSPointInRect(point, [self tabRectAtIndex:index])) {
                 if (index < _tabTitles.count) {
                     if (_settingsVisible || _pluginsVisible) {
-                        _settingsVisible = NO;
+                        [self setSettingsVisible:NO animated:YES];
                         _pluginsVisible = NO;
                         _pluginBrowser.hidden = YES;
                         [_activityBar deactivateSection];
@@ -1950,6 +2190,9 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     if (_pluginsVisible) {
         return;
     }
+    if (_workspacePlaceholder) {
+        return;
+    }
     if (point.y < 68.0) {
         return;
     }
@@ -1978,7 +2221,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
                                    handler:^(NSUInteger selected) {
                                      (void)selected;
                                      if (utilityTab) {
-                                         _settingsVisible = NO;
+                                         [self setSettingsVisible:NO animated:YES];
                                          _pluginsVisible = NO;
                                          _pluginBrowser.hidden = YES;
                                          [_activityBar deactivateSection];
@@ -2103,7 +2346,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 - (void)activityBar:(KineticActivityBar*)activityBar
     didActivateSection:(KineticActivitySection)section {
     (void)activityBar;
-    _settingsVisible = section == KineticActivitySectionSettings;
+    [self setSettingsVisible:section == KineticActivitySectionSettings animated:YES];
     _pluginsVisible = section == KineticActivitySectionPlugins;
     _pluginBrowser.hidden = !_pluginsVisible;
     if (section == KineticActivitySectionPlugins) {
@@ -2229,13 +2472,16 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 - (void)keyDown:(NSEvent*)event {
     if (_settingsVisible || _pluginsVisible) {
         if (event.keyCode == 53) {
-            _settingsVisible = NO;
+            [self setSettingsVisible:NO animated:YES];
             _pluginsVisible = NO;
             _pluginBrowser.hidden = YES;
             [_activityBar deactivateSection];
             [self.window invalidateCursorRectsForView:self];
             self.needsDisplay = YES;
         }
+        return;
+    }
+    if (_workspacePlaceholder) {
         return;
     }
     [self hideContextMenu];
@@ -2318,6 +2564,16 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
                 self.needsDisplay = YES;
                 return;
             }
+            KineticStructureEdit* indentEdit =
+                !usesCommand && !usesOption
+                    ? kineticIndentBackspaceEdit(_text, _caretIndex, _tabWidth)
+                    : nil;
+            if (indentEdit != nil) {
+                [self applyStructureEdit:indentEdit];
+                [self ensureCaretVisible];
+                self.needsDisplay = YES;
+                return;
+            }
             NSUInteger deletionStart = 0;
             if (usesCommand) {
                 deletionStart = [self lineStartIndexFromIndex:_caretIndex];
@@ -2365,12 +2621,13 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
             [self updateDirtyState];
         }
     } else if (event.keyCode == 36 || event.keyCode == 76) {
-        [self applyStructureEdit:kineticNewlineEdit(_text, initialSelection,
-                                                    _fileUrl.lastPathComponent ?: _documentTitle,
-                                                    _tabWidth, _autoIndent)];
+        [self applyStructureEdit:kineticNewlineEditWithTabs(_text, initialSelection,
+                                                            _fileUrl.lastPathComponent
+                                                                ?: _documentTitle,
+                                                            _tabWidth, _autoIndent, _insertTabs)];
     } else if (event.keyCode == 48) {
-        [self applyStructureEdit:kineticTabEdit(_text, initialSelection, _tabWidth,
-                                                extendsSelection)];
+        [self applyStructureEdit:kineticTabEditWithTabs(_text, initialSelection, _tabWidth,
+                                                        extendsSelection, _insertTabs)];
     } else if (event.keyCode == 123) {
         if (!extendsSelection && initialSelection.length > 0) {
             _caretIndex = initialSelection.location;

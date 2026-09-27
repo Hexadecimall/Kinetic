@@ -161,6 +161,22 @@ int main(int argc, const char* argv[]) {
         require([delegate.definitionPath.stringByResolvingSymlinksInPath
                     isEqualToString:delegate.path.stringByResolvingSymlinksInPath],
                 @"definition path");
+        delegate.source = @"int answer() { return 42; }\nint main() { ans\n";
+        delegate.selection = NSMakeRange(
+            [delegate.source rangeOfString:@"ans" options:NSBackwardsSearch].location + 3, 0);
+        [host emitEvent:@"document.changed"];
+        require([host hasCompletionProviderForFileName:@"main.cpp"],
+                @"clangd completion provider registered");
+        require(waitUntil(^BOOL {
+                  NSArray* items = [host completionItemsForPrefix:@"ans" fileName:@"main.cpp"];
+                  for (NSDictionary* item in items) {
+                      if ([item[@"insertText"] isEqualToString:@"answer"]) {
+                          return YES;
+                      }
+                  }
+                  return NO;
+                }),
+                @"clangd returned answer completion");
         NSString* headerPath = [root stringByAppendingPathComponent:@"main.hpp"];
         require([@"int answer();\n" writeToFile:headerPath
                                      atomically:YES

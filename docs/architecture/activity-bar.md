@@ -15,7 +15,8 @@ dotfiles and hidden folders; selecting a file opens it in the editor. The projec
 New File and New Folder controls. Their Kinetic-drawn dialogs create inside the current project,
 including a selected subfolder, reject duplicates, and reveal the result in the shared tree. A new
 file opens in its own tab. Dot-prefixed names are valid. The same hidden entries appear in custom
-Open and Save browsers. Kinetic-drawn context menus provide file/folder creation and path copying
+Open and Save browsers. Explorer searches nested filenames in the current project, and custom
+Open File/Open Folder browsers filter the current folder by name. Kinetic-drawn context menus provide file/folder creation and path copying
 from the Explorer, and opening or path copying from file-browser rows. Directory symlinks are
 navigable folders in both surfaces. The dialog panel, list, and selection fill are opaque, keeping
 Home content from showing through a selected row. Compact low-contrast header
@@ -24,7 +25,7 @@ group the open document, workspace, repository, and installed-plugin sections wi
 styling or non-functional disclosure affordances. Source Control/GitHub remains an integration
 placeholder. The Plugins page browses the public catalog, searches plugins and publishers, and
 separates Discover from Installed. It shows description, publisher, Official status, version,
-unrated state, and install/update/remove actions. Official C/C++ Support is removable just like
+unrated state, and install/update/remove actions with a dedicated confirmation panel. Official C/C++ Support is removable just like
 other catalog plugins. Plugin commands remain registered editor actions, not navigation items.
 GitHub account connection lives in the titlebar.
 

@@ -59,6 +59,7 @@
         "fontSize": { "type": "number", "minimum": 6.0 },
         "lineHeight": { "type": "number", "minimum": 8.0 },
         "tabWidth": { "type": "integer", "minimum": 1, "maximum": 16 },
+        "insertTabs": { "type": "boolean" },
         "autoIndent": { "type": "boolean" },
         "autoPairs": { "type": "boolean" },
         "verticalScrolling": { "type": "boolean" },

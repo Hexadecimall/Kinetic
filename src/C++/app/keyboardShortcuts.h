@@ -9,6 +9,7 @@ typedef NS_ENUM(NSInteger, KineticShortcutCommand) {
     KineticShortcutCommandSaveFile,
     KineticShortcutCommandSearchWorkspace,
     KineticShortcutCommandSearchFile,
+    KineticShortcutCommandSettings,
     KineticShortcutCommandPreviousTab,
     KineticShortcutCommandNextTab,
     KineticShortcutCommandQuit,
