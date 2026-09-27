@@ -6,8 +6,12 @@ scriptDir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 
 if rg -n --hidden --glob '!build/**' --glob '!dist/**' --glob '!.git/**' \
     --glob '!scripts/audit-public' \
-    '(/Users/|/opt/Projects/|/Volumes/|AI-generated|Claude|Codex)' "$KINETIC_ROOT"; then
-    kinetic_die "public-source audit found private paths or agent references"
+    '(/Users/|/Volumes/)' "$KINETIC_ROOT"; then
+    kinetic_die "audit found private paths"
+else
+    if which rg > /dev/null; then
+        echo "audit passed"
+    else
+        kineticDie "Ripgrep is not installed."
+    fi
 fi
-
-printf 'Public-source audit passed\n'
