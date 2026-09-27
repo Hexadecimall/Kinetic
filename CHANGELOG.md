@@ -2,7 +2,14 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.17.0 - Unreleased
+## 0.17.1 - Unreleased
+
+### Changed
+
+- Expanded the public repository ignore rules for local configuration, editor state, generated
+  output, diagnostics, and credential files. A local `.fiddleaudit` denylist stays untracked.
+
+## 0.17.0
 
 ### Added
 

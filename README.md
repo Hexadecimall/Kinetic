@@ -7,7 +7,7 @@
 </p>
 
 > [!IMPORTANT]
-> Kinetic `0.17.0` is an early functional preview. Editing, retained multi-document tabs, persisted
+> Kinetic `0.17.1` is an early functional preview. Editing, retained multi-document tabs, persisted
 > recent projects, mouse selection, undo/redo, basic syntax highlighting, auto-indentation,
 > matching delimiters, custom context menus,
 > in-file and project search,
