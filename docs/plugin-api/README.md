@@ -26,6 +26,9 @@ The current host supports:
 | `subscribeEvent` | Listen for `document.activated` or `document.changed`. |
 | `copyDocumentUtf8` | Return the active document's byte length. Pass a buffer larger than the returned length to receive NUL-terminated UTF-8. |
 | `replaceSelectionUtf8` | Replace the active selection using normal editor edit/dirty-state handling. |
+| `setString`, `copyString` | Change or read a supported UTF-8 string property. `copyString` returns `UINT64_MAX` for an unknown property. |
+| `getSelection`, `setSelection` | Read or set the active selection as a UTF-16 range. |
+| `replaceRangeUtf8` | Replace an explicit UTF-16 document range through the Rust document core and normal undo/dirty handling. |
 
 Supported numeric property keys and ranges:
 
@@ -41,6 +44,13 @@ Supported numeric property keys and ranges:
 | `editor.scroll.natural` | 0 or 1 |
 | `editor.indentation.autoIndent` | 0 or 1 |
 | `editor.delimiters.autoPairs` | 0 or 1 |
+
+Supported string properties:
+
+| Key | Accepted value |
+| --- | --- |
+| `editor.text.fontFamily` | Empty for the system monospace font, or an installed font's PostScript name (maximum 128 characters) |
+| `editor.canvas.background` | `#RRGGBB` color; the editor's existing backdrop alpha is retained |
 
 `tests/samplePlugin.cpp` is a compilable example; `kineticPluginHostTests` loads it and checks
 property changes, command execution, event delivery, and document editing. A third-party C++
@@ -59,9 +69,11 @@ The GitHub-backed publication flow and Official policy are documented in
 [`registry/README.md`](../../registry/README.md). The current editor does not yet browse or install
 from that catalog.
 
-The current ABI does **not** yet expose every editor control. Typed string/theme properties,
-settings persistence, shortcut registration, custom panels, language tooling, diagnostics, file
-system providers, and granular UI contributions require further host work. These capabilities
-must be added through versioned properties, commands, events, and registries instead of exposing
-Objective-C++ view pointers or unstable Rust internals. Marketplace trust and official-publisher
-verification are separate future work, not implied by a local plugin's metadata.
+The current ABI does **not** yet expose every editor control. The intended customization contract
+requires stable registries for settings, shortcuts, menus, panels, rendering, language tools,
+diagnostics, and file-system providers. These still need implementation; changing one exposed
+property does not imply arbitrary view control. The next backend boundary work is moving selection,
+workspace search, settings, and plugin registries to Rust. API growth must preserve old structure
+prefixes, check `structSize`, and avoid exposing Objective-C++ view pointers or unstable Rust
+internals. Marketplace trust and official-publisher verification are separate future work, not
+implied by a local plugin's metadata.

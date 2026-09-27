@@ -2,7 +2,23 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.19.1 - Unreleased
+## 0.20.0 - Unreleased
+
+### Added
+
+- Rust-owned document text, save state, and bounded undo/redo history behind an opaque C ABI.
+  The C++ editor maintains a drawing mirror and applies UTF-16 edit ranges through Rust.
+- Native plugin ABI functions for typed string properties, selection access, and range editing.
+  Plugins can now change the editor canvas color and font, in addition to existing numeric
+  typography and behavior properties.
+- Rust and C++ boundary tests for Unicode edits, history, and dirty-state transitions.
+
+### Changed
+
+- Editor edits and save-state checks now consult the Rust document core rather than Objective-C++
+  text/history storage.
+
+## 0.19.1
 
 ### Fixed
 

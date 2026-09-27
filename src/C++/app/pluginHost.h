@@ -7,8 +7,13 @@
 @protocol KineticPluginHostDelegate <NSObject>
 - (BOOL)pluginHost:(KineticPluginHost*)host setNumber:(double)value property:(NSString*)property;
 - (BOOL)pluginHost:(KineticPluginHost*)host getNumber:(double*)value property:(NSString*)property;
+- (BOOL)pluginHost:(KineticPluginHost*)host setString:(NSString*)value property:(NSString*)property;
+- (NSString*)pluginHost:(KineticPluginHost*)host getString:(NSString*)property;
 - (NSString*)pluginHostActiveDocument:(KineticPluginHost*)host;
 - (BOOL)pluginHost:(KineticPluginHost*)host replaceSelection:(NSString*)text;
+- (BOOL)pluginHost:(KineticPluginHost*)host getSelection:(NSRange*)selection;
+- (BOOL)pluginHost:(KineticPluginHost*)host setSelection:(NSRange)selection;
+- (BOOL)pluginHost:(KineticPluginHost*)host replaceRange:(NSRange)range withString:(NSString*)text;
 @end
 
 @interface KineticPluginHost : NSObject

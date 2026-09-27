@@ -1,11 +1,10 @@
-//! Kinetic's editor-core boundary.
-//!
-//! The implementation is intentionally small during the foundation phase. The exported functions
-//! establish the versioned C ABI without exposing Rust layouts or ownership across the boundary.
+//! Kinetic's editor-core boundary. Rust owns document text, save state, and edit history.
 
 #![allow(non_snake_case, non_upper_case_globals)]
 
 use std::ffi::c_char;
+
+mod document;
 
 const abiVersion: u32 = 1;
 const versionBytes: &[u8] = concat!(env!("CARGO_PKG_VERSION"), "\0").as_bytes();

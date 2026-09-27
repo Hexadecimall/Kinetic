@@ -40,6 +40,7 @@ add_custom_command(
         "${CMAKE_SOURCE_DIR}/Cargo.toml"
         "${CMAKE_SOURCE_DIR}/src/Rust/backend/Cargo.toml"
         "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/lib.rs"
+        "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/document.rs"
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     COMMENT "Building Kinetic's Rust backend"
     VERBATIM)
@@ -98,6 +99,22 @@ add_dependencies(Kinetic kinetic_cli)
 enable_testing()
 add_test(NAME kinetic_cli_version COMMAND kinetic_cli --version)
 set_tests_properties(kinetic_cli_version PROPERTIES PASS_REGULAR_EXPRESSION "kinetic ${PROJECT_VERSION}")
+
+add_executable(kineticDocumentBackendTests tests/documentBackendTests.cpp)
+target_include_directories(kineticDocumentBackendTests PRIVATE src/C++/bridge)
+target_link_libraries(kineticDocumentBackendTests PRIVATE kinetic_backend)
+add_test(NAME kineticDocumentBackend COMMAND kineticDocumentBackendTests)
+
+add_executable(kineticEditorBackendIntegrationTests
+    tests/editorBackendIntegrationTests.mm
+    src/C++/ui/editorView.mm src/C++/ui/activityBar.mm src/C++/ui/contextMenu.mm
+    src/C++/ui/editorStructure.mm src/C++/ui/searchPopover.mm src/C++/ui/syntaxHighlight.mm
+    src/C++/ui/tween.mm src/C++/app/workspaceSearch.mm)
+target_include_directories(kineticEditorBackendIntegrationTests PRIVATE
+    include src/C++/app src/C++/bridge src/C++/ui)
+target_compile_options(kineticEditorBackendIntegrationTests PRIVATE "-fobjc-arc")
+target_link_libraries(kineticEditorBackendIntegrationTests PRIVATE kinetic_backend "-framework AppKit")
+add_test(NAME kineticEditorBackendIntegration COMMAND kineticEditorBackendIntegrationTests)
 
 add_executable(kineticWorkspaceSearchTests tests/workspaceSearchTests.mm
                                            src/C++/app/workspaceSearch.mm)

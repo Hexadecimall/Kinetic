@@ -6,6 +6,7 @@
 #import "syntaxHighlight.h"
 #import "tween.h"
 
+#include "kineticBackend.h"
 #include "workspaceSearch.h"
 
 #include <cmath>
@@ -65,9 +66,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 
 @interface KineticEditorView () <KineticActivityBarDelegate, KineticSearchPopoverDelegate> {
     NSMutableString* _text;
-    NSString* _savedText;
-    NSMutableArray<NSDictionary*>* _undoStack;
-    NSMutableArray<NSDictionary*>* _redoStack;
+    KineticDocument* _document;
     NSUInteger _caretIndex;
     NSUInteger _selectionAnchor;
     NSTrackingArea* _trackingArea;
@@ -90,6 +89,9 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     CGFloat _fontSize;
     CGFloat _lineHeight;
     CGFloat _letterSpacing;
+    NSString* _fontName;
+    NSString* _canvasColorHex;
+    NSColor* _canvasColor;
     NSUInteger _tabWidth;
     BOOL _autoIndent;
     BOOL _autoPairs;
@@ -122,9 +124,8 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     self = [super initWithFrame:frameRect];
     if (self) {
         _text = [[NSMutableString alloc] initWithString:contents ?: @""];
-        _savedText = [_text copy];
-        _undoStack = [NSMutableArray array];
-        _redoStack = [NSMutableArray array];
+        NSData* initialBytes = [_text dataUsingEncoding:NSUTF8StringEncoding];
+        _document = kineticDocumentCreate((const uint8_t*)initialBytes.bytes, initialBytes.length);
         _caretIndex = 0;
         _selectionAnchor = 0;
         _hoveredTabIndex = -1;
@@ -144,6 +145,9 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         _fontSize = 13.0;
         _lineHeight = 20.0;
         _letterSpacing = 0.0;
+        _fontName = @"";
+        _canvasColorHex = @"#2F3947";
+        _canvasColor = editorColor(47, 57, 71, 0.9);
         _tabWidth = 4;
         _autoIndent = YES;
         _autoPairs = YES;
@@ -171,6 +175,10 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         [self addSubview:_searchPopover];
     }
     return self;
+}
+
+- (void)dealloc {
+    kineticDocumentDestroy(_document);
 }
 
 - (NSString*)documentText {
@@ -431,8 +439,8 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 }
 
 - (void)markSaved {
-    _savedText = [_text copy];
-    _dirty = NO;
+    kineticDocumentMarkSaved(_document);
+    _dirty = kineticDocumentIsDirty(_document);
     self.needsDisplay = YES;
 }
 
@@ -507,6 +515,74 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     return YES;
 }
 
+- (BOOL)setPluginString:(NSString*)value property:(NSString*)property {
+    if ([property isEqualToString:@"editor.text.fontFamily"]) {
+        if (value.length > 128 || (value.length > 0 && [NSFont fontWithName:value
+                                                                       size:_fontSize] == nil)) {
+            return NO;
+        }
+        _fontName = [value copy];
+    } else if ([property isEqualToString:@"editor.canvas.background"]) {
+        if (value.length != 7 || ![value hasPrefix:@"#"] ||
+            [[value substringFromIndex:1]
+                rangeOfCharacterFromSet:
+                    [NSCharacterSet characterSetWithCharactersInString:@"0123456789abcdefABCDEF"]
+                        .invertedSet]
+                    .location != NSNotFound) {
+            return NO;
+        }
+        unsigned int rgb = 0;
+        [[NSScanner scannerWithString:[value substringFromIndex:1]] scanHexInt:&rgb];
+        _canvasColorHex = [value.uppercaseString copy];
+        _canvasColor = editorColor((rgb >> 16) & 0xff, (rgb >> 8) & 0xff, rgb & 0xff, 0.9);
+    } else {
+        return NO;
+    }
+    self.needsDisplay = YES;
+    return YES;
+}
+
+- (NSString*)getPluginString:(NSString*)property {
+    if ([property isEqualToString:@"editor.text.fontFamily"]) {
+        return _fontName;
+    }
+    if ([property isEqualToString:@"editor.canvas.background"]) {
+        return _canvasColorHex;
+    }
+    return nil;
+}
+
+- (NSRange)pluginSelection {
+    return [self selectionRange];
+}
+
+- (BOOL)setPluginSelection:(NSRange)selection {
+    if (selection.location > _text.length || selection.length > _text.length - selection.location) {
+        return NO;
+    }
+    _selectionAnchor = selection.location;
+    _caretIndex = NSMaxRange(selection);
+    [self ensureCaretVisible];
+    self.needsDisplay = YES;
+    return YES;
+}
+
+- (BOOL)replaceRangeFromPlugin:(NSRange)range withString:(NSString*)text {
+    if (range.location > _text.length || range.length > _text.length - range.location) {
+        return NO;
+    }
+    [self recordUndoState];
+    if (![self replaceTextInRange:range withString:text]) {
+        return NO;
+    }
+    _caretIndex = range.location + text.length;
+    _selectionAnchor = _caretIndex;
+    [self updateDirtyState];
+    [self ensureCaretVisible];
+    self.needsDisplay = YES;
+    return YES;
+}
+
 - (void)replaceSelectionFromPlugin:(NSString*)text {
     [self replaceSelectionWithString:text];
     [self ensureCaretVisible];
@@ -553,9 +629,10 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 }
 
 - (NSDictionary<NSAttributedStringKey, id>*)editorTextAttributes {
+    NSFont* font = _fontName.length > 0 ? [NSFont fontWithName:_fontName size:_fontSize] : nil;
     return @{
-        NSFontAttributeName : [NSFont monospacedSystemFontOfSize:_fontSize
-                                                          weight:NSFontWeightRegular],
+        NSFontAttributeName : font
+            ?: [NSFont monospacedSystemFontOfSize:_fontSize weight:NSFontWeightRegular],
         NSForegroundColorAttributeName : editorColor(226, 233, 242),
         NSKernAttributeName : @(_letterSpacing),
     };
@@ -596,7 +673,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 }
 
 - (void)updateDirtyState {
-    _dirty = ![_text isEqualToString:_savedText];
+    _dirty = kineticDocumentIsDirty(_document);
     _syntaxNeedsUpdate = YES;
     [self.commandHandler editorDocumentDidChange];
     if (_searchOpen && _searchPopover.scope == KineticSearchScopeFile) {
@@ -604,49 +681,56 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     }
 }
 
-- (NSDictionary*)editorState {
-    return @{
-        @"text" : [_text copy],
-        @"caret" : @(_caretIndex),
-        @"anchor" : @(_selectionAnchor),
-    };
-}
-
-- (void)restoreEditorState:(NSDictionary*)state {
-    [_text setString:state[@"text"]];
-    _caretIndex = [state[@"caret"] unsignedIntegerValue];
-    _selectionAnchor = [state[@"anchor"] unsignedIntegerValue];
+- (void)refreshTextFromBackend {
+    uint64_t length = kineticDocumentCopyUtf8(_document, nullptr, 0);
+    NSMutableData* bytes = [NSMutableData dataWithLength:(NSUInteger)length + 1];
+    kineticDocumentCopyUtf8(_document, (uint8_t*)bytes.mutableBytes, bytes.length);
+    NSString* text = [[NSString alloc] initWithBytes:bytes.bytes
+                                              length:(NSUInteger)length
+                                            encoding:NSUTF8StringEncoding];
+    [_text setString:text ?: @""];
     [self updateDirtyState];
     [self ensureCaretVisible];
     self.needsDisplay = YES;
 }
 
 - (void)recordUndoState {
-    [_undoStack addObject:[self editorState]];
-    if (_undoStack.count > 256) {
-        [_undoStack removeObjectAtIndex:0];
-    }
-    [_redoStack removeAllObjects];
+    kineticDocumentCheckpoint(_document, _caretIndex, _selectionAnchor);
 }
 
 - (void)undoEdit {
-    NSDictionary* state = _undoStack.lastObject;
-    if (state == nil) {
-        return;
+    uint64_t caret = 0;
+    uint64_t anchor = 0;
+    if (kineticDocumentHistoryStep(_document, false, _caretIndex, _selectionAnchor, &caret,
+                                   &anchor) == 0) {
+        _caretIndex = (NSUInteger)caret;
+        _selectionAnchor = (NSUInteger)anchor;
+        [self refreshTextFromBackend];
     }
-    [_redoStack addObject:[self editorState]];
-    [_undoStack removeLastObject];
-    [self restoreEditorState:state];
 }
 
 - (void)redoEdit {
-    NSDictionary* state = _redoStack.lastObject;
-    if (state == nil) {
-        return;
+    uint64_t caret = 0;
+    uint64_t anchor = 0;
+    if (kineticDocumentHistoryStep(_document, true, _caretIndex, _selectionAnchor, &caret,
+                                   &anchor) == 0) {
+        _caretIndex = (NSUInteger)caret;
+        _selectionAnchor = (NSUInteger)anchor;
+        [self refreshTextFromBackend];
     }
-    [_undoStack addObject:[self editorState]];
-    [_redoStack removeLastObject];
-    [self restoreEditorState:state];
+}
+
+- (BOOL)replaceTextInRange:(NSRange)range withString:(NSString*)replacement {
+    NSData* bytes = [replacement dataUsingEncoding:NSUTF8StringEncoding];
+    if (bytes == nil) {
+        return NO;
+    }
+    if (kineticDocumentReplaceUtf8(_document, range.location, range.length,
+                                   (const uint8_t*)bytes.bytes, bytes.length) != 0) {
+        return NO;
+    }
+    [_text replaceCharactersInRange:range withString:replacement];
+    return YES;
 }
 
 - (BOOL)deleteSelection {
@@ -654,7 +738,9 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     if (selection.length == 0) {
         return NO;
     }
-    [_text deleteCharactersInRange:selection];
+    if (![self replaceTextInRange:selection withString:@""]) {
+        return NO;
+    }
     _caretIndex = selection.location;
     _selectionAnchor = _caretIndex;
     [self updateDirtyState];
@@ -662,10 +748,12 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 }
 
 - (void)replaceSelectionWithString:(NSString*)replacement {
+    NSRange selection = [self selectionRange];
     [self recordUndoState];
-    [self deleteSelection];
-    [_text insertString:replacement atIndex:_caretIndex];
-    _caretIndex += replacement.length;
+    if (![self replaceTextInRange:selection withString:replacement]) {
+        return;
+    }
+    _caretIndex = selection.location + replacement.length;
     _selectionAnchor = _caretIndex;
     [self updateDirtyState];
 }
@@ -676,7 +764,9 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     }
     if (edit.range.length > 0 || edit.replacement.length > 0) {
         [self recordUndoState];
-        [_text replaceCharactersInRange:edit.range withString:edit.replacement];
+        if (![self replaceTextInRange:edit.range withString:edit.replacement]) {
+            return;
+        }
         [self updateDirtyState];
     }
     _selectionAnchor = edit.range.location + edit.anchorOffset;
@@ -915,9 +1005,9 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 - (BOOL)contextMenuItemEnabled:(NSInteger)index {
     switch ((EditorMenuCommand)index) {
     case EditorMenuCommand::undo:
-        return _undoStack.count > 0;
+        return kineticDocumentCanUndo(_document);
     case EditorMenuCommand::redo:
-        return _redoStack.count > 0;
+        return kineticDocumentCanRedo(_document);
     case EditorMenuCommand::cut:
     case EditorMenuCommand::copy:
         return [self selectionRange].length > 0;
@@ -1254,7 +1344,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 
 - (void)drawRect:(NSRect)dirtyRect {
     (void)dirtyRect;
-    [editorColor(47, 57, 71, 0.9) setFill];
+    [_canvasColor setFill];
     NSRectFill(self.bounds);
 
     [editorColor(42, 51, 64, 0.9) setFill];
@@ -1846,7 +1936,10 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
                     [_text rangeOfComposedCharacterSequenceAtIndex:_caretIndex - 1].location;
             }
             [self recordUndoState];
-            [_text deleteCharactersInRange:NSMakeRange(deletionStart, _caretIndex - deletionStart)];
+            if (![self replaceTextInRange:NSMakeRange(deletionStart, _caretIndex - deletionStart)
+                               withString:@""]) {
+                return;
+            }
             _caretIndex = deletionStart;
             _selectionAnchor = _caretIndex;
             [self updateDirtyState];
@@ -1869,7 +1962,10 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
                     NSMaxRange([_text rangeOfComposedCharacterSequenceAtIndex:_caretIndex]);
             }
             [self recordUndoState];
-            [_text deleteCharactersInRange:NSMakeRange(_caretIndex, deletionEnd - _caretIndex)];
+            if (![self replaceTextInRange:NSMakeRange(_caretIndex, deletionEnd - _caretIndex)
+                               withString:@""]) {
+                return;
+            }
             _selectionAnchor = _caretIndex;
             [self updateDirtyState];
         }

@@ -16,7 +16,9 @@ between its C++ platform/rendering layer and Rust editor core.
 
 ### Rust
 
-- Text buffers, selections, edits, history, and workspace state
+- Document text, edit application, dirty state, and bounded undo/redo history
+- Planned ownership of selections, workspace state, search, settings, language tooling, and
+  plugin registries; these still have Objective-C++ implementations in the current preview
 - Commands, settings, TOML configuration, and Lua automation
 - Project discovery, tasks, language tooling, and LSP lifecycle
 - Long-term plugin capability policy and backend registries
@@ -25,7 +27,9 @@ between its C++ platform/rendering layer and Rust editor core.
 
 The internal boundary and native plugin surface use versioned C-compatible functions, opaque
 handles, explicit ownership, and fixed-width types. Rust and C++ object layouts never cross the
-boundary. Keystroke, text-layout, and per-glyph rendering hot paths stay within their owning side.
+boundary. Rust owns one document handle per editor tab. The C++ view retains a synchronized text
+mirror for text layout and drawing; edit ranges use UTF-16 offsets at the boundary and Rust stores
+UTF-8. Keystroke, text-layout, and per-glyph rendering hot paths stay within their owning side.
 The current native plugin host lives in Objective-C++ because the first exposed properties control
 the existing custom editor surface. It loads local dynamic libraries through the C ABI; native
 plugins never receive view-object pointers.
@@ -51,10 +55,11 @@ browser through the public Kinetic OAuth app; Kinetic stores the resulting sessi
 Keychain and refreshes expiring tokens. See [`accounts.md`](accounts.md) for the current permissions
 and sign-out behavior.
 
-The Plugins panel now lists locally loaded native plugins and their registered commands. A plugin
-can set supported editor properties, including letter spacing, and subscribe to document events.
-Panels, language-tool registries, and arbitrary UI contributions are future API expansions, not
-implemented plugin features in this preview.
+The Plugins panel lists locally loaded native plugins and their registered commands. A plugin
+can set supported numeric and string properties, including letter spacing, font, and editor canvas
+color; subscribe to document events; and edit an explicit UTF-16 range or selection. The host is
+still Objective-C++ and in-process. Panels, language-tool registries, custom render passes, and
+arbitrary UI contributions are future API expansions, not implemented plugin features.
 
 Opening a workspace folder populates an expandable file tree without using a native outline view.
 The Explorer shows hidden entries and creates files and folders through Kinetic-drawn dialogs; the

@@ -39,6 +39,11 @@
 - (void)markSaved;
 - (BOOL)setPluginNumber:(double)value property:(NSString*)property;
 - (BOOL)getPluginNumber:(double*)value property:(NSString*)property;
+- (BOOL)setPluginString:(NSString*)value property:(NSString*)property;
+- (NSString*)getPluginString:(NSString*)property;
+- (NSRange)pluginSelection;
+- (BOOL)setPluginSelection:(NSRange)selection;
+- (BOOL)replaceRangeFromPlugin:(NSRange)range withString:(NSString*)text;
 - (void)replaceSelectionFromPlugin:(NSString*)text;
 - (void)setPluginNames:(NSArray<NSString*>*)names
               commands:(NSArray<NSDictionary<NSString*, NSString*>*>*)commands

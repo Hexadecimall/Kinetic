@@ -126,6 +126,7 @@
 @property(nonatomic, strong) KineticPluginHost* pluginHost;
 @property(nonatomic, strong) KineticGitHubAccount* githubAccount;
 @property(nonatomic, strong) NSMutableDictionary<NSString*, NSNumber*>* pluginNumberOverrides;
+@property(nonatomic, strong) NSMutableDictionary<NSString*, NSString*>* pluginStringOverrides;
 @property(nonatomic, strong) NSURL* workspaceUrl;
 @property(nonatomic, copy) NSDictionary* workspaceUiState;
 @property(nonatomic, copy) NSDictionary* searchUiState;
@@ -141,6 +142,7 @@
 
     self.editors = [NSMutableArray array];
     self.pluginNumberOverrides = [NSMutableDictionary dictionary];
+    self.pluginStringOverrides = [NSMutableDictionary dictionary];
     self.workspaceUiState = @{};
     self.searchUiState = @{};
     self.activitySection = KineticActivitySectionNone;
@@ -364,6 +366,9 @@
     for (NSString* property in self.pluginNumberOverrides) {
         [editor setPluginNumber:self.pluginNumberOverrides[property].doubleValue property:property];
     }
+    for (NSString* property in self.pluginStringOverrides) {
+        [editor setPluginString:self.pluginStringOverrides[property] property:property];
+    }
     editor.workspaceUrl = self.workspaceUrl;
     [editor applyWorkspaceUiState:self.workspaceUiState];
     [editor applySearchUiState:self.searchUiState];
@@ -409,6 +414,27 @@
     return [self.editor getPluginNumber:value property:property];
 }
 
+- (BOOL)pluginHost:(KineticPluginHost*)host
+         setString:(NSString*)value
+          property:(NSString*)property {
+    (void)host;
+    if (self.editor == nil || ![self.editor setPluginString:value property:property]) {
+        return NO;
+    }
+    for (KineticEditorView* editor in self.editors) {
+        if (editor != self.editor) {
+            [editor setPluginString:value property:property];
+        }
+    }
+    self.pluginStringOverrides[property] = value;
+    return YES;
+}
+
+- (NSString*)pluginHost:(KineticPluginHost*)host getString:(NSString*)property {
+    (void)host;
+    return [self.editor getPluginString:property];
+}
+
 - (NSString*)pluginHostActiveDocument:(KineticPluginHost*)host {
     (void)host;
     return self.editor.documentText;
@@ -421,6 +447,25 @@
     }
     [self.editor replaceSelectionFromPlugin:text];
     return YES;
+}
+
+- (BOOL)pluginHost:(KineticPluginHost*)host getSelection:(NSRange*)selection {
+    (void)host;
+    if (self.editor == nil || selection == nullptr) {
+        return NO;
+    }
+    *selection = self.editor.pluginSelection;
+    return YES;
+}
+
+- (BOOL)pluginHost:(KineticPluginHost*)host setSelection:(NSRange)selection {
+    (void)host;
+    return [self.editor setPluginSelection:selection];
+}
+
+- (BOOL)pluginHost:(KineticPluginHost*)host replaceRange:(NSRange)range withString:(NSString*)text {
+    (void)host;
+    return [self.editor replaceRangeFromPlugin:range withString:text];
 }
 
 - (void)openFile {

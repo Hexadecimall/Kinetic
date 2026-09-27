@@ -26,6 +26,12 @@ static int32_t subscribeEvent(void* context, const char* eventName, KineticPlugi
                               void* userData);
 static uint64_t copyDocumentUtf8(void* context, char* buffer, uint64_t capacity);
 static int32_t replaceSelectionUtf8(void* context, const char* text, uint64_t length);
+static int32_t setString(void* context, const char* property, const char* text, uint64_t length);
+static uint64_t copyString(void* context, const char* property, char* buffer, uint64_t capacity);
+static int32_t getSelection(void* context, uint64_t* startUtf16, uint64_t* lengthUtf16);
+static int32_t setSelection(void* context, uint64_t startUtf16, uint64_t lengthUtf16);
+static int32_t replaceRangeUtf8(void* context, uint64_t startUtf16, uint64_t lengthUtf16,
+                                const char* text, uint64_t byteLength);
 
 static NSString* trimmed(NSString* text) {
     return [text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
@@ -181,6 +187,11 @@ static BOOL readPluginConfiguration(NSURL* configurationUrl, BOOL* enabled,
             subscribeEvent,
             copyDocumentUtf8,
             replaceSelectionUtf8,
+            setString,
+            copyString,
+            getSelection,
+            setSelection,
+            replaceRangeUtf8,
         };
     }
     return self;
@@ -302,6 +313,84 @@ static int32_t replaceSelectionUtf8(void* context, const char* text, uint64_t le
                                                    encoding:NSUTF8StringEncoding];
     return replacement != nil && [host.delegate pluginHost:host replaceSelection:replacement] ? 0
                                                                                               : -1;
+}
+
+static int32_t setString(void* context, const char* property, const char* text, uint64_t length) {
+    if (![NSThread isMainThread] || text == nullptr || length > 65536) {
+        return -1;
+    }
+    KineticPluginHost* host = hostForContext(context);
+    NSString* key = stringForUtf8(property);
+    NSString* value = [[NSString alloc] initWithBytes:text
+                                               length:(NSUInteger)length
+                                             encoding:NSUTF8StringEncoding];
+    return key != nil && value != nil &&
+                   [host.delegate pluginHost:host setString:value property:key]
+               ? 0
+               : -1;
+}
+
+static uint64_t copyString(void* context, const char* property, char* buffer, uint64_t capacity) {
+    if (![NSThread isMainThread]) {
+        return UINT64_MAX;
+    }
+    KineticPluginHost* host = hostForContext(context);
+    NSString* key = stringForUtf8(property);
+    NSString* value = key == nil ? nil : [host.delegate pluginHost:host getString:key];
+    NSData* bytes = [value dataUsingEncoding:NSUTF8StringEncoding];
+    if (bytes == nil) {
+        return UINT64_MAX;
+    }
+    if (buffer != nullptr && capacity > bytes.length) {
+        memcpy(buffer, bytes.bytes, bytes.length);
+        buffer[bytes.length] = '\0';
+    }
+    return bytes.length;
+}
+
+static int32_t getSelection(void* context, uint64_t* startUtf16, uint64_t* lengthUtf16) {
+    if (![NSThread isMainThread] || startUtf16 == nullptr || lengthUtf16 == nullptr) {
+        return -1;
+    }
+    KineticPluginHost* host = hostForContext(context);
+    NSRange selection = NSMakeRange(0, 0);
+    if (![host.delegate pluginHost:host getSelection:&selection]) {
+        return -1;
+    }
+    *startUtf16 = selection.location;
+    *lengthUtf16 = selection.length;
+    return 0;
+}
+
+static int32_t setSelection(void* context, uint64_t startUtf16, uint64_t lengthUtf16) {
+    if (![NSThread isMainThread] || startUtf16 > NSUIntegerMax || lengthUtf16 > NSUIntegerMax ||
+        startUtf16 + lengthUtf16 < startUtf16) {
+        return -1;
+    }
+    KineticPluginHost* host = hostForContext(context);
+    return [host.delegate pluginHost:host
+                        setSelection:NSMakeRange((NSUInteger)startUtf16, (NSUInteger)lengthUtf16)]
+               ? 0
+               : -1;
+}
+
+static int32_t replaceRangeUtf8(void* context, uint64_t startUtf16, uint64_t lengthUtf16,
+                                const char* text, uint64_t byteLength) {
+    if (![NSThread isMainThread] || text == nullptr || byteLength > 16 * 1024 * 1024 ||
+        startUtf16 > NSUIntegerMax || lengthUtf16 > NSUIntegerMax ||
+        startUtf16 + lengthUtf16 < startUtf16) {
+        return -1;
+    }
+    KineticPluginHost* host = hostForContext(context);
+    NSString* replacement = [[NSString alloc] initWithBytes:text
+                                                     length:(NSUInteger)byteLength
+                                                   encoding:NSUTF8StringEncoding];
+    return replacement != nil && [host.delegate pluginHost:host
+                                              replaceRange:NSMakeRange((NSUInteger)startUtf16,
+                                                                       (NSUInteger)lengthUtf16)
+                                                withString:replacement]
+               ? 0
+               : -1;
 }
 
 - (void)loadPluginsAtUrl:(NSURL*)directoryUrl configurationUrl:(NSURL*)configurationUrl {

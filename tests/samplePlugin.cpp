@@ -18,18 +18,33 @@ void appendDocumentLength(void*) {
     pluginApi->replaceSelectionUtf8(pluginApi->context, suffix, 1);
 }
 
+void replaceFirstCharacter(void*) {
+    pluginApi->replaceRangeUtf8(pluginApi->context, 0, 1, "H", 1);
+}
+
 int32_t startPlugin(const KineticPluginApi* api) {
     if (api == nullptr || api->abiVersion != kineticPluginAbiVersion ||
         api->structSize < sizeof(KineticPluginApi)) {
         return -1;
     }
     pluginApi = api;
+    char background[8] = {};
+    uint64_t start = 0;
+    uint64_t length = 0;
     if (api->setNumber(api->context, "editor.text.letterSpacing", 1.25) != 0 ||
+        api->setString(api->context, "editor.canvas.background", "#2A3647", 7) != 0 ||
+        api->copyString(api->context, "editor.canvas.background", background, sizeof(background)) !=
+            7 ||
+        api->getSelection(api->context, &start, &length) != 0 || start != 5 || length != 0 ||
+        api->setSelection(api->context, 5, 0) != 0 ||
         api->registerCommand(api->context, "sample.increaseSpacing", "Increase Spacing",
                              increaseSpacing, nullptr) != 0 ||
         api->registerCommand(api->context, "sample.appendMarker", "Append Marker",
                              appendDocumentLength, nullptr) != 0 ||
-        api->subscribeEvent(api->context, "document.activated", onDocumentActivated, nullptr) != 0) {
+        api->registerCommand(api->context, "sample.replaceFirst", "Replace First",
+                             replaceFirstCharacter, nullptr) != 0 ||
+        api->subscribeEvent(api->context, "document.activated", onDocumentActivated, nullptr) !=
+            0) {
         return -1;
     }
     return 0;
