@@ -47,7 +47,7 @@ frame-driven cubic tween engine. AppKit supplies the window/event bridge, pasteb
 compositor backdrop sampling; controls, browser rows, selection presentation, text presentation,
 menus, and transitions are Kinetic-owned.
 
-The editor activity rail and its Explorer, Source Control/GitHub, Plugins, and Settings panels are
+The editor activity rail and its Explorer, Source Control/GitHub, Plugins, and Settings sections are
 also Kinetic-owned. File and project search share a top-right editor dropdown. Sections may be
 hidden, reordered, replaced, or extended once the
 settings and plugin registries are live; no section is a permanent hard-coded limit.
@@ -57,8 +57,9 @@ browser through the public Kinetic OAuth app; Kinetic stores the resulting sessi
 Keychain and refreshes expiring tokens. See [`accounts.md`](accounts.md) for the current permissions
 and sign-out behavior.
 
-The Plugins panel lists locally loaded native plugins, their registered commands, and scrollable
-contributed panel rows. A plugin can set supported numeric and string properties, including letter
+The dedicated Plugins page browses the public catalog and manages installed native plugins.
+Commands are registered editor actions rather than Plugins-page rows. Contributed panel rows
+remain supported by the plugin ABI, but no longer occupy the package browser. A plugin can set supported numeric and string properties, including letter
 spacing, font, and editor canvas
 color; subscribe to document events; edit an explicit UTF-16 range or selection; and register
 shortcuts, File menu items, viewport overlays, extension-specific formatters, syntax providers,

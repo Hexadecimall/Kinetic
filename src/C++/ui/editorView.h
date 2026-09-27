@@ -58,4 +58,6 @@
               commands:(NSArray<NSDictionary<NSString*, NSString*>*>*)commands
     configurationError:(NSString*)configurationError;
 - (void)setPluginPanels:(NSArray<NSDictionary<NSString*, id>*>*)panels;
+- (void)setCatalogPlugins:(NSArray<NSDictionary<NSString*, id>*>*)plugins status:(NSString*)status;
+- (void)setAppPackageStatus:(NSString*)status;
 @end

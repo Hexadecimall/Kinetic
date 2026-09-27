@@ -23,7 +23,7 @@ The current host supports:
 | Function | Effect |
 | --- | --- |
 | `setNumber`, `getNumber` | Read or change a supported numeric editor property. Changes apply to all tabs and future tabs in this window. |
-| `registerCommand` | Add an ID, visible title, and callback to the Plugins panel. IDs must be unique. |
+| `registerCommand` | Add an ID, visible title, and callback that shortcuts, menu items, and plugin controls can invoke. IDs must be unique. |
 | `subscribeEvent` | Listen for `document.activated` or `document.changed`. |
 | `copyDocumentUtf8` | Return the active document's byte length. Pass a buffer larger than the returned length to receive NUL-terminated UTF-8. |
 | `replaceSelectionUtf8` | Replace the active selection using normal editor edit/dirty-state handling. |
@@ -32,7 +32,7 @@ The current host supports:
 | `replaceRangeUtf8` | Replace an explicit UTF-16 document range through the Rust document core and normal undo/dirty handling. |
 | `registerShortcut` | Bind a registered command to a single alphanumeric key and modifier mask. Duplicate plugin chords are rejected. |
 | `registerFileMenuItem` | Add a registered command to Kinetic's custom File menu. |
-| `registerPanel` | Add a titled Plugins-panel view with callback-supplied label and command-button rows. |
+| `registerPanel` | Register a titled callback-supplied panel model. The package browser does not display contributed panels; a dedicated host surface is still pending. |
 | `registerOverlay` | Draw bounded rectangle/text commands over the active editor viewport. |
 | `registerFormatter` | Register a lowercase file extension and UTF-8 document formatter. Format Document appears in the File menu for matching files. |
 | `registerSyntaxProvider` | Supply line-local UTF-16 syntax tokens for a file extension. State carries multiline lexer context between lines. |

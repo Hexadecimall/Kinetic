@@ -683,64 +683,6 @@ BOOL activityIsDirectory(NSURL* url) {
             withAttributes:mutedAttributes];
         break;
     case KineticActivitySectionPlugins:
-        [self drawSectionHeader:@"INSTALLED" atY:45.0 attributes:headingAttributes];
-        [@"Kinetic Core" drawInRect:NSMakeRect(kRailWidth + 14.0, 82.0, kPanelWidth - 28.0, 18.0)
-                     withAttributes:bodyAttributes];
-        if (_pluginNames.count == 0) {
-            [(_pluginConfigurationError ?: @"No native plugins installed.")
-                    drawInRect:NSMakeRect(kRailWidth + 14.0, 112.0, kPanelWidth - 28.0, 34.0)
-                withAttributes:mutedAttributes];
-        }
-        for (NSUInteger index = 0; index < _pluginNames.count; ++index) {
-            CGFloat y = 112.0 + index * 25.0;
-            [_pluginNames[index]
-                    drawInRect:NSMakeRect(kRailWidth + 14.0, y, kPanelWidth - 28.0, 20.0)
-                withAttributes:bodyAttributes];
-        }
-        if (_pluginCommands.count > 0) {
-            CGFloat headerY = 126.0 + _pluginNames.count * 25.0;
-            [self drawSectionHeader:@"COMMANDS" atY:headerY attributes:headingAttributes];
-            for (NSUInteger index = 0; index < _pluginCommands.count; ++index) {
-                CGFloat y = headerY + 36.0 + index * 29.0;
-                NSRect buttonRect = NSMakeRect(kRailWidth + 10.0, y, kPanelWidth - 20.0, 25.0);
-                [activityColor(58, 69, 84,
-                               _hoveredPanelAction == (NSInteger)index + 200 ? 0.92 : 0.72)
-                    setFill];
-                [[NSBezierPath bezierPathWithRoundedRect:buttonRect xRadius:4.0 yRadius:4.0] fill];
-                [_pluginCommands[index][@"title"] drawInRect:NSInsetRect(buttonRect, 9.0, 3.0)
-                                              withAttributes:bodyAttributes];
-            }
-        }
-        if (_pluginPanels.count > 0) {
-            CGFloat y = [self pluginPanelsStartY];
-            [self drawSectionHeader:@"VIEWS" atY:y attributes:headingAttributes];
-            y += 36.0;
-            NSUInteger buttonIndex = 0;
-            for (NSDictionary<NSString*, id>* panel in _pluginPanels) {
-                [panel[@"title"]
-                        drawInRect:NSMakeRect(kRailWidth + 14.0, y, kPanelWidth - 28.0, 20.0)
-                    withAttributes:bodyAttributes];
-                y += 27.0;
-                for (NSDictionary<NSString*, NSString*>* row in panel[@"rows"]) {
-                    NSRect rect = NSMakeRect(kRailWidth + 10.0, y, kPanelWidth - 20.0, 25.0);
-                    if ([row[@"kind"] isEqualToString:@"button"]) {
-                        [activityColor(58, 69, 84,
-                                       _hoveredPanelAction == (NSInteger)buttonIndex + 300 ? 0.92
-                                                                                           : 0.72)
-                            setFill];
-                        [[NSBezierPath bezierPathWithRoundedRect:rect xRadius:4.0
-                                                         yRadius:4.0] fill];
-                        ++buttonIndex;
-                    }
-                    [row[@"title"]
-                            drawInRect:NSInsetRect(rect, 9.0, 3.0)
-                        withAttributes:[row[@"kind"] isEqualToString:@"button"] ? bodyAttributes
-                                                                                : mutedAttributes];
-                    y += 29.0;
-                }
-                y += 9.0;
-            }
-        }
         break;
     case KineticActivitySectionSettings:
     case KineticActivitySectionNone:
@@ -791,7 +733,8 @@ BOOL activityIsDirectory(NSURL* url) {
 
         _activeSection = section;
         [self.delegate activityBar:self didActivateSection:section];
-        BOOL opensPanel = section != KineticActivitySectionSettings;
+        BOOL opensPanel = section != KineticActivitySectionSettings &&
+                          section != KineticActivitySectionPlugins;
         if (opensPanel) {
             _displayedSection = section;
             if (NSWidth(self.frame) < kRailWidth + kPanelWidth - 0.5) {
@@ -862,26 +805,7 @@ BOOL activityIsDirectory(NSURL* url) {
             return;
         }
     } else if (_activeSection == KineticActivitySectionPlugins) {
-        if (point.y < 45.0) {
-            return;
-        }
-        point.y += _pluginScrollOffset;
-        CGFloat headerY = 126.0 + _pluginNames.count * 25.0;
-        for (NSUInteger index = 0; index < _pluginCommands.count; ++index) {
-            NSRect buttonRect = NSMakeRect(kRailWidth + 10.0, headerY + 36.0 + index * 29.0,
-                                           kPanelWidth - 20.0, 25.0);
-            if (NSPointInRect(point, buttonRect)) {
-                [self.delegate activityBar:self
-                    didRequestPluginCommand:_pluginCommands[index][@"id"]];
-                return;
-            }
-        }
-        for (NSDictionary<NSString*, id>* button in [self pluginPanelButtons]) {
-            if (NSPointInRect(point, [button[@"rect"] rectValue])) {
-                [self.delegate activityBar:self didRequestPluginCommand:button[@"id"]];
-                return;
-            }
-        }
+        return;
     }
 }
 

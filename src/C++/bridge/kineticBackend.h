@@ -9,6 +9,7 @@ extern "C" {
 
 uint32_t kineticBackendAbiVersion(void);
 const char* kineticBackendVersion(void);
+int32_t kineticPackageMain(void);
 
 typedef struct KineticDocument KineticDocument;
 typedef struct KineticExtensionRegistry KineticExtensionRegistry;

@@ -1,8 +1,8 @@
 # Activity bar
 
 The activity bar is a compact Kinetic-drawn rail shown only inside the editor. Its initial sections
-are Explorer, Source Control/GitHub, Plugins, and Settings. Selecting a section opens its
-side panel; selecting it again collapses the panel. The rail stays close to the editor surface color
+are Explorer, Source Control/GitHub, Plugins, and Settings. Explorer and Source Control open a
+side panel; Plugins and Settings open dedicated editor pages. The rail stays close to the editor surface color
 so it reads as navigation rather than a separate dark column. Opening and closing use the same
 ease-out motion; panel content remains rendered through the closing tween instead of disappearing
 before the panel reaches the rail.
@@ -22,8 +22,10 @@ Home content from showing through a selected row. Compact low-contrast header
 strips and single-edge dividers
 group the open document, workspace, repository, and installed-plugin sections without accordion
 styling or non-functional disclosure affordances. Source Control/GitHub remains an integration
-placeholder. Plugins lists locally loaded native libraries, registered commands, and scrollable
-plugin-provided label/button views. Publishing and online installation are not implemented;
+placeholder. The Plugins page browses the public catalog, searches plugins and publishers, and
+separates Discover from Installed. It shows description, publisher, Official status, version,
+unrated state, and install/update/remove actions. Bundled C/C++ Support appears as Included rather
+than a removable plugin. Plugin commands remain registered editor actions, not navigation items.
 GitHub account connection lives in the titlebar.
 
 Search lives in a Kinetic-drawn dropdown anchored beneath the Search icon at the right edge of the
@@ -37,7 +39,8 @@ contents, common generated folders, files over 1 MiB, and binary files are skipp
 300 matches or 10,000 scanned files.
 
 Settings opens a dedicated editor page instead of a narrow side panel. Live controls cover editor
-type, scrolling, syntax highlighting, indentation, and delimiter pairing.
+type, scrolling, syntax highlighting, indentation, and delimiter pairing. Application package
+controls check for updates and manage a user-scoped installation with explicit confirmation.
 
 The rail, panel, icons, selection indicator, hover treatment, section headers, dimensions, opening
 and closing animation durations, visibility, section order, and contributed sections belong to the

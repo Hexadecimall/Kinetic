@@ -71,6 +71,7 @@ add_custom_command(
         "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/lib.rs"
         "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/document.rs"
         "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/extensions.rs"
+        "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/packages.rs"
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     COMMENT "Building Kinetic's Rust backend"
     VERBATIM)
@@ -93,6 +94,7 @@ add_executable(
                               src/C++/ui/editorStructure.mm
                               src/C++/ui/fileDialog.mm
                               src/C++/ui/homeView.mm
+                              src/C++/ui/pluginBrowser.mm
                               src/C++/ui/searchPopover.mm
                               src/C++/ui/syntaxHighlight.mm
                               src/C++/ui/trafficBar.mm src/C++/ui/tween.mm
@@ -145,7 +147,7 @@ add_test(NAME kineticDocumentBackend COMMAND kineticDocumentBackendTests)
 add_executable(kineticEditorBackendIntegrationTests
     tests/editorBackendIntegrationTests.mm
     src/C++/ui/editorView.mm src/C++/ui/activityBar.mm src/C++/ui/contextMenu.mm
-    src/C++/ui/editorStructure.mm src/C++/ui/searchPopover.mm src/C++/ui/syntaxHighlight.mm
+    src/C++/ui/editorStructure.mm src/C++/ui/pluginBrowser.mm src/C++/ui/searchPopover.mm src/C++/ui/syntaxHighlight.mm
     src/C++/ui/tween.mm src/C++/app/workspaceSearch.mm)
 target_include_directories(kineticEditorBackendIntegrationTests PRIVATE
     include src/C++/app src/C++/bridge src/C++/ui)

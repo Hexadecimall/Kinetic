@@ -64,9 +64,17 @@ The Official catalog entry pins its publisher account ID and the verified 552,28
 asset. GitHub reports the release itself as immutable.
 
 “Official” means Kinetic project approval, not a claim that native code is sandboxed or risk-free.
-The editor does not yet browse or install from this catalog. A future installer must verify the
-downloaded binary against the catalog checksum before placing it in `~/.kinetic/plugins/`, and
-must tell the user the publisher and trust status before installation.
+The Plugins page browses this catalog and shows the publisher and trust label before installation.
+The installer verifies the published size, SHA-256, and arm64 Mach-O header before placing a
+managed library in `~/.kinetic/plugins/`. Removal retains a recovery copy under `.removed`.
+Unmanaged local libraries are not removed by the package manager. The bundled C/C++ Support
+library is part of the application, so it cannot be installed or removed separately.
+
+The bundled CLI supports `kinetic plugins list [--json]`, `install ID`, `update ID`, and
+`uninstall ID`. Install, update, and removal require confirmation unless `--yes` is supplied.
+Native plugins run with the editor's permissions and require an application restart to load or
+unload. Ratings remain unrated until an actual review source exists; no score is inferred from
+GitHub stars.
 
 ## Maintenance
 

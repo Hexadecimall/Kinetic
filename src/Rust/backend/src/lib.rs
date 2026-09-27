@@ -6,6 +6,7 @@ use std::ffi::c_char;
 
 mod document;
 mod extensions;
+mod packages;
 
 const abiVersion: u32 = 1;
 const versionBytes: &[u8] = concat!(env!("CARGO_PKG_VERSION"), "\0").as_bytes();
@@ -22,6 +23,13 @@ pub extern "C" fn kineticBackendAbiVersion() -> u32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn kineticBackendVersion() -> *const c_char {
     versionBytes.as_ptr().cast()
+}
+
+/// Runs the install/update/remove commands exposed by the bundled CLI.
+#[allow(unsafe_code, reason = "the stable C ABI requires an unmangled export")]
+#[unsafe(no_mangle)]
+pub extern "C" fn kineticPackageMain() -> i32 {
+    packages::run()
 }
 
 #[cfg(test)]

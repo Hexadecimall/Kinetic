@@ -2,7 +2,26 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.22.0 - Unreleased
+## 0.23.0 - Unreleased
+
+### Added
+
+- Added a searchable Discover/Installed plugin page with publisher, Official status, description,
+  version, technical details, and honest unrated state. Bundled C/C++ Support is marked Included,
+  not presented as a removable core plugin.
+- Added Rust-owned CLI and in-app plugin install, update, and removal against the public catalog.
+  Downloads are size- and SHA-256-checked; native plugins require a restart after changes.
+- Added CLI and Settings controls to check, install, update, or uninstall a user-installed app.
+  App updates require an immutable GitHub release asset, a matching signed bundle, and a SHA-256
+  digest. Existing installations are retained for recovery.
+
+### Fixed
+
+- Restored GitHub account sessions off the main UI thread so Keychain lookup cannot block launch.
+- Moved plugin commands out of the Plugins navigation pane; they remain available through their
+  registered command actions.
+
+## 0.22.0
 
 ### Added
 

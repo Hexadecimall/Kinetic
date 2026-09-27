@@ -7,7 +7,7 @@
 </p>
 
 > [!IMPORTANT]
-> Kinetic `0.22.0` is an early functional preview. Editing, retained multi-document tabs, persisted
+> Kinetic `0.23.0` is an early functional preview. Editing, retained multi-document tabs, persisted
 > recent projects, mouse selection, undo/redo, basic syntax highlighting, auto-indentation,
 > matching delimiters, custom context menus, in-file and project search, the activity bar, GitHub
 > account sign-in, native plugin host, hidden-file browsing, project file and folder creation,
@@ -17,7 +17,8 @@
 The bundled [C/C++ Support](plugins/builtin/cppSupport/README.md) plugin adds C/C++ syntax,
 clangd diagnostics and Go to Definition, clang-format, and header/source switching. It uses the
 same public plugin API available to third-party native plugins. Its first signed arm64 asset is
-published in the GitHub-backed catalog as Official; in-editor catalog installation is not yet built.
+published in the GitHub-backed catalog as Official. The Plugins page browses that catalog and
+manages third-party native plugins; bundled C/C++ Support updates with the application.
 
 ## Direction
 
@@ -59,6 +60,8 @@ Useful entry points:
 ./scripts/install
 ./scripts/version check
 ./scripts/audit-public
+build/debug/Kinetic.app/Contents/Resources/bin/kinetic plugins list
+build/debug/Kinetic.app/Contents/Resources/bin/kinetic app check
 ```
 
 Brand assets are source-controlled. Regenerate the macOS icon after changing its SVG source with

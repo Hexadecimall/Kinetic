@@ -17,6 +17,9 @@
 - (void)searchVisibilityDidChange:(BOOL)visible;
 - (void)editorDocumentDidChange;
 - (void)executePluginCommand:(NSString*)commandId;
+- (void)refreshPluginCatalog;
+- (void)managePlugin:(NSDictionary<NSString*, id>*)plugin action:(NSString*)action;
+- (void)manageApplication:(NSString*)action;
 - (BOOL)executePluginShortcutForEvent:(NSEvent*)event;
 - (void)openSearchResult:(NSDictionary*)result;
 - (void)openRecentProjectAtUrl:(NSURL*)projectUrl;

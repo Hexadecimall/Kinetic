@@ -130,6 +130,11 @@
 @property(nonatomic, strong) NSMutableArray<KineticEditorView*>* editors;
 @property(nonatomic, strong) KineticFileDialog* fileDialog;
 @property(nonatomic, strong) KineticPluginHost* pluginHost;
+@property(nonatomic, copy) NSArray<NSDictionary<NSString*, id>*>* catalogPlugins;
+@property(nonatomic, copy) NSString* pluginCatalogStatus;
+@property(nonatomic) BOOL pluginManagerBusy;
+@property(nonatomic, copy) NSString* appPackageStatus;
+@property(nonatomic) BOOL appManagerBusy;
 @property(nonatomic, strong) KineticGitHubAccount* githubAccount;
 @property(nonatomic, strong) NSMutableDictionary<NSString*, NSNumber*>* pluginNumberOverrides;
 @property(nonatomic, strong) NSMutableDictionary<NSString*, NSString*>* pluginStringOverrides;
@@ -155,6 +160,9 @@
     self.workspaceUiState = @{};
     self.searchUiState = @{};
     self.activitySection = KineticActivitySectionNone;
+    self.catalogPlugins = @[];
+    self.pluginCatalogStatus = @"Open Plugins to load the catalog.";
+    self.appPackageStatus = @"Application updates are manual.";
     self.untitledCounter = 0;
 
     id<MTLDevice> device = MTLCreateSystemDefaultDevice();
@@ -282,6 +290,11 @@
     [nextEditor applyWorkspaceUiState:self.workspaceUiState];
     [nextEditor applySearchUiState:self.searchUiState];
     [nextEditor setActivitySection:self.activitySection animated:NO];
+    [nextEditor setCatalogPlugins:self.catalogPlugins status:self.pluginCatalogStatus];
+    [nextEditor setAppPackageStatus:self.appPackageStatus];
+    if (self.activitySection == KineticActivitySectionPlugins && self.catalogPlugins.count == 0) {
+        [self refreshPluginCatalog];
+    }
     self.editor = nextEditor;
     nextEditor.diagnostics =
         nextEditor.fileUrl.path == nil
@@ -384,6 +397,8 @@
                   commands:self.pluginHost.commands
         configurationError:self.pluginHost.configurationError];
     [editor setPluginPanels:self.pluginHost.panels];
+    [editor setCatalogPlugins:self.catalogPlugins status:self.pluginCatalogStatus];
+    [editor setAppPackageStatus:self.appPackageStatus];
     for (NSString* property in self.pluginNumberOverrides) {
         [editor setPluginNumber:self.pluginNumberOverrides[property].doubleValue property:property];
     }
@@ -419,6 +434,138 @@
         return;
     }
     [self.pluginHost executeCommand:commandId];
+}
+
+- (void)showPluginCatalog:(NSArray<NSDictionary<NSString*, id>*>*)plugins status:(NSString*)status {
+    self.catalogPlugins = plugins ?: @[];
+    self.pluginCatalogStatus = status;
+    for (KineticEditorView* editor in self.editors) {
+        [editor setCatalogPlugins:self.catalogPlugins status:status];
+    }
+}
+
+- (NSURL*)packageClientUrl {
+    return [[NSBundle.mainBundle.resourceURL URLByAppendingPathComponent:@"bin" isDirectory:YES]
+        URLByAppendingPathComponent:@"kinetic"];
+}
+
+- (void)runPackageCommand:(NSArray<NSString*>*)arguments
+               completion:(void (^)(NSString* output, NSString* errorMessage))completion {
+    NSURL* executable = [self packageClientUrl];
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+      NSTask* task = [[NSTask alloc] init];
+      task.executableURL = executable;
+      task.arguments = arguments;
+      NSPipe* outputPipe = [NSPipe pipe];
+      task.standardOutput = outputPipe;
+      task.standardError = outputPipe;
+      NSError* launchError = nil;
+      if (![task launchAndReturnError:&launchError]) {
+          dispatch_async(dispatch_get_main_queue(), ^{
+            completion(nil, launchError.localizedDescription ?: @"Could not start package client.");
+          });
+          return;
+      }
+      NSData* data = [outputPipe.fileHandleForReading readDataToEndOfFile];
+      [task waitUntilExit];
+      NSString* output = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] ?: @"";
+      dispatch_async(dispatch_get_main_queue(), ^{
+        completion(task.terminationStatus == 0 ? output : nil,
+                   task.terminationStatus == 0 ? nil : output);
+      });
+    });
+}
+
+- (void)refreshPluginCatalog {
+    if (self.pluginManagerBusy) {
+        return;
+    }
+    [self showPluginCatalog:self.catalogPlugins status:@"Checking the public catalog…"];
+    [self runPackageCommand:@[ @"plugins", @"list", @"--json" ]
+               completion:^(NSString* output, NSString* errorMessage) {
+                 if (errorMessage != nil) {
+                     [self showPluginCatalog:self.catalogPlugins
+                                      status:[NSString stringWithFormat:@"Catalog unavailable: %@",
+                                                                        errorMessage]];
+                     return;
+                 }
+                 NSData* data = [output dataUsingEncoding:NSUTF8StringEncoding];
+                 id parsed = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+                 if (![parsed isKindOfClass:NSArray.class]) {
+                     [self showPluginCatalog:self.catalogPlugins status:@"Catalog response was invalid."];
+                     return;
+                 }
+                 [self showPluginCatalog:parsed
+                                  status:[NSString stringWithFormat:@"%lu plugin%@ in catalog",
+                                                                    (unsigned long)[parsed count],
+                                                                    [parsed count] == 1 ? @"" : @"s"]];
+               }];
+}
+
+- (void)managePlugin:(NSDictionary<NSString*, id>*)plugin action:(NSString*)action {
+    NSString* pluginId = plugin[@"id"];
+    if (self.pluginManagerBusy || pluginId.length == 0 ||
+        ![self.catalogPlugins containsObject:plugin] ||
+        ![@[ @"install", @"update", @"uninstall" ] containsObject:action]) {
+        return;
+    }
+    self.pluginManagerBusy = YES;
+    [self showPluginCatalog:self.catalogPlugins
+                   status:[NSString stringWithFormat:@"%@ %@…", action.capitalizedString,
+                                                     plugin[@"name"] ?: pluginId]];
+    [self runPackageCommand:@[ @"plugins", action, pluginId, @"--yes" ]
+               completion:^(NSString* output, NSString* errorMessage) {
+                 self.pluginManagerBusy = NO;
+                 if (errorMessage != nil) {
+                     [self showPluginCatalog:self.catalogPlugins
+                                      status:[NSString stringWithFormat:@"%@ failed: %@",
+                                                                        action.capitalizedString,
+                                                                        errorMessage]];
+                     return;
+                 }
+                 [self showPluginCatalog:self.catalogPlugins
+                                  status:[output stringByTrimmingCharactersInSet:
+                                                     NSCharacterSet.whitespaceAndNewlineCharacterSet]];
+                 [self refreshPluginCatalog];
+               }];
+}
+
+- (void)showAppPackageStatus:(NSString*)status {
+    self.appPackageStatus = status;
+    for (KineticEditorView* editor in self.editors) {
+        [editor setAppPackageStatus:status];
+    }
+}
+
+- (void)manageApplication:(NSString*)action {
+    if (self.appManagerBusy ||
+        ![@[ @"check", @"update", @"uninstall" ] containsObject:action]) {
+        return;
+    }
+    if ([action isEqualToString:@"uninstall"]) {
+        for (KineticEditorView* editor in self.editors) {
+            if (editor.dirty) {
+                [self showAppPackageStatus:@"Save or close unsaved tabs before uninstalling."];
+                return;
+            }
+        }
+    }
+    NSString* command = action;
+    if ([action isEqualToString:@"update"]) {
+        NSString* target = [NSHomeDirectory() stringByAppendingPathComponent:@"Applications/Kinetic.app"];
+        if (![NSFileManager.defaultManager fileExistsAtPath:target]) {
+            command = @"install";
+        }
+    }
+    self.appManagerBusy = YES;
+    [self showAppPackageStatus:[NSString stringWithFormat:@"%@ application…", action.capitalizedString]];
+    [self runPackageCommand:@[ @"app", command, @"--yes" ]
+               completion:^(NSString* output, NSString* errorMessage) {
+                 self.appManagerBusy = NO;
+                 NSString* message = errorMessage ?: output;
+                 [self showAppPackageStatus:[message stringByTrimmingCharactersInSet:
+                                                     NSCharacterSet.whitespaceAndNewlineCharacterSet]];
+               }];
 }
 
 - (void)refreshPluginFileMenu {
