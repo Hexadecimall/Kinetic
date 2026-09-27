@@ -10,6 +10,7 @@
     "window": { "$ref": "#/$defs/window" },
     "animations": { "$ref": "#/$defs/animations" },
     "editor": { "$ref": "#/$defs/editor" },
+    "autocomplete": { "$ref": "#/$defs/autocomplete" },
     "activityBar": { "$ref": "#/$defs/activityBar" },
     "search": { "$ref": "#/$defs/search" },
     "recent": { "$ref": "#/$defs/recent" },
@@ -75,6 +76,15 @@
         "contextMenu": { "type": "boolean" },
         "undoHistoryLimit": { "type": "integer", "minimum": 0 },
         "optionWordNavigation": { "type": "boolean" }
+      }
+    },
+    "autocomplete": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minPrefix": { "type": "integer", "minimum": 1, "maximum": 8 },
+        "maxResults": { "type": "integer", "minimum": 1, "maximum": 32 }
       }
     },
     "activityBar": {

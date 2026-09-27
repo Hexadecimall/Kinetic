@@ -15,14 +15,14 @@ if "$SCRIPT_DIR/version" next patch 0.100.0 >/dev/null 2>&1; then
 fi
 
 "$SCRIPT_DIR/build" --debug
-PLUGIN_ID=$(otool -D "$(kinetic_build_dir debug)/Kinetic.app/Contents/PlugIns/libkineticCppSupport.dylib" |
+PLUGIN_ID=$(otool -D "$(kinetic_build_dir debug)/cpp-support-cargo/debug/libkineticCppSupport.dylib" |
     tail -n 1)
 [ "$PLUGIN_ID" = '@rpath/libkineticCppSupport.dylib' ] ||
     kinetic_die "C/C++ plugin has a machine-specific install name"
 
 CARGO_TARGET_DIR="$KINETIC_ROOT/build/cargo-tests" cargo test --workspace --all-targets
 CARGO_TARGET_DIR="$KINETIC_ROOT/build/cpp-support-tests" cargo test --offline \
-    --manifest-path "$KINETIC_ROOT/plugins/builtin/cppSupport/Cargo.toml" --all-targets
+    --manifest-path "$KINETIC_ROOT/plugins/official/cppSupport/Cargo.toml" --all-targets
 ctest --test-dir "$(kinetic_build_dir debug)" --output-on-failure
 PYTHONPATH="$KINETIC_ROOT" python3 -m unittest discover -s "$KINETIC_ROOT/tests" \
     -p '*Tests.py'

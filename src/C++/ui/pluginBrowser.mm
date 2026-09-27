@@ -245,15 +245,13 @@ NSDictionary* browserText(CGFloat size, NSFontWeight weight, NSColor* color) {
     [selected[@"summary"] drawInRect:NSMakeRect(x, 302.0, width, 68.0)
                       withAttributes:summaryAttributes];
     NSString* state = selected[@"state"] ?: @"available";
-    NSString* action = [state isEqualToString:@"bundled"]      ? @"Included"
-                       : [state hasPrefix:@"update available"] ? @"Update"
-                       : [state hasPrefix:@"installed"]        ? @"Installed"
-                                                               : @"Install";
-    [self
-        drawAction:action
-            inRect:[self primaryActionRect]
-           enabled:![action isEqualToString:@"Included"] && ![action isEqualToString:@"Installed"]];
-    if (![state isEqualToString:@"bundled"] && ![state isEqualToString:@"available"]) {
+    NSString* action = [state hasPrefix:@"update available"] ? @"Update"
+                       : [state hasPrefix:@"installed"]      ? @"Installed"
+                                                             : @"Install";
+    [self drawAction:action
+              inRect:[self primaryActionRect]
+             enabled:![action isEqualToString:@"Installed"]];
+    if (![state isEqualToString:@"available"]) {
         [self drawAction:@"Remove" inRect:[self secondaryActionRect] enabled:YES];
     }
     [@"VERSION" drawAtPoint:NSMakePoint(x, 436.0) withAttributes:small];
@@ -334,7 +332,7 @@ NSDictionary* browserText(CGFloat size, NSFontWeight weight, NSColor* color) {
     NSString* state = selected[@"state"] ?: @"available";
     if (selected != nil && NSPointInRect(point, [self primaryActionRect])) {
         NSString* action = [state hasPrefix:@"update available"] ? @"update" : @"install";
-        if (![state isEqualToString:@"bundled"] && ![state hasPrefix:@"installed"]) {
+        if (![state hasPrefix:@"installed"]) {
             [self showConfirmationForPlugin:selected action:action atPoint:point];
         } else if ([action isEqualToString:@"update"]) {
             [self showConfirmationForPlugin:selected action:action atPoint:point];
@@ -342,7 +340,7 @@ NSDictionary* browserText(CGFloat size, NSFontWeight weight, NSColor* color) {
         return;
     }
     if (selected != nil && NSPointInRect(point, [self secondaryActionRect]) &&
-        ![state isEqualToString:@"bundled"] && ![state isEqualToString:@"available"]) {
+        ![state isEqualToString:@"available"]) {
         [self showConfirmationForPlugin:selected action:@"uninstall" atPoint:point];
     }
 }

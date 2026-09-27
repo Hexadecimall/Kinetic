@@ -1,6 +1,6 @@
 # Vendored Cargo dependencies
 
-These exact source snapshots support the bundled Rust C/C++ Support plugin. Cargo resolves them
+These exact source snapshots support the separately installable Rust C/C++ Support plugin. Cargo resolves them
 through `.cargo/config.toml`; normal builds do not fetch source. Each crate retains its upstream
 license file(s) and Cargo checksum manifest. No local patches are applied.
 
@@ -18,8 +18,8 @@ license file(s) and Cargo checksum manifest. No local patches are applied.
 | unicode-ident | 1.0.24 | (MIT OR Apache-2.0) AND Unicode-3.0 | https://github.com/dtolnay/unicode-ident |
 | zmij | 1.0.23 | MIT | https://github.com/dtolnay/zmij |
 
-To update, change the pinned dependency in `plugins/builtin/cppSupport/Cargo.toml`, regenerate
+To update, change the pinned dependency in `plugins/official/cppSupport/Cargo.toml`, regenerate
 its lockfile after reviewing the new graph, run `cargo vendor --locked --offline --manifest-path
-plugins/builtin/cppSupport/Cargo.toml lib/cargo` with the exact new crates available locally,
+plugins/official/cppSupport/Cargo.toml lib/cargo` with the exact new crates available locally,
 remove superseded snapshots, update this table and `NOTICE`, then run the full test, lint, and
 public audit scripts. Keep dependency changes in their own reviewable commit when practical.

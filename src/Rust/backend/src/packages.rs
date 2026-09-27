@@ -274,9 +274,7 @@ fn pluginList(jsonOutput: bool) -> Result<(), String> {
         }
         let release = latestPluginRelease(plugin)?;
         let installed = installedRecord(id)?;
-        let state = if id == "kinetic.cpp-support" {
-            "bundled".to_string()
-        } else if let Some(record) = installed {
+        let state = if let Some(record) = installed {
             let version = record["version"].as_str().unwrap_or("unknown");
             if versionParts(version) < versionParts(string(release, "version")?) {
                 format!("update available ({version})")
@@ -320,9 +318,6 @@ fn pluginList(jsonOutput: bool) -> Result<(), String> {
 fn pluginInstall(id: &str, updateOnly: bool) -> Result<(), String> {
     if !safeId(id) {
         return Err("invalid plugin ID".into());
-    }
-    if id == "kinetic.cpp-support" {
-        return Err("C/C++ Support is bundled with Kinetic and updates with the app".into());
     }
     let catalog = catalog()?;
     let plugin = catalogPlugin(&catalog, id)?;

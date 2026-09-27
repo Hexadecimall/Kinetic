@@ -64,6 +64,15 @@ typedef uint32_t (*KineticPluginSyntaxTokens)(void* userData, const char* line, 
                                               uint32_t* state, KineticPluginSyntaxToken* tokens,
                                               uint32_t capacity);
 
+typedef struct KineticPluginCompletionItem {
+    char label[96];
+    char insertText[96];
+    char detail[96];
+} KineticPluginCompletionItem;
+typedef uint32_t (*KineticPluginCompletions)(void* userData, const char* prefix,
+                                             uint64_t prefixLength,
+                                             KineticPluginCompletionItem* items, uint32_t capacity);
+
 typedef struct KineticPluginDiagnostic {
     uint32_t line;
     uint32_t columnUtf16;
@@ -109,6 +118,9 @@ typedef struct KineticPluginApi {
                                   const KineticPluginDiagnostic* diagnostics, uint32_t count);
     int32_t (*openLocation)(void* context, const char* filePath, uint32_t line,
                             uint32_t columnUtf16);
+    // Optional trailing field. Older ABI-1 hosts do not expose completion providers.
+    int32_t (*registerCompletionProvider)(void* context, const char* extension,
+                                          KineticPluginCompletions callback, void* userData);
 } KineticPluginApi;
 
 typedef struct KineticPluginDescriptor {

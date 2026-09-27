@@ -39,6 +39,11 @@ contextMenu = true
 undoHistoryLimit = 256
 optionWordNavigation = true
 
+[autocomplete]
+enabled = true
+minPrefix = 2
+maxResults = 8
+
 [activityBar]
 visible = true
 railWidth = 38.0

@@ -43,5 +43,7 @@
 - (void)drawOverlaysInRect:(NSRect)rect;
 - (NSArray<NSArray<NSDictionary<NSString*, id>*>*>*)syntaxTokensForLines:(NSArray<NSString*>*)lines
                                                                 fileName:(NSString*)fileName;
+- (NSArray<NSDictionary<NSString*, NSString*>*>*)completionItemsForPrefix:(NSString*)prefix
+                                                                 fileName:(NSString*)fileName;
 - (void)emitEvent:(NSString*)eventName;
 @end

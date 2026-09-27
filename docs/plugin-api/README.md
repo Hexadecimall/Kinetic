@@ -1,9 +1,9 @@
 # Native plugin API (preview)
 
 Kinetic 0.15.0 and later load local Apple Silicon `.dylib` plugins from
-`~/.kinetic/plugins/` when the first editor tab opens. First-party plugins can also be bundled
-in `Kinetic.app/Contents/PlugIns`. The host does not
-download, publish, update, or verify plugins. Only install code whose author is trusted: a native
+`~/.kinetic/plugins/` when the first editor tab opens. C/C++ Support is an Official catalog plugin,
+not bundled with Kinetic.app. The package manager installs, updates, and verifies catalog assets;
+the plugin host loads installed libraries. Only install code whose author is trusted: a native
 plugin runs in Kinetic's process with the user's privileges and can crash the app.
 Plugin loading can be disabled globally or per `.dylib` filename through the optional
 `[plugins]` table in `~/.kinetic/config.toml`; see
@@ -39,6 +39,7 @@ The current host supports:
 | `copyActiveFilePath`, `copyWorkspacePath` | Copy the active absolute file path or window workspace path as UTF-8; `UINT64_MAX` means unavailable. |
 | `publishDiagnostics` | Publish up to 2,048 line/column diagnostics for an absolute file path. Safe to call from a worker thread; the host updates the UI on the main thread. |
 | `openLocation` | Open an absolute file path and reveal a 1-based line and 0-based UTF-16 column. Safe to call from a worker thread. |
+| `registerCompletionProvider` | Contribute up to 32 labeled completion items for a file extension and prefix to Kinetic's native autocomplete popup. |
 
 These functions are appended to ABI version 1. Older plugins can keep using the original
 structure prefix; new plugins must check `structSize` before reading the appended pointers. A
@@ -47,7 +48,9 @@ after `start` returns. Contributions belong to that plugin and are removed if `s
 An optional trailing `stop` callback in `KineticPluginDescriptor` is invoked before the host
 unloads the library; older descriptors without it remain valid. Registration and editor-event
 callbacks run on the main thread. Syntax callbacks run during rendering on the main thread;
-only `publishDiagnostics` and `openLocation` explicitly support worker-thread calls.
+only `publishDiagnostics` and `openLocation` explicitly support worker-thread calls. Completion
+callbacks run synchronously on the main thread while suggestions refresh and must return quickly;
+each label, insertion, and detail is limited to 95 UTF-8 bytes. No plugin draws the popup.
 Shortcut modifiers use the
 `kineticPluginModifier*` constants; a plugin shortcut may supersede a built-in shortcut.
 Panel callbacks can return up to 32 rows per panel. Overlay callbacks can return up to 128 draw
@@ -73,6 +76,9 @@ Supported numeric property keys and ranges:
 | `editor.scroll.natural` | 0 or 1 |
 | `editor.indentation.autoIndent` | 0 or 1 |
 | `editor.delimiters.autoPairs` | 0 or 1 |
+| `editor.autocomplete.enabled` | 0 or 1 |
+| `editor.autocomplete.minPrefix` | Integer 1 to 8 |
+| `editor.autocomplete.maxResults` | Integer 1 to 32 |
 
 Supported string properties:
 
@@ -96,17 +102,16 @@ inside Kinetic's renderer: plugins change a property, not per-glyph callbacks. T
 spacing customizable without placing plugin dispatch in the drawing hot path.
 
 The GitHub-backed publication flow and Official policy are documented in
-[`registry/README.md`](../../registry/README.md). The current editor does not yet browse or install
-from that catalog.
+[`registry/README.md`](../../registry/README.md). The Plugins page browses and installs from that catalog.
 
-[`C/C++ Support`](../../plugins/builtin/cppSupport/README.md) is a first-party example of the
-language hooks. It ships in the signed app bundle and has an immutable Official catalog release.
+[`C/C++ Support`](../../plugins/official/cppSupport/README.md) is a first-party example of the
+language hooks. It has an immutable Official catalog release but does not ship in the app bundle.
 
 The current ABI does **not** yet expose every editor control. The Rust contribution registry now
 owns metadata and collision rules for commands, shortcuts, menus, panels, overlays, and formatters;
 the C++ host still owns native callbacks and rendering. Syntax providers, diagnostics, and
-location navigation are now public hooks. Settings registration, arbitrary widget layout,
-completion UI, additional language-tool methods, and file-system providers remain future work. Changing one
+location navigation and completion are now public hooks. Settings registration, arbitrary widget
+layout, additional language-tool methods, and file-system providers remain future work. Changing one
 exposed property or registering an overlay does not imply arbitrary view control. The next backend
 boundary work is moving selection, workspace search, and settings to Rust. API growth must preserve
 old structure prefixes, check `structSize`, and avoid exposing Objective-C++ view pointers or unstable Rust

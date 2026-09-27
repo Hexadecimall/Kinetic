@@ -24,8 +24,8 @@ group the open document, workspace, repository, and installed-plugin sections wi
 styling or non-functional disclosure affordances. Source Control/GitHub remains an integration
 placeholder. The Plugins page browses the public catalog, searches plugins and publishers, and
 separates Discover from Installed. It shows description, publisher, Official status, version,
-unrated state, and install/update/remove actions. Bundled C/C++ Support appears as Included rather
-than a removable plugin. Plugin commands remain registered editor actions, not navigation items.
+unrated state, and install/update/remove actions. Official C/C++ Support is removable just like
+other catalog plugins. Plugin commands remain registered editor actions, not navigation items.
 GitHub account connection lives in the titlebar.
 
 Search lives in a Kinetic-drawn dropdown anchored beneath the Search icon at the right edge of the
@@ -39,7 +39,7 @@ contents, common generated folders, files over 1 MiB, and binary files are skipp
 300 matches or 10,000 scanned files.
 
 Settings opens a dedicated editor page instead of a narrow side panel. Live controls cover editor
-type, scrolling, syntax highlighting, indentation, and delimiter pairing. Application package
+type, scrolling, syntax highlighting, indentation, delimiter pairing, and autocomplete. Application package
 controls check for updates and manage a user-scoped installation with explicit confirmation.
 
 The rail, panel, icons, selection indicator, hover treatment, section headers, dimensions, opening

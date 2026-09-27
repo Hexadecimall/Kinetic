@@ -10,6 +10,8 @@
 - (NSArray<NSArray<NSDictionary<NSString*, id>*>*>*)pluginSyntaxTokensForLines:
                                                         (NSArray<NSString*>*)lines
                                                                       fileName:(NSString*)fileName;
+- (NSArray<NSDictionary<NSString*, NSString*>*>*)pluginCompletionItemsForPrefix:(NSString*)prefix
+                                                                       fileName:(NSString*)fileName;
 @end
 
 @interface KineticEditorView : NSView

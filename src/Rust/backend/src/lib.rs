@@ -4,6 +4,7 @@
 
 use std::ffi::c_char;
 
+mod completion;
 mod document;
 mod extensions;
 mod packages;

@@ -307,8 +307,6 @@
         NSURL* pluginRootUrl = [KineticPluginHost userPluginRootUrl];
         NSURL* pluginsUrl = [pluginRootUrl URLByAppendingPathComponent:@"plugins" isDirectory:YES];
         NSURL* configurationUrl = [pluginRootUrl URLByAppendingPathComponent:@"config.toml"];
-        [self.pluginHost loadPluginsAtUrl:NSBundle.mainBundle.builtInPlugInsURL
-                         configurationUrl:configurationUrl];
         [self.pluginHost loadPluginsAtUrl:pluginsUrl configurationUrl:configurationUrl];
         for (KineticEditorView* editor in self.editors) {
             [editor setPluginNames:self.pluginHost.loadedPluginNames
@@ -608,6 +606,12 @@
                                                         (NSArray<NSString*>*)lines
                                                                       fileName:(NSString*)fileName {
     return [self.pluginHost syntaxTokensForLines:lines fileName:fileName];
+}
+
+- (NSArray<NSDictionary<NSString*, NSString*>*>*)pluginCompletionItemsForPrefix:(NSString*)prefix
+                                                                       fileName:
+                                                                           (NSString*)fileName {
+    return [self.pluginHost completionItemsForPrefix:prefix fileName:fileName];
 }
 
 - (void)pluginHostContributionsDidChange:(KineticPluginHost*)host {

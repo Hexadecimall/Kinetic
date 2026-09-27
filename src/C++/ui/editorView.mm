@@ -98,6 +98,12 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     NSUInteger _tabWidth;
     BOOL _autoIndent;
     BOOL _autoPairs;
+    BOOL _autocompleteEnabled;
+    NSUInteger _autocompleteMinPrefix;
+    NSUInteger _autocompleteMaxResults;
+    NSArray<NSDictionary<NSString*, NSString*>*>* _completionItems;
+    NSUInteger _completionPrefixStart;
+    NSInteger _completionSelectedIndex;
     CGFloat _settingsScroll;
     NSString* _appPackageStatus;
     NSArray<NSArray<NSDictionary<NSString*, id>*>*>* _syntaxTokens;
@@ -157,6 +163,15 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         _tabWidth = 4;
         _autoIndent = YES;
         _autoPairs = YES;
+        KineticCompletionConfig completionConfig = {};
+        if (kineticCompletionReadConfig(&completionConfig) != 0) {
+            completionConfig = {true, 2, 8};
+        }
+        _autocompleteEnabled = completionConfig.enabled;
+        _autocompleteMinPrefix = completionConfig.minPrefix;
+        _autocompleteMaxResults = completionConfig.maxResults;
+        _completionItems = @[];
+        _completionSelectedIndex = 0;
         _settingsScroll = 0.0;
         _appPackageStatus = @"Application updates are manual.";
         _syntaxNeedsUpdate = YES;
@@ -494,6 +509,18 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     } else if ([property isEqualToString:@"editor.delimiters.autoPairs"] &&
                (value == 0.0 || value == 1.0)) {
         _autoPairs = value == 1.0;
+    } else if ([property isEqualToString:@"editor.autocomplete.enabled"] &&
+               (value == 0.0 || value == 1.0)) {
+        _autocompleteEnabled = value == 1.0;
+        if (!_autocompleteEnabled) {
+            _completionItems = @[];
+        }
+    } else if ([property isEqualToString:@"editor.autocomplete.minPrefix"] && value >= 1.0 &&
+               value <= 8.0 && floor(value) == value) {
+        _autocompleteMinPrefix = (NSUInteger)value;
+    } else if ([property isEqualToString:@"editor.autocomplete.maxResults"] && value >= 1.0 &&
+               value <= 32.0 && floor(value) == value) {
+        _autocompleteMaxResults = (NSUInteger)value;
     } else {
         return NO;
     }
@@ -526,6 +553,12 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         *value = _autoIndent;
     } else if ([property isEqualToString:@"editor.delimiters.autoPairs"]) {
         *value = _autoPairs;
+    } else if ([property isEqualToString:@"editor.autocomplete.enabled"]) {
+        *value = _autocompleteEnabled;
+    } else if ([property isEqualToString:@"editor.autocomplete.minPrefix"]) {
+        *value = _autocompleteMinPrefix;
+    } else if ([property isEqualToString:@"editor.autocomplete.maxResults"]) {
+        *value = _autocompleteMaxResults;
     } else {
         return NO;
     }
@@ -1189,13 +1222,149 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     return NSMakeRect(x, 154.0 + index * 56.0 - _settingsScroll, MAX(320.0, width), 44.0);
 }
 
+- (void)closeCompletions {
+    _completionItems = @[];
+    _completionSelectedIndex = 0;
+    self.needsDisplay = YES;
+}
+
+- (void)refreshCompletionsWithMinimum:(NSUInteger)minimum {
+    if (!_autocompleteEnabled || _settingsVisible || _pluginsVisible ||
+        [self selectionRange].length > 0) {
+        [self closeCompletions];
+        return;
+    }
+    NSData* bytes = [_text dataUsingEncoding:NSUTF8StringEncoding];
+    if (bytes == nil || bytes.length > 16 * 1024 * 1024) {
+        [self closeCompletions];
+        return;
+    }
+    KineticCompletionItem words[32] = {};
+    uint64_t prefixStart = _caretIndex;
+    uint32_t count =
+        kineticCompletionCollect((const uint8_t*)bytes.bytes, bytes.length, _caretIndex,
+                                 (uint32_t)minimum, words, 32, &prefixStart);
+    if (prefixStart > _caretIndex || _caretIndex > _text.length) {
+        [self closeCompletions];
+        return;
+    }
+    NSString* prefix =
+        [_text substringWithRange:NSMakeRange((NSUInteger)prefixStart,
+                                              _caretIndex - (NSUInteger)prefixStart)];
+    if (prefix.length < minimum) {
+        [self closeCompletions];
+        return;
+    }
+    NSMutableArray<NSDictionary<NSString*, NSString*>*>* result = [NSMutableArray array];
+    NSMutableSet<NSString*>* seen = [NSMutableSet set];
+    NSArray* provided = [self.overlayRenderer
+        pluginCompletionItemsForPrefix:prefix
+                              fileName:_fileUrl.lastPathComponent ?: _documentTitle];
+    for (NSDictionary<NSString*, NSString*>* item in provided) {
+        NSString* insertText = item[@"insertText"];
+        if (insertText.length == 0 || insertText.length > 95 ||
+            [insertText isEqualToString:prefix] || [seen containsObject:insertText]) {
+            continue;
+        }
+        [seen addObject:insertText];
+        [result addObject:item];
+    }
+    for (uint32_t index = 0; index < count; ++index) {
+        NSString* label = [NSString stringWithUTF8String:(const char*)words[index].label];
+        if (label.length == 0 || [seen containsObject:label]) {
+            continue;
+        }
+        [seen addObject:label];
+        [result addObject:@{@"label" : label, @"insertText" : label, @"detail" : @"Word"}];
+    }
+    _completionPrefixStart = (NSUInteger)prefixStart;
+    _completionItems =
+        [result subarrayWithRange:NSMakeRange(0, MIN(result.count, _autocompleteMaxResults))];
+    _completionSelectedIndex = 0;
+    self.needsDisplay = YES;
+}
+
+- (NSRect)completionPopupRect {
+    if (_completionItems.count == 0) {
+        return NSZeroRect;
+    }
+    NSString* beforeCaret = [_text substringToIndex:_caretIndex];
+    NSArray<NSString*>* lines = [beforeCaret componentsSeparatedByString:@"\n"];
+    NSString* line = lines.lastObject ?: @"";
+    CGFloat textX = [self editorTextOriginX];
+    CGFloat caretX =
+        textX - _horizontalScroll + [line sizeWithAttributes:[self editorTextAttributes]].width;
+    CGFloat caretY = kFirstLineY + (lines.count - 1) * _lineHeight - _verticalScroll;
+    CGFloat height = 29.0 + _completionItems.count * 27.0;
+    CGFloat width = MIN(330.0, NSWidth(self.bounds) - textX - 12.0);
+    CGFloat x = MIN(MAX(textX, caretX), NSWidth(self.bounds) - width - 10.0);
+    CGFloat y = caretY + _lineHeight + 3.0;
+    if (y + height > NSHeight(self.bounds) - 8.0) {
+        y = MAX(kFirstLineY, caretY - height - 3.0);
+    }
+    return NSMakeRect(x, y, width, height);
+}
+
+- (void)drawCompletions {
+    NSRect popup = [self completionPopupRect];
+    if (NSIsEmptyRect(popup)) {
+        return;
+    }
+    [editorColor(35, 44, 58, 0.98) setFill];
+    [[NSBezierPath bezierPathWithRoundedRect:popup xRadius:6.0 yRadius:6.0] fill];
+    [editorColor(87, 108, 139, 0.8) setStroke];
+    [[NSBezierPath bezierPathWithRoundedRect:popup xRadius:6.0 yRadius:6.0] stroke];
+    [@"SUGGESTIONS" drawAtPoint:NSMakePoint(NSMinX(popup) + 10.0, NSMinY(popup) + 6.0)
+                 withAttributes:@{
+                     NSFontAttributeName : [NSFont systemFontOfSize:10.0
+                                                             weight:NSFontWeightSemibold],
+                     NSForegroundColorAttributeName : editorColor(142, 178, 231),
+                 }];
+    for (NSUInteger index = 0; index < _completionItems.count; ++index) {
+        CGFloat y = NSMinY(popup) + 28.0 + index * 27.0;
+        if ((NSInteger)index == _completionSelectedIndex) {
+            [editorColor(61, 83, 120, 0.9) setFill];
+            NSRectFill(NSMakeRect(NSMinX(popup) + 4.0, y, NSWidth(popup) - 8.0, 26.0));
+        }
+        NSDictionary* item = _completionItems[index];
+        [item[@"label"]
+                drawInRect:NSMakeRect(NSMinX(popup) + 12.0, y + 4.0, NSWidth(popup) - 115.0, 20.0)
+            withAttributes:@{
+                NSFontAttributeName : [NSFont systemFontOfSize:13.0],
+                NSForegroundColorAttributeName : editorColor(226, 235, 248),
+            }];
+        [item[@"detail"] drawInRect:NSMakeRect(NSMaxX(popup) - 101.0, y + 5.0, 90.0, 18.0)
+                     withAttributes:@{
+                         NSFontAttributeName : [NSFont systemFontOfSize:11.0],
+                         NSForegroundColorAttributeName : editorColor(145, 162, 184),
+                     }];
+    }
+}
+
+- (void)acceptCompletionAtIndex:(NSUInteger)index {
+    if (index >= _completionItems.count || _completionPrefixStart > _caretIndex) {
+        return;
+    }
+    NSString* insertion = _completionItems[index][@"insertText"];
+    NSRange range = NSMakeRange(_completionPrefixStart, _caretIndex - _completionPrefixStart);
+    [self recordUndoState];
+    if (![self replaceTextInRange:range withString:insertion]) {
+        return;
+    }
+    _caretIndex = range.location + insertion.length;
+    _selectionAnchor = _caretIndex;
+    [self updateDirtyState];
+    [self closeCompletions];
+    [self ensureCaretVisible];
+}
+
 - (CGFloat)maximumSettingsScroll {
-    return MAX(0.0, 154.0 + 9.0 * 56.0 + 214.0 - NSHeight(self.bounds));
+    return MAX(0.0, 154.0 + 10.0 * 56.0 + 214.0 - NSHeight(self.bounds));
 }
 
 - (NSRect)appActionRectAtIndex:(NSUInteger)index {
     CGFloat x = KineticActivityBar.railWidth + 42.0;
-    return NSMakeRect(x + index * 154.0, 154.0 + 9.0 * 56.0 + 19.0 - _settingsScroll, 144.0, 32.0);
+    return NSMakeRect(x + index * 154.0, 154.0 + 10.0 * 56.0 + 19.0 - _settingsScroll, 144.0, 32.0);
 }
 
 - (NSRect)settingsMinusRectForRow:(NSInteger)row {
@@ -1240,7 +1409,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
             return row + 2;
         }
     }
-    for (NSInteger row = 7; row <= 8; ++row) {
+    for (NSInteger row = 7; row <= 9; ++row) {
         if (NSPointInRect(point, [self settingsToggleRectForRow:row])) {
             return row + 3;
         }
@@ -1285,6 +1454,12 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         break;
     case 11:
         _autoPairs = !_autoPairs;
+        break;
+    case 12:
+        _autocompleteEnabled = !_autocompleteEnabled;
+        if (!_autocompleteEnabled) {
+            [self closeCompletions];
+        }
         break;
     default:
         return;
@@ -1346,13 +1521,14 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 
     NSArray<NSString*>* titles = @[
         @"Font Size", @"Line Height", @"Line Numbers", @"Scroll Indicators", @"Natural Scrolling",
-        @"Syntax Highlighting", @"Tab Width", @"Auto Indent", @"Auto Pairs"
+        @"Syntax Highlighting", @"Tab Width", @"Auto Indent", @"Auto Pairs", @"Autocomplete"
     ];
     NSArray<NSString*>* details = @[
         @"Editor text size", @"Distance between text rows", @"Show the editor gutter numbers",
         @"Show horizontal and vertical position markers", @"Match trackpad content direction",
         @"Color recognized code, comments, strings, and values", @"Spaces to the next tab stop",
-        @"Carry indentation and indent inside blocks", @"Insert and manage matching delimiters"
+        @"Carry indentation and indent inside blocks", @"Insert and manage matching delimiters",
+        @"Suggest words and plugin completions as you type"
     ];
     [NSGraphicsContext saveGraphicsState];
     [[NSBezierPath bezierPathWithRect:NSMakeRect(0.0, 148.0, NSWidth(self.bounds),
@@ -1386,13 +1562,14 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
                            : row == 4 ? _naturalScrolling
                            : row == 5 ? _syntaxHighlighting
                            : row == 7 ? _autoIndent
-                                      : _autoPairs;
+                           : row == 8 ? _autoPairs
+                                      : _autocompleteEnabled;
             [self drawSettingsToggle:enabled
                               inRect:[self settingsToggleRectForRow:row]
                              hovered:_settingsHoveredControl == (row >= 7 ? row + 3 : row + 2)];
         }
     }
-    CGFloat appY = 154.0 + 9.0 * 56.0 - 8.0 - _settingsScroll;
+    CGFloat appY = 154.0 + 10.0 * 56.0 - 8.0 - _settingsScroll;
     [@"APPLICATION" drawAtPoint:NSMakePoint(x, appY) withAttributes:subtitleAttributes];
     NSArray<NSString*>* appActions = @[ @"Check Updates", @"Install / Update", @"Uninstall" ];
     for (NSUInteger index = 0; index < appActions.count; ++index) {
@@ -1682,11 +1859,21 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
                               yRadius:1.5] fill];
     }
 
+    [self drawCompletions];
     [self drawContextMenu];
 }
 
 - (void)mouseDown:(NSEvent*)event {
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+    NSRect completionPopup = [self completionPopupRect];
+    if (!NSIsEmptyRect(completionPopup) && NSPointInRect(point, completionPopup)) {
+        NSInteger index = (NSInteger)floor((point.y - NSMinY(completionPopup) - 28.0) / 27.0);
+        if (index >= 0 && index < (NSInteger)_completionItems.count) {
+            [self acceptCompletionAtIndex:(NSUInteger)index];
+        }
+        return;
+    }
+    [self closeCompletions];
     if (_searchOpen) {
         [self closeSearch];
     }
@@ -2052,6 +2239,29 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         return;
     }
     [self hideContextMenu];
+    if ((event.modifierFlags & NSEventModifierFlagControl) != 0 && event.keyCode == 49) {
+        [self refreshCompletionsWithMinimum:1];
+        return;
+    }
+    if (_completionItems.count > 0) {
+        if (event.keyCode == 53) {
+            [self closeCompletions];
+            return;
+        }
+        if (event.keyCode == 125 || event.keyCode == 126) {
+            NSInteger direction = event.keyCode == 125 ? 1 : -1;
+            _completionSelectedIndex =
+                (_completionSelectedIndex + direction + (NSInteger)_completionItems.count) %
+                (NSInteger)_completionItems.count;
+            self.needsDisplay = YES;
+            return;
+        }
+        if (event.keyCode == 36 || event.keyCode == 76 || event.keyCode == 48) {
+            [self acceptCompletionAtIndex:(NSUInteger)_completionSelectedIndex];
+            return;
+        }
+    }
+    NSString* beforeEdit = [_text copy];
     BOOL usesCommand = (event.modifierFlags & NSEventModifierFlagCommand) != 0;
     BOOL usesOption = (event.modifierFlags & NSEventModifierFlagOption) != 0;
     BOOL extendsSelection = (event.modifierFlags & NSEventModifierFlagShift) != 0;
@@ -2069,6 +2279,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     }
     if (usesCommand && [shortcut isEqualToString:@"v"]) {
         [self pasteText];
+        [self refreshCompletionsWithMinimum:_autocompleteMinPrefix];
         [self ensureCaretVisible];
         self.needsDisplay = YES;
         return;
@@ -2236,6 +2447,11 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     }
 
     [self ensureCaretVisible];
+    if (![beforeEdit isEqualToString:_text]) {
+        [self refreshCompletionsWithMinimum:_autocompleteMinPrefix];
+    } else {
+        [self closeCompletions];
+    }
     self.needsDisplay = YES;
 }
 

@@ -24,7 +24,7 @@ jobs:
       - name: Stage signed plugin without build-only symbols
         run: |
           mkdir -p build/plugin-release
-          cp build/release/Kinetic.app/Contents/PlugIns/libkineticCppSupport.dylib \
+          cp build/release/cpp-support-cargo/release/libkineticCppSupport.dylib \
             build/plugin-release/libkineticCppSupport.dylib
           xcrun strip -S -x build/plugin-release/libkineticCppSupport.dylib
           codesign --force --sign - build/plugin-release/libkineticCppSupport.dylib

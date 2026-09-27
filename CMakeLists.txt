@@ -35,26 +35,24 @@ set(KINETIC_RUST_LIBRARY
 set(KINETIC_CPP_PLUGIN_DIR "${CMAKE_BINARY_DIR}/cpp-support-cargo")
 set(KINETIC_CPP_PLUGIN
     "${KINETIC_CPP_PLUGIN_DIR}/${KINETIC_CARGO_PROFILE}/libkineticCppSupport.dylib")
-set_source_files_properties("${KINETIC_CPP_PLUGIN}" PROPERTIES
-    GENERATED TRUE MACOSX_PACKAGE_LOCATION "PlugIns")
 add_custom_command(
     OUTPUT "${KINETIC_CPP_PLUGIN}"
     COMMAND "${CMAKE_COMMAND}" -E env "CARGO_TARGET_DIR=${KINETIC_CPP_PLUGIN_DIR}"
             "RUSTFLAGS=${KINETIC_RUSTFLAGS}"
             cargo build --offline --manifest-path
-            "${CMAKE_SOURCE_DIR}/plugins/builtin/cppSupport/Cargo.toml" ${KINETIC_CARGO_ARGS}
+            "${CMAKE_SOURCE_DIR}/plugins/official/cppSupport/Cargo.toml" ${KINETIC_CARGO_ARGS}
     COMMAND xcrun install_name_tool -id @rpath/libkineticCppSupport.dylib
             "${KINETIC_CPP_PLUGIN}"
     COMMAND codesign --force --sign - "${KINETIC_CPP_PLUGIN}"
     DEPENDS
         "${CMAKE_SOURCE_DIR}/CMakeLists.txt"
-        "${CMAKE_SOURCE_DIR}/plugins/builtin/cppSupport/Cargo.toml"
-        "${CMAKE_SOURCE_DIR}/plugins/builtin/cppSupport/Cargo.lock"
-        "${CMAKE_SOURCE_DIR}/plugins/builtin/cppSupport/src/lib.rs"
-        "${CMAKE_SOURCE_DIR}/plugins/builtin/cppSupport/src/language.rs"
-        "${CMAKE_SOURCE_DIR}/plugins/builtin/cppSupport/src/lsp.rs"
+        "${CMAKE_SOURCE_DIR}/plugins/official/cppSupport/Cargo.toml"
+        "${CMAKE_SOURCE_DIR}/plugins/official/cppSupport/Cargo.lock"
+        "${CMAKE_SOURCE_DIR}/plugins/official/cppSupport/src/lib.rs"
+        "${CMAKE_SOURCE_DIR}/plugins/official/cppSupport/src/language.rs"
+        "${CMAKE_SOURCE_DIR}/plugins/official/cppSupport/src/lsp.rs"
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-    COMMENT "Building the bundled C/C++ Support plugin"
+    COMMENT "Building the separate Official C/C++ Support plugin"
     VERBATIM)
 add_custom_target(kinetic_cpp_support DEPENDS "${KINETIC_CPP_PLUGIN}")
 
@@ -69,6 +67,7 @@ add_custom_command(
         "${CMAKE_SOURCE_DIR}/Cargo.toml"
         "${CMAKE_SOURCE_DIR}/src/Rust/backend/Cargo.toml"
         "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/lib.rs"
+        "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/completion.rs"
         "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/document.rs"
         "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/extensions.rs"
         "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/packages.rs"
@@ -98,7 +97,7 @@ add_executable(
                               src/C++/ui/searchPopover.mm
                               src/C++/ui/syntaxHighlight.mm
                               src/C++/ui/trafficBar.mm src/C++/ui/tween.mm
-                              "${KINETIC_APP_ICON}" "${KINETIC_CPP_PLUGIN}")
+                              "${KINETIC_APP_ICON}")
 target_include_directories(Kinetic PRIVATE include src/C++/app src/C++/bridge src/C++/ui)
 target_compile_options(Kinetic PRIVATE "-fobjc-arc")
 target_link_libraries(
@@ -122,12 +121,12 @@ add_custom_command(
             "$<TARGET_BUNDLE_DIR:Kinetic>/Contents/Resources/bin"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:kinetic_cli>"
             "$<TARGET_BUNDLE_DIR:Kinetic>/Contents/Resources/bin/kinetic"
+    COMMAND "${CMAKE_COMMAND}" -E rm -f
+            "$<TARGET_BUNDLE_DIR:Kinetic>/Contents/PlugIns/libkineticCppSupport.dylib"
     COMMENT "Embedding the Kinetic CLI")
-add_dependencies(Kinetic kinetic_cli kinetic_cpp_support)
+add_dependencies(Kinetic kinetic_cli)
 add_custom_target(
     kinetic_sign_bundle ALL
-    COMMAND codesign --force --sign -
-            "$<TARGET_BUNDLE_DIR:Kinetic>/Contents/PlugIns/libkineticCppSupport.dylib"
     COMMAND codesign --force --sign -
             "$<TARGET_BUNDLE_DIR:Kinetic>/Contents/Resources/bin/kinetic"
     COMMAND codesign --force --sign - "$<TARGET_BUNDLE_DIR:Kinetic>"

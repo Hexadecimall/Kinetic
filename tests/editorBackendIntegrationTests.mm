@@ -59,6 +59,34 @@ int main() {
         [editor undoEdit];
         passed = check([editor.documentText isEqualToString:@"hello"], @"keyboard undo") &&
                  check(!editor.dirty, @"keyboard undo save state") && passed;
+        passed = check([editor setPluginNumber:2 property:@"editor.autocomplete.minPrefix"],
+                       @"autocomplete property") && passed;
+        passed = check([editor replaceRangeFromPlugin:NSMakeRange(0, 5)
+                                           withString:@"helper he"], @"completion fixture") && passed;
+        NSEvent* completionKey = [NSEvent keyEventWithType:NSEventTypeKeyDown
+                                                location:NSZeroPoint
+                                           modifierFlags:0
+                                               timestamp:0
+                                            windowNumber:0
+                                                 context:nil
+                                              characters:@"l"
+                             charactersIgnoringModifiers:@"l"
+                                               isARepeat:NO
+                                                 keyCode:37];
+        [editor keyDown:completionKey];
+        NSEvent* acceptKey = [NSEvent keyEventWithType:NSEventTypeKeyDown
+                                            location:NSZeroPoint
+                                       modifierFlags:0
+                                           timestamp:0
+                                        windowNumber:0
+                                             context:nil
+                                          characters:@"\r"
+                         charactersIgnoringModifiers:@"\r"
+                                           isARepeat:NO
+                                             keyCode:36];
+        [editor keyDown:acceptKey];
+        passed = check([editor.documentText isEqualToString:@"helper helper"],
+                       @"native completion accepted") && passed;
         return passed ? 0 : 1;
     }
 }

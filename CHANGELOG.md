@@ -2,7 +2,21 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.23.0 - Unreleased
+## 0.24.0 - Unreleased
+
+### Added
+
+- Added Rust-owned document-word autocomplete with a Kinetic-drawn suggestion popup, keyboard
+  navigation, and `[autocomplete]` settings in the user dotfile.
+- Added an append-only native plugin API for extension-scoped completion providers and live
+  autocomplete controls for installed plugins.
+
+### Changed
+
+- C/C++ Support is now built and published as a separate Official plugin, not copied into
+  Kinetic.app. It can be installed, updated, and removed through the Plugins page or CLI.
+
+## 0.23.0
 
 ### Added
 

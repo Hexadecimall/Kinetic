@@ -65,8 +65,10 @@ color; subscribe to document events; edit an explicit UTF-16 range or selection;
 shortcuts, File menu items, viewport overlays, extension-specific formatters, syntax providers,
 diagnostics, and source navigation. Rust owns the
 contribution registry; the Objective-C++ host retains callbacks and renders the custom UI in
-process. The bundled Rust C/C++ Support plugin runs clangd for live errors and Go to Definition.
-Settings registration, completion UI, and arbitrary widget layouts are not yet exposed.
+process. The separately installable Rust C/C++ Support plugin runs clangd for live errors and Go
+to Definition. Rust owns native document-word completion and the `[autocomplete]` dotfile
+configuration; plugins can contribute completion items through the public C ABI. Settings
+registration and arbitrary widget layouts are not yet exposed.
 
 Opening a workspace folder populates an expandable file tree without using a native outline view.
 The Explorer shows hidden entries and creates files and folders through Kinetic-drawn dialogs; the
@@ -88,7 +90,7 @@ Kinetic discovers project-local tools, explicit configuration, standard toolchai
 names the package, publisher, and official status. No tool is downloaded silently.
 
 Formatters and linters remain quiet until their capability is invoked. The core owns LSP process
-lifecycle; built-in language packs provide tested defaults instead of separate implementations.
+lifecycle; installable language plugins provide tested defaults instead of core-only implementations.
 
 ## Platform direction
 
