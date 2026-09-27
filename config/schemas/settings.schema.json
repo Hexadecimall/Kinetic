@@ -6,6 +6,7 @@
   "additionalProperties": false,
   "properties": {
     "schemaVersion": { "const": 1 },
+    "plugins": { "$ref": "#/$defs/plugins" },
     "window": { "$ref": "#/$defs/window" },
     "animations": { "$ref": "#/$defs/animations" },
     "editor": { "$ref": "#/$defs/editor" },
@@ -17,6 +18,18 @@
   },
   "required": ["schemaVersion"],
   "$defs": {
+    "plugins": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "disabledFiles": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 7 }
+        }
+      }
+    },
     "window": {
       "type": "object",
       "additionalProperties": false,

@@ -509,9 +509,11 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 }
 
 - (void)setPluginNames:(NSArray<NSString*>*)names
-              commands:(NSArray<NSDictionary<NSString*, NSString*>*>*)commands {
+              commands:(NSArray<NSDictionary<NSString*, NSString*>*>*)commands
+    configurationError:(NSString*)configurationError {
     _activityBar.pluginNames = names;
     _activityBar.pluginCommands = commands;
+    _activityBar.pluginConfigurationError = configurationError;
 }
 
 - (BOOL)isFlipped {

@@ -15,7 +15,8 @@
 @property(nonatomic, assign) id<KineticPluginHostDelegate> delegate;
 @property(nonatomic, readonly, copy) NSArray<NSString*>* loadedPluginNames;
 @property(nonatomic, readonly, copy) NSArray<NSDictionary<NSString*, NSString*>*>* commands;
-- (void)loadPluginsAtUrl:(NSURL*)directoryUrl;
+@property(nonatomic, readonly, copy) NSString* configurationError;
+- (void)loadPluginsAtUrl:(NSURL*)directoryUrl configurationUrl:(NSURL*)configurationUrl;
 - (BOOL)executeCommand:(NSString*)commandId;
 - (void)emitEvent:(NSString*)eventName;
 @end

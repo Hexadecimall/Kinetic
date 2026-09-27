@@ -267,10 +267,13 @@
                 .firstObject;
         NSURL* pluginsUrl = [[supportUrl URLByAppendingPathComponent:@"Kinetic"]
             URLByAppendingPathComponent:@"plugins"];
-        [self.pluginHost loadPluginsAtUrl:pluginsUrl];
+        NSURL* configurationUrl = [[supportUrl URLByAppendingPathComponent:@"Kinetic"]
+            URLByAppendingPathComponent:@"config.toml"];
+        [self.pluginHost loadPluginsAtUrl:pluginsUrl configurationUrl:configurationUrl];
         for (KineticEditorView* editor in self.editors) {
             [editor setPluginNames:self.pluginHost.loadedPluginNames
-                          commands:self.pluginHost.commands];
+                          commands:self.pluginHost.commands
+                configurationError:self.pluginHost.configurationError];
         }
     }
     [self.pluginHost emitEvent:@"document.activated"];
@@ -346,7 +349,9 @@
                                                                 contents:contents
                                                                  fileUrl:fileUrl];
     editor.commandHandler = self;
-    [editor setPluginNames:self.pluginHost.loadedPluginNames commands:self.pluginHost.commands];
+    [editor setPluginNames:self.pluginHost.loadedPluginNames
+                  commands:self.pluginHost.commands
+        configurationError:self.pluginHost.configurationError];
     for (NSString* property in self.pluginNumberOverrides) {
         [editor setPluginNumber:self.pluginNumberOverrides[property].doubleValue property:property];
     }

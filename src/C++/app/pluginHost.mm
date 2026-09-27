@@ -12,6 +12,7 @@
     NSMutableArray<NSDictionary<NSString*, id>*>* _registeredCommands;
     NSMutableArray<NSDictionary<NSString*, id>*>* _subscriptions;
     NSMutableArray<NSValue*>* _libraryHandles;
+    NSString* _configurationError;
     KineticPluginApi _api;
     BOOL _emittingEvent;
 }
@@ -25,6 +26,135 @@ static int32_t subscribeEvent(void* context, const char* eventName, KineticPlugi
                               void* userData);
 static uint64_t copyDocumentUtf8(void* context, char* buffer, uint64_t capacity);
 static int32_t replaceSelectionUtf8(void* context, const char* text, uint64_t length);
+
+static NSString* trimmed(NSString* text) {
+    return [text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+}
+
+static NSString* withoutComment(NSString* line) {
+    BOOL quoted = NO;
+    for (NSUInteger index = 0; index < line.length; ++index) {
+        unichar character = [line characterAtIndex:index];
+        if (character == '"') {
+            quoted = !quoted;
+        } else if (character == '#' && !quoted) {
+            return [line substringToIndex:index];
+        }
+    }
+    return line;
+}
+
+static NSSet<NSString*>* disabledFileList(NSString* value) {
+    if (![value hasPrefix:@"["] || ![value hasSuffix:@"]"]) {
+        return nil;
+    }
+    NSString* contents = trimmed([value substringWithRange:NSMakeRange(1, value.length - 2)]);
+    if (contents.length == 0) {
+        return [NSSet set];
+    }
+    NSMutableSet<NSString*>* names = [NSMutableSet set];
+    NSArray<NSString*>* components = [contents componentsSeparatedByString:@","];
+    for (NSUInteger index = 0; index < components.count; ++index) {
+        NSString* component = components[index];
+        NSString* item = trimmed(component);
+        if (item.length == 0 && index + 1 == components.count) {
+            continue;
+        }
+        if (item.length < 9 || ![item hasPrefix:@"\""] || ![item hasSuffix:@"\""]) {
+            return nil;
+        }
+        NSString* name = [item substringWithRange:NSMakeRange(1, item.length - 2)];
+        if (![name hasSuffix:@".dylib"] || [name containsString:@"/"] ||
+            [name containsString:@"\\"] || [name containsString:@"\""] ||
+            [name containsString:@".."] || [name containsString:@"#"] || name.length > 128) {
+            return nil;
+        }
+        if ([names containsObject:name]) {
+            return nil;
+        }
+        [names addObject:name];
+    }
+    return names;
+}
+
+static BOOL readPluginConfiguration(NSURL* configurationUrl, BOOL* enabled,
+                                    NSSet<NSString*>** disabledFiles, NSString** errorMessage) {
+    *enabled = YES;
+    *disabledFiles = [NSSet set];
+    if (![NSFileManager.defaultManager fileExistsAtPath:configurationUrl.path]) {
+        return YES;
+    }
+    NSError* readError = nil;
+    NSData* data = [NSData dataWithContentsOfURL:configurationUrl options:0 error:&readError];
+    if (data == nil || data.length > 65536) {
+        *errorMessage = @"Plugin config could not be read or exceeds 64 KiB.";
+        return NO;
+    }
+    NSString* contents = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+    if (contents == nil) {
+        *errorMessage = @"Plugin config must be UTF-8.";
+        return NO;
+    }
+    BOOL inPlugins = NO;
+    BOOL sawPluginsSection = NO;
+    BOOL sawEnabled = NO;
+    BOOL sawDisabledFiles = NO;
+    NSArray<NSString*>* lines =
+        [contents componentsSeparatedByCharactersInSet:NSCharacterSet.newlineCharacterSet];
+    for (NSUInteger index = 0; index < lines.count; ++index) {
+        NSString* line = trimmed(withoutComment(lines[index]));
+        if (line.length == 0) {
+            continue;
+        }
+        if ([line hasPrefix:@"["]) {
+            if (![line hasSuffix:@"]"]) {
+                *errorMessage =
+                    [NSString stringWithFormat:@"Invalid plugin config section at line %lu.",
+                                               (unsigned long)(index + 1)];
+                return NO;
+            }
+            inPlugins = [line isEqualToString:@"[plugins]"];
+            if (inPlugins && sawPluginsSection) {
+                *errorMessage = @"The plugins table may appear only once.";
+                return NO;
+            }
+            sawPluginsSection = sawPluginsSection || inPlugins;
+            continue;
+        }
+        if (!inPlugins) {
+            continue;
+        }
+        NSRange equals = [line rangeOfString:@"="];
+        if (equals.location == NSNotFound) {
+            *errorMessage = [NSString
+                stringWithFormat:@"Invalid plugin config at line %lu.", (unsigned long)(index + 1)];
+            return NO;
+        }
+        NSString* key = trimmed([line substringToIndex:equals.location]);
+        NSString* value = trimmed([line substringFromIndex:equals.location + 1]);
+        if ([key isEqualToString:@"enabled"] && !sawEnabled) {
+            if (![value isEqualToString:@"true"] && ![value isEqualToString:@"false"]) {
+                *errorMessage = @"plugins.enabled must be true or false.";
+                return NO;
+            }
+            *enabled = [value isEqualToString:@"true"];
+            sawEnabled = YES;
+        } else if ([key isEqualToString:@"disabledFiles"] && !sawDisabledFiles) {
+            NSSet<NSString*>* names = disabledFileList(value);
+            if (names == nil) {
+                *errorMessage = @"plugins.disabledFiles must list exact .dylib filenames.";
+                return NO;
+            }
+            *disabledFiles = names;
+            sawDisabledFiles = YES;
+        } else {
+            *errorMessage =
+                [NSString stringWithFormat:@"Unknown or repeated plugin setting: %@.", key];
+            return NO;
+        }
+    }
+    return YES;
+}
 
 @implementation KineticPluginHost
 
@@ -53,6 +183,10 @@ static int32_t replaceSelectionUtf8(void* context, const char* text, uint64_t le
 
 - (NSArray<NSString*>*)loadedPluginNames {
     return [_loadedPluginNames copy];
+}
+
+- (NSString*)configurationError {
+    return _configurationError;
 }
 
 - (NSArray<NSDictionary<NSString*, NSString*>*>*)commands {
@@ -165,7 +299,18 @@ static int32_t replaceSelectionUtf8(void* context, const char* text, uint64_t le
                                                                                               : -1;
 }
 
-- (void)loadPluginsAtUrl:(NSURL*)directoryUrl {
+- (void)loadPluginsAtUrl:(NSURL*)directoryUrl configurationUrl:(NSURL*)configurationUrl {
+    BOOL enabled = YES;
+    NSSet<NSString*>* disabledFiles = nil;
+    NSString* errorMessage = nil;
+    if (!readPluginConfiguration(configurationUrl, &enabled, &disabledFiles, &errorMessage)) {
+        _configurationError = errorMessage;
+        return;
+    }
+    _configurationError = nil;
+    if (!enabled) {
+        return;
+    }
     NSArray<NSURL*>* urls = [NSFileManager.defaultManager
           contentsOfDirectoryAtURL:directoryUrl
         includingPropertiesForKeys:@[ NSURLIsRegularFileKey ]
@@ -176,6 +321,9 @@ static int32_t replaceSelectionUtf8(void* context, const char* text, uint64_t le
            return [left.lastPathComponent compare:right.lastPathComponent];
          }]) {
         if (![url.pathExtension.lowercaseString isEqualToString:@"dylib"]) {
+            continue;
+        }
+        if ([disabledFiles containsObject:url.lastPathComponent]) {
             continue;
         }
         NSNumber* regularFile = nil;

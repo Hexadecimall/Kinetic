@@ -2,7 +2,16 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.15.0 - Unreleased
+## 0.16.0 - Unreleased
+
+### Added
+
+- Added live plugin-loading policy from the optional user `config.toml`: global enablement and an
+  exact-filename disable list. Disabled libraries are skipped before native initialization.
+- Added fail-closed validation for invalid plugin policy, a visible Plugins-panel error, defaults,
+  schema, usage documentation, and regression tests.
+
+## 0.15.0
 
 ### Added
 

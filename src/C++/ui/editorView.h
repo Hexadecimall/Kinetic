@@ -40,5 +40,6 @@
 - (BOOL)getPluginNumber:(double*)value property:(NSString*)property;
 - (void)replaceSelectionFromPlugin:(NSString*)text;
 - (void)setPluginNames:(NSArray<NSString*>*)names
-              commands:(NSArray<NSDictionary<NSString*, NSString*>*>*)commands;
+              commands:(NSArray<NSDictionary<NSString*, NSString*>*>*)commands
+    configurationError:(NSString*)configurationError;
 @end

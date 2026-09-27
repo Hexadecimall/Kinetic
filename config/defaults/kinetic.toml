@@ -1,5 +1,9 @@
 schemaVersion = 1
 
+[plugins]
+enabled = true
+disabledFiles = []
+
 [window]
 opacity = 0.90
 backdropBlur = true

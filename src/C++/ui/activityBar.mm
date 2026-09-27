@@ -86,6 +86,11 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
     self.needsDisplay = YES;
 }
 
+- (void)setPluginConfigurationError:(NSString*)pluginConfigurationError {
+    _pluginConfigurationError = [pluginConfigurationError copy];
+    self.needsDisplay = YES;
+}
+
 - (NSDictionary*)workspaceUiState {
     return @{
         @"expandedPaths" : _expandedPaths.allObjects,
@@ -577,7 +582,7 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
         [@"Kinetic Core" drawInRect:NSMakeRect(kRailWidth + 14.0, 82.0, kPanelWidth - 28.0, 18.0)
                      withAttributes:bodyAttributes];
         if (_pluginNames.count == 0) {
-            [@"No native plugins installed."
+            [(_pluginConfigurationError ?: @"No native plugins installed.")
                     drawInRect:NSMakeRect(kRailWidth + 14.0, 112.0, kPanelWidth - 28.0, 34.0)
                 withAttributes:mutedAttributes];
         }
