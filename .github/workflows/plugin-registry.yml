@@ -2,11 +2,6 @@ name: Plugin Registry
 
 on:
   pull_request:
-    paths:
-      - registry/**
-      - scripts/pluginRegistry.py
-      - tests/pluginRegistryTests.py
-      - .github/workflows/plugin-registry.yml
   push:
     branches: [main]
     paths:
@@ -24,7 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  validate:
+  registryValidate:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -79,7 +74,7 @@ jobs:
 
   deploy:
     if: github.event_name != 'pull_request'
-    needs: validate
+    needs: registryValidate
     runs-on: ubuntu-latest
     permissions:
       contents: read

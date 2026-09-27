@@ -44,8 +44,17 @@ transfer mechanism that does not exist yet.
 The submitted release entry has no `official` field. The generated catalog sets `official` only
 when `registry/official.json` maps the plugin ID to the same numeric GitHub publisher ID. A
 non-owner PR cannot change that policy. The `kinetic.*` namespace is reserved for Official
-plugins. Policy and publishing automation are listed in `CODEOWNERS`; repository rules should
-require review and the `Plugin Registry / validate` status before merging.
+plugins. Policy and publishing automation are listed in `CODEOWNERS`. The protected `main` branch
+requires both the CI `validate` and `Plugin Registry` `registryValidate` checks. The registry check
+runs on every pull request, including ones without catalog changes. Human review can become a
+required rule once another maintainer is available to approve the owner's pull requests.
+
+The bundled first-party C/C++ Support plugin has a separate, manual
+`Publish C/C++ Support` workflow. It tests and builds the plugin on macOS, verifies the signed
+arm64 asset and its public-path hygiene, then creates `cpp-support-v0.1.0` with an immutable
+`libkineticCppSupport.dylib` release asset. The workflow prints the uploaded size and SHA-256;
+add the catalog entry only after those remote bytes pass `verify-assets`. Re-running the workflow
+will not replace an existing asset.
 
 “Official” means Kinetic project approval, not a claim that native code is sandboxed or risk-free.
 The editor does not yet browse or install from this catalog. A future installer must verify the

@@ -12,6 +12,8 @@ All notable Kinetic changes are recorded here. Versions use `main.feature.patch`
 - Expanded the public plugin ABI with syntax providers, active file/workspace paths, diagnostics,
   source navigation, and an optional unload callback. Existing ABI-1 plugin prefixes remain valid.
 - Added an actual clangd integration test and plugin lexer/LSP protocol tests.
+- Added a gated first-party release workflow for the C/C++ plugin and distinct required registry
+  validation on every pull request.
 
 ### Fixed
 

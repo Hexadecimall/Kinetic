@@ -1,0 +1,31 @@
+name: Publish C/C++ Support
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Bootstrap
+        run: ./scripts/bootstrap
+      - name: Test
+        run: ./scripts/test
+      - name: Build release plugin
+        run: ./scripts/build --release
+      - name: Verify plugin signature
+        run: codesign --verify --strict build/release/Kinetic.app/Contents/PlugIns/libkineticCppSupport.dylib
+      - name: Publish immutable asset
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/publishOfficialPlugin.py \
+            --asset build/release/Kinetic.app/Contents/PlugIns/libkineticCppSupport.dylib
