@@ -51,7 +51,7 @@ set_source_files_properties("${KINETIC_APP_ICON}" PROPERTIES MACOSX_PACKAGE_LOCA
 
 add_executable(
     Kinetic MACOSX_BUNDLE src/C++/app/main.mm src/C++/app/keyboardShortcuts.mm
-                              src/C++/app/workspaceSearch.mm
+                              src/C++/app/pluginHost.mm src/C++/app/workspaceSearch.mm
                               src/C++/ui/activityBar.mm src/C++/ui/editorView.mm
                               src/C++/ui/editorStructure.mm
                               src/C++/ui/fileDialog.mm
@@ -60,7 +60,7 @@ add_executable(
                               src/C++/ui/syntaxHighlight.mm
                               src/C++/ui/trafficBar.mm src/C++/ui/tween.mm
                               "${KINETIC_APP_ICON}")
-target_include_directories(Kinetic PRIVATE src/C++/app src/C++/bridge src/C++/ui)
+target_include_directories(Kinetic PRIVATE include src/C++/app src/C++/bridge src/C++/ui)
 target_compile_options(Kinetic PRIVATE "-fobjc-arc")
 target_link_libraries(
     Kinetic PRIVATE kinetic_backend "-framework AppKit" "-framework Metal" "-framework MetalKit")
@@ -112,3 +112,14 @@ target_include_directories(kineticEditorStructureTests PRIVATE src/C++/ui)
 target_compile_options(kineticEditorStructureTests PRIVATE "-fobjc-arc")
 target_link_libraries(kineticEditorStructureTests PRIVATE "-framework Foundation")
 add_test(NAME kineticEditorStructure COMMAND kineticEditorStructureTests)
+
+add_library(kineticSamplePlugin MODULE tests/samplePlugin.cpp)
+target_include_directories(kineticSamplePlugin PRIVATE include)
+set_target_properties(kineticSamplePlugin PROPERTIES PREFIX "" SUFFIX ".dylib")
+
+add_executable(kineticPluginHostTests tests/pluginHostTests.mm src/C++/app/pluginHost.mm)
+target_include_directories(kineticPluginHostTests PRIVATE include src/C++/app)
+target_compile_options(kineticPluginHostTests PRIVATE "-fobjc-arc")
+target_link_libraries(kineticPluginHostTests PRIVATE "-framework Foundation")
+add_dependencies(kineticPluginHostTests kineticSamplePlugin)
+add_test(NAME kineticPluginHost COMMAND kineticPluginHostTests "$<TARGET_FILE_DIR:kineticSamplePlugin>")

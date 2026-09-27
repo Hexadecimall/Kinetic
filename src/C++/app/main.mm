@@ -7,6 +7,7 @@
 #include "keyboardShortcuts.h"
 #include "kineticBackend.h"
 #include "kineticCommands.h"
+#include "pluginHost.h"
 #include "trafficBar.h"
 #include "tween.h"
 #include "workspaceSearch.h"
@@ -110,7 +111,8 @@
 @end
 
 @interface KineticApplicationDelegate
-    : NSObject <NSApplicationDelegate, KineticCommandHandler, KineticFileDialogDelegate>
+    : NSObject <NSApplicationDelegate, KineticCommandHandler, KineticFileDialogDelegate,
+                KineticPluginHostDelegate>
 @property(nonatomic, strong) NSWindow* window;
 @property(nonatomic, strong) NSView* content;
 @property(nonatomic, strong) KineticHomeView* home;
@@ -118,6 +120,8 @@
 @property(nonatomic, strong) KineticEditorView* editor;
 @property(nonatomic, strong) NSMutableArray<KineticEditorView*>* editors;
 @property(nonatomic, strong) KineticFileDialog* fileDialog;
+@property(nonatomic, strong) KineticPluginHost* pluginHost;
+@property(nonatomic, strong) NSMutableDictionary<NSString*, NSNumber*>* pluginNumberOverrides;
 @property(nonatomic, strong) NSURL* workspaceUrl;
 @property(nonatomic, copy) NSDictionary* workspaceUiState;
 @property(nonatomic, copy) NSDictionary* searchUiState;
@@ -132,6 +136,7 @@
     (void)notification;
 
     self.editors = [NSMutableArray array];
+    self.pluginNumberOverrides = [NSMutableDictionary dictionary];
     self.workspaceUiState = @{};
     self.searchUiState = @{};
     self.activitySection = KineticActivitySectionNone;
@@ -253,6 +258,22 @@
     [nextEditor applySearchUiState:self.searchUiState];
     [nextEditor setActivitySection:self.activitySection animated:NO];
     self.editor = nextEditor;
+    if (self.pluginHost == nil) {
+        self.pluginHost = [[KineticPluginHost alloc] init];
+        self.pluginHost.delegate = self;
+        NSURL* supportUrl =
+            [NSFileManager.defaultManager URLsForDirectory:NSApplicationSupportDirectory
+                                                 inDomains:NSUserDomainMask]
+                .firstObject;
+        NSURL* pluginsUrl = [[supportUrl URLByAppendingPathComponent:@"Kinetic"]
+            URLByAppendingPathComponent:@"plugins"];
+        [self.pluginHost loadPluginsAtUrl:pluginsUrl];
+        for (KineticEditorView* editor in self.editors) {
+            [editor setPluginNames:self.pluginHost.loadedPluginNames
+                          commands:self.pluginHost.commands];
+        }
+    }
+    [self.pluginHost emitEvent:@"document.activated"];
     self.trafficBar.showsSearch = YES;
     self.trafficBar.searchActive = nextEditor.searchOpen;
     [self updateTabMetadata];
@@ -325,6 +346,10 @@
                                                                 contents:contents
                                                                  fileUrl:fileUrl];
     editor.commandHandler = self;
+    [editor setPluginNames:self.pluginHost.loadedPluginNames commands:self.pluginHost.commands];
+    for (NSString* property in self.pluginNumberOverrides) {
+        [editor setPluginNumber:self.pluginNumberOverrides[property].doubleValue property:property];
+    }
     editor.workspaceUrl = self.workspaceUrl;
     [editor applyWorkspaceUiState:self.workspaceUiState];
     [editor applySearchUiState:self.searchUiState];
@@ -340,6 +365,48 @@
 
 - (void)newTextFile {
     [self openEditorWithContents:@"" fileUrl:nil];
+}
+
+- (void)editorDocumentDidChange {
+    [self updateTabMetadata];
+    [self.pluginHost emitEvent:@"document.changed"];
+}
+
+- (void)executePluginCommand:(NSString*)commandId {
+    [self.pluginHost executeCommand:commandId];
+}
+
+- (BOOL)pluginHost:(KineticPluginHost*)host setNumber:(double)value property:(NSString*)property {
+    (void)host;
+    if (self.editor == nil || ![self.editor setPluginNumber:value property:property]) {
+        return NO;
+    }
+    for (KineticEditorView* editor in self.editors) {
+        if (editor != self.editor) {
+            [editor setPluginNumber:value property:property];
+        }
+    }
+    self.pluginNumberOverrides[property] = @(value);
+    return YES;
+}
+
+- (BOOL)pluginHost:(KineticPluginHost*)host getNumber:(double*)value property:(NSString*)property {
+    (void)host;
+    return [self.editor getPluginNumber:value property:property];
+}
+
+- (NSString*)pluginHostActiveDocument:(KineticPluginHost*)host {
+    (void)host;
+    return self.editor.documentText;
+}
+
+- (BOOL)pluginHost:(KineticPluginHost*)host replaceSelection:(NSString*)text {
+    (void)host;
+    if (self.editor == nil) {
+        return NO;
+    }
+    [self.editor replaceSelectionFromPlugin:text];
+    return YES;
 }
 
 - (void)openFile {

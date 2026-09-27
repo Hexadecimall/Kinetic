@@ -13,6 +13,8 @@
 - (void)focusFileSearch;
 - (void)toggleFileSearch;
 - (void)searchVisibilityDidChange:(BOOL)visible;
+- (void)editorDocumentDidChange;
+- (void)executePluginCommand:(NSString*)commandId;
 - (void)openSearchResult:(NSDictionary*)result;
 - (void)openRecentProjectAtUrl:(NSURL*)projectUrl;
 - (void)saveFile;

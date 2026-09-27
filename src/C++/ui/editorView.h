@@ -36,4 +36,9 @@
 - (void)revealCreatedFolderAtUrl:(NSURL*)url;
 - (void)setActivitySection:(KineticActivitySection)section animated:(BOOL)animated;
 - (void)markSaved;
+- (BOOL)setPluginNumber:(double)value property:(NSString*)property;
+- (BOOL)getPluginNumber:(double*)value property:(NSString*)property;
+- (void)replaceSelectionFromPlugin:(NSString*)text;
+- (void)setPluginNames:(NSArray<NSString*>*)names
+              commands:(NSArray<NSDictionary<NSString*, NSString*>*>*)commands;
 @end

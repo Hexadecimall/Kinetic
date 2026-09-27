@@ -54,6 +54,8 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
         _documentTitle = @"Untitled-1";
         _expandedPaths = [NSMutableSet set];
         _treeEntries = @[];
+        _pluginNames = @[];
+        _pluginCommands = @[];
         _hoveredPanelAction = -1;
         _treeScrollOffset = 0.0;
         _animating = NO;
@@ -72,6 +74,16 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
 
 - (KineticActivitySection)activeSection {
     return _activeSection;
+}
+
+- (void)setPluginNames:(NSArray<NSString*>*)pluginNames {
+    _pluginNames = [pluginNames copy] ?: @[];
+    self.needsDisplay = YES;
+}
+
+- (void)setPluginCommands:(NSArray<NSDictionary<NSString*, NSString*>*>*)pluginCommands {
+    _pluginCommands = [pluginCommands copy] ?: @[];
+    self.needsDisplay = YES;
 }
 
 - (NSDictionary*)workspaceUiState {
@@ -564,9 +576,31 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
         [self drawSectionHeader:@"INSTALLED" atY:45.0 attributes:headingAttributes];
         [@"Kinetic Core" drawInRect:NSMakeRect(kRailWidth + 14.0, 82.0, kPanelWidth - 28.0, 18.0)
                      withAttributes:bodyAttributes];
-        [@"Third-party plugin loading is not active."
-                drawInRect:NSMakeRect(kRailWidth + 14.0, 112.0, kPanelWidth - 28.0, 34.0)
-            withAttributes:mutedAttributes];
+        if (_pluginNames.count == 0) {
+            [@"No native plugins installed."
+                    drawInRect:NSMakeRect(kRailWidth + 14.0, 112.0, kPanelWidth - 28.0, 34.0)
+                withAttributes:mutedAttributes];
+        }
+        for (NSUInteger index = 0; index < _pluginNames.count; ++index) {
+            CGFloat y = 112.0 + index * 25.0;
+            [_pluginNames[index]
+                    drawInRect:NSMakeRect(kRailWidth + 14.0, y, kPanelWidth - 28.0, 20.0)
+                withAttributes:bodyAttributes];
+        }
+        if (_pluginCommands.count > 0) {
+            CGFloat headerY = 126.0 + _pluginNames.count * 25.0;
+            [self drawSectionHeader:@"COMMANDS" atY:headerY attributes:headingAttributes];
+            for (NSUInteger index = 0; index < _pluginCommands.count; ++index) {
+                CGFloat y = headerY + 36.0 + index * 29.0;
+                NSRect buttonRect = NSMakeRect(kRailWidth + 10.0, y, kPanelWidth - 20.0, 25.0);
+                [activityColor(58, 69, 84,
+                               _hoveredPanelAction == (NSInteger)index + 200 ? 0.92 : 0.72)
+                    setFill];
+                [[NSBezierPath bezierPathWithRoundedRect:buttonRect xRadius:4.0 yRadius:4.0] fill];
+                [_pluginCommands[index][@"title"] drawInRect:NSInsetRect(buttonRect, 9.0, 3.0)
+                                              withAttributes:bodyAttributes];
+            }
+        }
         break;
     case KineticActivitySectionSettings:
     case KineticActivitySectionNone:
@@ -680,6 +714,17 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
             }
             return;
         }
+    } else if (_activeSection == KineticActivitySectionPlugins && _pluginCommands.count > 0) {
+        CGFloat headerY = 126.0 + _pluginNames.count * 25.0;
+        for (NSUInteger index = 0; index < _pluginCommands.count; ++index) {
+            NSRect buttonRect = NSMakeRect(kRailWidth + 10.0, headerY + 36.0 + index * 29.0,
+                                           kPanelWidth - 20.0, 25.0);
+            if (NSPointInRect(point, buttonRect)) {
+                [self.delegate activityBar:self
+                    didRequestPluginCommand:_pluginCommands[index][@"id"]];
+                return;
+            }
+        }
     }
 }
 
@@ -728,6 +773,16 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
                     panelAction = (NSInteger)index + 100;
                     break;
                 }
+            }
+        }
+    } else if (_activeSection == KineticActivitySectionPlugins) {
+        CGFloat headerY = 126.0 + _pluginNames.count * 25.0;
+        for (NSUInteger index = 0; index < _pluginCommands.count; ++index) {
+            NSRect buttonRect = NSMakeRect(kRailWidth + 10.0, headerY + 36.0 + index * 29.0,
+                                           kPanelWidth - 20.0, 25.0);
+            if (NSPointInRect(point, buttonRect)) {
+                panelAction = (NSInteger)index + 200;
+                break;
             }
         }
     }

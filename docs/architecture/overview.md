@@ -19,13 +19,16 @@ between its C++ platform/rendering layer and Rust editor core.
 - Text buffers, selections, edits, history, and workspace state
 - Commands, settings, TOML configuration, and Lua automation
 - Project discovery, tasks, language tooling, and LSP lifecycle
-- Plugin discovery, capability policy, and stable API implementation
+- Long-term plugin capability policy and backend registries
 
 ### ABI boundary
 
 The internal boundary and native plugin surface use versioned C-compatible functions, opaque
 handles, explicit ownership, and fixed-width types. Rust and C++ object layouts never cross the
 boundary. Keystroke, text-layout, and per-glyph rendering hot paths stay within their owning side.
+The current native plugin host lives in Objective-C++ because the first exposed properties control
+the existing custom editor surface. It loads local dynamic libraries through the C ABI; native
+plugins never receive view-object pointers.
 
 ## Current editor slice
 
@@ -42,6 +45,11 @@ The editor activity rail and its Explorer, Source Control/GitHub, Plugins, and S
 also Kinetic-owned. File and project search share a top-right editor dropdown. Sections may be
 hidden, reordered, replaced, or extended once the
 settings and plugin registries are live; no section is a permanent hard-coded limit.
+
+The Plugins panel now lists locally loaded native plugins and their registered commands. A plugin
+can set supported editor properties, including letter spacing, and subscribe to document events.
+Panels, language-tool registries, and arbitrary UI contributions are future API expansions, not
+implemented plugin features in this preview.
 
 Opening a workspace folder populates an expandable file tree without using a native outline view.
 The Explorer creates folders through a Kinetic-drawn dialog and refreshes the window's project tree.

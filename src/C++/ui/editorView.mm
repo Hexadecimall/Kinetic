@@ -7,6 +7,8 @@
 
 #include "workspaceSearch.h"
 
+#include <cmath>
+
 namespace {
 
 constexpr CGFloat kFirstLineY = 84.0;
@@ -86,6 +88,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     CGFloat _horizontalScroll;
     CGFloat _fontSize;
     CGFloat _lineHeight;
+    CGFloat _letterSpacing;
     NSUInteger _tabWidth;
     BOOL _autoIndent;
     BOOL _autoPairs;
@@ -139,6 +142,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         _horizontalScroll = 0.0;
         _fontSize = 13.0;
         _lineHeight = 20.0;
+        _letterSpacing = 0.0;
         _tabWidth = 4;
         _autoIndent = YES;
         _autoPairs = YES;
@@ -427,6 +431,89 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     self.needsDisplay = YES;
 }
 
+- (BOOL)setPluginNumber:(double)value property:(NSString*)property {
+    if (!std::isfinite(value)) {
+        return NO;
+    }
+    if ([property isEqualToString:@"editor.text.letterSpacing"] && value >= -2.0 && value <= 8.0) {
+        _letterSpacing = value;
+    } else if ([property isEqualToString:@"editor.text.fontSize"] && value >= 8.0 &&
+               value <= 28.0) {
+        _fontSize = value;
+    } else if ([property isEqualToString:@"editor.text.lineHeight"] && value >= 14.0 &&
+               value <= 40.0) {
+        _lineHeight = value;
+    } else if ([property isEqualToString:@"editor.indentation.tabWidth"] && value >= 1.0 &&
+               value <= 16.0 && floor(value) == value) {
+        _tabWidth = (NSUInteger)value;
+    } else if ([property isEqualToString:@"editor.syntax.enabled"] &&
+               (value == 0.0 || value == 1.0)) {
+        _syntaxHighlighting = value == 1.0;
+    } else if ([property isEqualToString:@"editor.gutter.lineNumbers"] &&
+               (value == 0.0 || value == 1.0)) {
+        _showLineNumbers = value == 1.0;
+    } else if ([property isEqualToString:@"editor.scroll.indicators"] &&
+               (value == 0.0 || value == 1.0)) {
+        _showScrollIndicators = value == 1.0;
+    } else if ([property isEqualToString:@"editor.scroll.natural"] &&
+               (value == 0.0 || value == 1.0)) {
+        _naturalScrolling = value == 1.0;
+    } else if ([property isEqualToString:@"editor.indentation.autoIndent"] &&
+               (value == 0.0 || value == 1.0)) {
+        _autoIndent = value == 1.0;
+    } else if ([property isEqualToString:@"editor.delimiters.autoPairs"] &&
+               (value == 0.0 || value == 1.0)) {
+        _autoPairs = value == 1.0;
+    } else {
+        return NO;
+    }
+    [self clampScroll];
+    self.needsDisplay = YES;
+    return YES;
+}
+
+- (BOOL)getPluginNumber:(double*)value property:(NSString*)property {
+    if (value == nullptr) {
+        return NO;
+    }
+    if ([property isEqualToString:@"editor.text.letterSpacing"]) {
+        *value = _letterSpacing;
+    } else if ([property isEqualToString:@"editor.text.fontSize"]) {
+        *value = _fontSize;
+    } else if ([property isEqualToString:@"editor.text.lineHeight"]) {
+        *value = _lineHeight;
+    } else if ([property isEqualToString:@"editor.indentation.tabWidth"]) {
+        *value = _tabWidth;
+    } else if ([property isEqualToString:@"editor.syntax.enabled"]) {
+        *value = _syntaxHighlighting;
+    } else if ([property isEqualToString:@"editor.gutter.lineNumbers"]) {
+        *value = _showLineNumbers;
+    } else if ([property isEqualToString:@"editor.scroll.indicators"]) {
+        *value = _showScrollIndicators;
+    } else if ([property isEqualToString:@"editor.scroll.natural"]) {
+        *value = _naturalScrolling;
+    } else if ([property isEqualToString:@"editor.indentation.autoIndent"]) {
+        *value = _autoIndent;
+    } else if ([property isEqualToString:@"editor.delimiters.autoPairs"]) {
+        *value = _autoPairs;
+    } else {
+        return NO;
+    }
+    return YES;
+}
+
+- (void)replaceSelectionFromPlugin:(NSString*)text {
+    [self replaceSelectionWithString:text];
+    [self ensureCaretVisible];
+    self.needsDisplay = YES;
+}
+
+- (void)setPluginNames:(NSArray<NSString*>*)names
+              commands:(NSArray<NSDictionary<NSString*, NSString*>*>*)commands {
+    _activityBar.pluginNames = names;
+    _activityBar.pluginCommands = commands;
+}
+
 - (BOOL)isFlipped {
     return YES;
 }
@@ -463,6 +550,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         NSFontAttributeName : [NSFont monospacedSystemFontOfSize:_fontSize
                                                           weight:NSFontWeightRegular],
         NSForegroundColorAttributeName : editorColor(226, 233, 242),
+        NSKernAttributeName : @(_letterSpacing),
     };
 }
 
@@ -503,6 +591,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 - (void)updateDirtyState {
     _dirty = ![_text isEqualToString:_savedText];
     _syntaxNeedsUpdate = YES;
+    [self.commandHandler editorDocumentDidChange];
     if (_searchOpen && _searchPopover.scope == KineticSearchScopeFile) {
         [self refreshFileSearch];
     }
@@ -1508,6 +1597,11 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 - (void)activityBarDidRequestCreateFolder:(KineticActivityBar*)activityBar {
     (void)activityBar;
     [self.commandHandler createFolder];
+}
+
+- (void)activityBar:(KineticActivityBar*)activityBar didRequestPluginCommand:(NSString*)commandId {
+    (void)activityBar;
+    [self.commandHandler executePluginCommand:commandId];
 }
 
 - (void)activityBar:(KineticActivityBar*)activityBar didRequestOpenUrl:(NSURL*)url {

@@ -19,12 +19,15 @@ typedef NS_ENUM(NSInteger, KineticActivitySection) {
 - (void)activityBar:(KineticActivityBar*)activityBar didRequestOpenUrl:(NSURL*)url;
 - (void)activityBar:(KineticActivityBar*)activityBar
     didActivateSection:(KineticActivitySection)section;
+- (void)activityBar:(KineticActivityBar*)activityBar didRequestPluginCommand:(NSString*)commandId;
 @end
 
 @interface KineticActivityBar : NSView
 @property(nonatomic, assign) id<KineticActivityBarDelegate> delegate;
 @property(nonatomic, copy) NSString* documentTitle;
 @property(nonatomic, strong) NSURL* workspaceUrl;
+@property(nonatomic, copy) NSArray<NSString*>* pluginNames;
+@property(nonatomic, copy) NSArray<NSDictionary<NSString*, NSString*>*>* pluginCommands;
 @property(nonatomic, readonly) KineticActivitySection activeSection;
 @property(nonatomic, readonly, copy) NSDictionary* workspaceUiState;
 + (CGFloat)railWidth;

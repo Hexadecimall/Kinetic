@@ -16,9 +16,9 @@ dialog. It creates a folder at the project root or inside a browsed/selected sub
 duplicate and invalid names, and reveals the result in the shared Explorer tree. Creation stays
 inside the active window's project. Compact low-contrast header strips and single-edge dividers
 group the open document, workspace, repository, and installed-plugin sections without accordion
-styling or non-functional disclosure affordances. Source Control/GitHub and Plugins remain honest
-integration surfaces: they do not pretend repository discovery, account connections, or third-party
-plugin loading already exist.
+styling or non-functional disclosure affordances. Source Control/GitHub remains an integration
+placeholder. Plugins lists locally loaded native libraries and exposes their registered commands;
+publishing, online installation, and account connections are not implemented.
 
 Search lives in a Kinetic-drawn dropdown anchored beneath the Search icon at the right edge of the
 custom titlebar. The icon appears only while an editor is open; it no longer occupies the tab strip.

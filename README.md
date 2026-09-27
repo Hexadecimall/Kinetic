@@ -7,18 +7,19 @@
 </p>
 
 > [!IMPORTANT]
-> Kinetic `0.14.0` is an early functional preview. Editing, retained multi-document tabs, persisted
+> Kinetic `0.15.0` is an early functional preview. Editing, retained multi-document tabs, persisted
 > recent projects, mouse selection, undo/redo, basic syntax highlighting, auto-indentation,
 > matching delimiters, custom context menus,
 > in-file and project search,
-> the activity bar, file browsing, folder creation, opening, saving, scrolling, shortcuts, and the
+> the activity bar, native plugin host, file browsing, folder creation, opening, saving, scrolling, shortcuts, and the
 > macOS shell work, but production editor features are still under active development.
 
 ## Direction
 
 Kinetic combines a fast custom interface with first-class project tooling and an editor that
 works well before any configuration is written. TOML handles declarative settings, Lua handles
-dynamic configuration and automation, and a native plugin API will support Rust and C++.
+dynamic configuration and automation. A first native plugin API now supports Rust and C++ through
+a versioned C ABI; its current surface is documented in [`docs/plugin-api/README.md`](docs/plugin-api/README.md).
 
 The first platform is Apple Silicon macOS 15 or newer. Linux and Intel macOS support are planned
 after the macOS experience is mature.
@@ -60,7 +61,8 @@ under `dist/`.
 ## Architecture
 
 - C++, Objective-C++, AppKit, and Metal own the application shell, renderer, input, and UI.
-- Rust owns the editor model, workspace state, configuration, language tooling, and plugin host.
+- C++ currently hosts the native plugin ABI and the custom editor surface. Rust provides the
+  backend ABI; moving more editor-model responsibilities to Rust remains architectural direction.
 - A narrow versioned C ABI connects both sides.
 - Third-party source is pinned under `lib/` with provenance and license information.
 

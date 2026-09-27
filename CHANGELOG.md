@@ -2,7 +2,19 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.14.0 - Unreleased
+## 0.15.0 - Unreleased
+
+### Added
+
+- Added a versioned native C plugin ABI and loader for local Rust or C++ dynamic libraries.
+- Added editor property access, command registration, document events, UTF-8 document snapshots,
+  and selection replacement. Loaded plugin commands appear in the Plugins panel.
+- Exposed letter spacing through the same property API used for editor font size, line height,
+  indentation, syntax, gutter, and scrolling controls. Letter spacing affects text drawing and
+  caret, selection, and scrolling measurements.
+- Added a native sample plugin and host regression test.
+
+## 0.14.0
 
 ### Changed
 
