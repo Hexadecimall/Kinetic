@@ -13,6 +13,10 @@
 - (NSArray<NSDictionary<NSString*, NSString*>*>*)pluginCompletionItemsForPrefix:(NSString*)prefix
                                                                        fileName:(NSString*)fileName;
 - (BOOL)hasPluginCompletionProviderForFileName:(NSString*)fileName;
+- (BOOL)applyPluginDiagnosticFixForPath:(NSString*)path
+                                   line:(NSUInteger)line
+                                 column:(NSUInteger)column
+                                 length:(NSUInteger)length;
 @end
 
 @interface KineticEditorView : NSView

@@ -652,6 +652,13 @@
     return [self.pluginHost hasCompletionProviderForFileName:fileName];
 }
 
+- (BOOL)applyPluginDiagnosticFixForPath:(NSString*)path
+                                   line:(NSUInteger)line
+                                 column:(NSUInteger)column
+                                 length:(NSUInteger)length {
+    return [self.pluginHost applyDiagnosticFixForPath:path line:line column:column length:length];
+}
+
 - (void)pluginHostContributionsDidChange:(KineticPluginHost*)host {
     [self refreshPluginFileMenu];
     for (KineticEditorView* editor in self.editors) {

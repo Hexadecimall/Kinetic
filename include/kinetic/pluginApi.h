@@ -82,6 +82,19 @@ typedef struct KineticPluginDiagnostic {
 } KineticPluginDiagnostic;
 enum { kineticPluginError = 1, kineticPluginWarning = 2, kineticPluginInformation = 3 };
 
+// A separate structure preserves the ABI of plugins built before diagnostic actions.
+typedef struct KineticPluginDiagnosticV2 {
+    uint32_t line;
+    uint32_t columnUtf16;
+    uint32_t lengthUtf16;
+    uint32_t severity;
+    uint32_t flags;
+    char message[256];
+} KineticPluginDiagnosticV2;
+enum { kineticPluginDiagnosticFixAvailable = 1 };
+typedef int32_t (*KineticPluginDiagnosticFix)(void* userData, const char* filePath, uint32_t line,
+                                              uint32_t columnUtf16, uint32_t lengthUtf16);
+
 typedef struct KineticPluginApi {
     uint32_t abiVersion;
     uint32_t structSize;
@@ -121,6 +134,11 @@ typedef struct KineticPluginApi {
     // Optional trailing field. Older ABI-1 hosts do not expose completion providers.
     int32_t (*registerCompletionProvider)(void* context, const char* extension,
                                           KineticPluginCompletions callback, void* userData);
+    // Optional trailing fields; older ABI-1 plugins continue using publishDiagnostics.
+    int32_t (*publishDiagnosticsV2)(void* context, const char* filePath,
+                                    const KineticPluginDiagnosticV2* diagnostics, uint32_t count);
+    int32_t (*registerDiagnosticFixProvider)(void* context, const char* extension,
+                                             KineticPluginDiagnosticFix callback, void* userData);
 } KineticPluginApi;
 
 typedef struct KineticPluginDescriptor {

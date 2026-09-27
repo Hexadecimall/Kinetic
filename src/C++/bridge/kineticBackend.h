@@ -30,6 +30,8 @@ typedef struct KineticIndentationConfig {
     uint32_t tabWidth;
     bool insertTabs;
     bool autoIndent;
+    bool indentUnitNavigation;
+    bool showIndentGuides;
 } KineticIndentationConfig;
 int32_t kineticIndentationReadConfig(KineticIndentationConfig* output);
 int32_t kineticIndentationWriteConfig(const KineticIndentationConfig* input);

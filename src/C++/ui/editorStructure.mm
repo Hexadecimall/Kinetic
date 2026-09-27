@@ -229,6 +229,78 @@ KineticStructureEdit* kineticIndentBackspaceEdit(NSString* text, NSUInteger care
     return count == 0 ? nil : makeEdit(NSMakeRange(caretIndex - count, count), @"", 0, 0);
 }
 
+static NSArray<NSNumber*>* indentationStops(NSString* text, NSUInteger caretIndex,
+                                            NSUInteger tabWidth) {
+    if (caretIndex > text.length) {
+        return nil;
+    }
+    NSRange newline = [text rangeOfString:@"\n"
+                                  options:NSBackwardsSearch
+                                    range:NSMakeRange(0, caretIndex)];
+    NSUInteger start = newline.location == NSNotFound ? 0 : NSMaxRange(newline);
+    NSUInteger end = start;
+    while (end < text.length &&
+           ([text characterAtIndex:end] == ' ' || [text characterAtIndex:end] == '\t')) {
+        ++end;
+    }
+    if (caretIndex > end || end == start) {
+        return nil;
+    }
+    NSMutableArray<NSNumber*>* stops = [NSMutableArray arrayWithObject:@(start)];
+    NSUInteger column = 0;
+    for (NSUInteger index = start; index < end; ++index) {
+        if ([text characterAtIndex:index] == '\t') {
+            column += tabWidth - column % tabWidth;
+        } else {
+            ++column;
+        }
+        if (column % tabWidth == 0 || index + 1 == end) {
+            [stops addObject:@(index + 1)];
+        }
+    }
+    return stops;
+}
+
+NSUInteger kineticIndentNavigationIndex(NSString* text, NSUInteger caretIndex, NSUInteger tabWidth,
+                                        BOOL forward) {
+    NSArray<NSNumber*>* stops = indentationStops(text, caretIndex, MAX(1, tabWidth));
+    if (stops == nil) {
+        return NSNotFound;
+    }
+    if (forward) {
+        for (NSNumber* stop in stops) {
+            if (stop.unsignedIntegerValue > caretIndex) {
+                return stop.unsignedIntegerValue;
+            }
+        }
+    } else {
+        for (NSNumber* stop in stops.reverseObjectEnumerator) {
+            if (stop.unsignedIntegerValue < caretIndex) {
+                return stop.unsignedIntegerValue;
+            }
+        }
+    }
+    return NSNotFound;
+}
+
+NSUInteger kineticIndentSnapIndex(NSString* text, NSUInteger caretIndex, NSUInteger tabWidth) {
+    NSArray<NSNumber*>* stops = indentationStops(text, caretIndex, MAX(1, tabWidth));
+    if (stops == nil) {
+        return caretIndex;
+    }
+    NSUInteger nearest = caretIndex;
+    NSUInteger distance = NSUIntegerMax;
+    for (NSNumber* stop in stops) {
+        NSUInteger candidate = stop.unsignedIntegerValue;
+        NSUInteger delta = candidate > caretIndex ? candidate - caretIndex : caretIndex - candidate;
+        if (delta < distance) {
+            nearest = candidate;
+            distance = delta;
+        }
+    }
+    return nearest;
+}
+
 KineticStructureEdit* kineticTypedStructureEdit(NSString* text, NSRange selection,
                                                 NSString* character, NSUInteger tabWidth,
                                                 BOOL autoPairs) {

@@ -2,7 +2,21 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.25.0 - Unreleased
+## 0.26.0 - Unreleased
+
+### Added
+
+- Added small inline Fix buttons for clangd diagnostics with quick fixes, backed by actual
+  `textDocument/codeAction` requests and same-file edit validation.
+- Added indentation-unit cursor movement and faint indentation markers/guides, with Settings and
+  dotfile controls.
+
+### Fixed
+
+- C/C++ Support discovers CMake compilation databases in common build directories and restarts
+  clangd when the active project changes, avoiding fallback-parser error cascades.
+
+## 0.25.0
 
 ### Added
 

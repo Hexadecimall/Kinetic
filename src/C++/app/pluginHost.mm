@@ -26,6 +26,7 @@
     NSMutableArray<NSDictionary<NSString*, id>*>* _formatterCallbacks;
     NSMutableArray<NSDictionary<NSString*, id>*>* _syntaxCallbacks;
     NSMutableArray<NSDictionary<NSString*, id>*>* _completionCallbacks;
+    NSMutableArray<NSDictionary<NSString*, id>*>* _fixCallbacks;
     NSMutableArray<NSValue*>* _stopCallbacks;
     NSMutableArray<NSValue*>* _libraryHandles;
     NSMutableArray<KineticPluginSession*>* _sessions;
@@ -70,6 +71,10 @@ static uint64_t copyActiveFilePath(void* context, char* buffer, uint64_t capacit
 static uint64_t copyWorkspacePath(void* context, char* buffer, uint64_t capacity);
 static int32_t publishDiagnostics(void* context, const char* filePath,
                                   const KineticPluginDiagnostic* diagnostics, uint32_t count);
+static int32_t publishDiagnosticsV2(void* context, const char* filePath,
+                                    const KineticPluginDiagnosticV2* diagnostics, uint32_t count);
+static int32_t registerDiagnosticFixProvider(void* context, const char* extension,
+                                             KineticPluginDiagnosticFix callback, void* userData);
 static int32_t openLocation(void* context, const char* filePath, uint32_t line,
                             uint32_t columnUtf16);
 static NSString* registryField(KineticExtensionRegistry* registry, uint32_t kind, uint64_t index,
@@ -223,6 +228,7 @@ static BOOL readPluginConfiguration(NSURL* configurationUrl, BOOL* enabled,
         _formatterCallbacks = [NSMutableArray array];
         _syntaxCallbacks = [NSMutableArray array];
         _completionCallbacks = [NSMutableArray array];
+        _fixCallbacks = [NSMutableArray array];
         _stopCallbacks = [NSMutableArray array];
         _libraryHandles = [NSMutableArray array];
         _sessions = [NSMutableArray array];
@@ -254,6 +260,8 @@ static BOOL readPluginConfiguration(NSURL* configurationUrl, BOOL* enabled,
             publishDiagnostics,
             openLocation,
             registerCompletionProvider,
+            publishDiagnosticsV2,
+            registerDiagnosticFixProvider,
         };
     }
     return self;
@@ -558,6 +566,32 @@ static int32_t registerCompletionProvider(void* context, const char* extension,
     return 0;
 }
 
+static int32_t registerDiagnosticFixProvider(void* context, const char* extension,
+                                             KineticPluginDiagnosticFix callback, void* userData) {
+    if (![NSThread isMainThread] || callback == nullptr) {
+        return -1;
+    }
+    KineticPluginHost* host = hostForContext(context);
+    NSString* owner = ownerForContext(context);
+    NSString* name = stringForUtf8(extension).lowercaseString;
+    if (owner == nil || name.length == 0 || name.length > 24 ||
+        [name rangeOfCharacterFromSet:NSCharacterSet.alphanumericCharacterSet.invertedSet]
+                .location != NSNotFound) {
+        return -1;
+    }
+    for (NSDictionary<NSString*, id>* provider in host->_fixCallbacks) {
+        if ([provider[@"extension"] isEqualToString:name]) {
+            return -1;
+        }
+    }
+    [host->_fixCallbacks addObject:@{
+        @"extension" : name,
+        @"callback" : [NSValue valueWithPointer:(void*)callback],
+        @"userData" : [NSValue valueWithPointer:userData],
+    }];
+    return 0;
+}
+
 static uint64_t copyPath(void* context, char* buffer, uint64_t capacity, BOOL workspace) {
     if (![NSThread isMainThread]) {
         return UINT64_MAX;
@@ -610,6 +644,44 @@ static int32_t publishDiagnostics(void* context, const char* filePath,
             @"length" : @(diagnostic.lengthUtf16),
             @"severity" : @(diagnostic.severity),
             @"message" : message,
+        }];
+    }
+    KineticPluginHost* host = hostForContext(context);
+    dispatch_async(dispatch_get_main_queue(), ^{
+      if ([host.delegate respondsToSelector:@selector(pluginHost:publishDiagnostics:forPath:)]) {
+          [host.delegate pluginHost:host publishDiagnostics:items forPath:path];
+      }
+    });
+    return 0;
+}
+
+static int32_t publishDiagnosticsV2(void* context, const char* filePath,
+                                    const KineticPluginDiagnosticV2* diagnostics, uint32_t count) {
+    if (count > 2048 || (count > 0 && diagnostics == nullptr)) {
+        return -1;
+    }
+    NSString* path = stringForUtf8(filePath);
+    if (path.length == 0 || !path.isAbsolutePath) {
+        return -1;
+    }
+    NSMutableArray<NSDictionary<NSString*, id>*>* items = [NSMutableArray arrayWithCapacity:count];
+    for (uint32_t index = 0; index < count; ++index) {
+        const KineticPluginDiagnosticV2& diagnostic = diagnostics[index];
+        size_t length = strnlen(diagnostic.message, sizeof(diagnostic.message));
+        NSString* message = [[NSString alloc] initWithBytes:diagnostic.message
+                                                     length:length
+                                                   encoding:NSUTF8StringEncoding];
+        if (message == nil || diagnostic.line == 0 || diagnostic.severity < 1 ||
+            diagnostic.severity > 3) {
+            continue;
+        }
+        [items addObject:@{
+            @"line" : @(diagnostic.line),
+            @"column" : @(diagnostic.columnUtf16),
+            @"length" : @(diagnostic.lengthUtf16),
+            @"severity" : @(diagnostic.severity),
+            @"message" : message,
+            @"fixAvailable" : @((diagnostic.flags & kineticPluginDiagnosticFixAvailable) != 0),
         }];
     }
     KineticPluginHost* host = hostForContext(context);
@@ -1020,6 +1092,26 @@ static int32_t replaceRangeUtf8(void* context, uint64_t startUtf16, uint64_t len
         if ([provider[@"extension"] isEqualToString:extension]) {
             return YES;
         }
+    }
+    return NO;
+}
+
+- (BOOL)applyDiagnosticFixForPath:(NSString*)path
+                             line:(NSUInteger)line
+                           column:(NSUInteger)column
+                           length:(NSUInteger)length {
+    if (path.length == 0 || line == 0 || line > UINT32_MAX || column > UINT32_MAX ||
+        length > UINT32_MAX) {
+        return NO;
+    }
+    NSString* extension = path.pathExtension.lowercaseString;
+    for (NSDictionary<NSString*, id>* provider in _fixCallbacks) {
+        if (![provider[@"extension"] isEqualToString:extension]) {
+            continue;
+        }
+        auto callback = (KineticPluginDiagnosticFix)[provider[@"callback"] pointerValue];
+        return callback([provider[@"userData"] pointerValue], path.UTF8String, (uint32_t)line,
+                        (uint32_t)column, (uint32_t)length) == 0;
     }
     return NO;
 }

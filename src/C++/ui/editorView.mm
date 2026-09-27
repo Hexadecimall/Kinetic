@@ -27,7 +27,7 @@ constexpr CGFloat kMinimumTabWidth = 92.0;
 constexpr CGFloat kSearchPopoverWidth = 354.0;
 constexpr CGFloat kSettingsRowStep = 44.0;
 constexpr CGFloat kSettingsRowHeight = 39.0;
-constexpr CGFloat kSettingsRowCount = 13.0;
+constexpr CGFloat kSettingsRowCount = 15.0;
 constexpr CGFloat kSettingsStartY = 139.0;
 
 enum class EditorMenuCommand : NSInteger {
@@ -102,6 +102,8 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     NSUInteger _tabWidth;
     BOOL _insertTabs;
     BOOL _autoIndent;
+    BOOL _indentUnitNavigation;
+    BOOL _showIndentGuides;
     BOOL _autoPairs;
     BOOL _workspacePlaceholder;
     BOOL _autocompleteEnabled;
@@ -178,11 +180,13 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         _canvasColor = editorColor(47, 57, 71, 0.9);
         KineticIndentationConfig indentationConfig = {};
         if (kineticIndentationReadConfig(&indentationConfig) != 0) {
-            indentationConfig = {4, false, true};
+            indentationConfig = {4, false, true, true, true};
         }
         _tabWidth = indentationConfig.tabWidth;
         _insertTabs = indentationConfig.insertTabs;
         _autoIndent = indentationConfig.autoIndent;
+        _indentUnitNavigation = indentationConfig.indentUnitNavigation;
+        _showIndentGuides = indentationConfig.showIndentGuides;
         _autoPairs = YES;
         KineticCompletionConfig completionConfig = {};
         if (kineticCompletionReadConfig(&completionConfig) != 0) {
@@ -551,6 +555,12 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     } else if ([property isEqualToString:@"editor.indentation.insertTabs"] &&
                (value == 0.0 || value == 1.0)) {
         _insertTabs = value == 1.0;
+    } else if ([property isEqualToString:@"editor.indentation.unitNavigation"] &&
+               (value == 0.0 || value == 1.0)) {
+        _indentUnitNavigation = value == 1.0;
+    } else if ([property isEqualToString:@"editor.indentation.guides"] &&
+               (value == 0.0 || value == 1.0)) {
+        _showIndentGuides = value == 1.0;
     } else if ([property isEqualToString:@"editor.syntax.enabled"] &&
                (value == 0.0 || value == 1.0)) {
         _syntaxHighlighting = value == 1.0;
@@ -603,6 +613,10 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         *value = _tabWidth;
     } else if ([property isEqualToString:@"editor.indentation.insertTabs"]) {
         *value = _insertTabs;
+    } else if ([property isEqualToString:@"editor.indentation.unitNavigation"]) {
+        *value = _indentUnitNavigation;
+    } else if ([property isEqualToString:@"editor.indentation.guides"]) {
+        *value = _showIndentGuides;
     } else if ([property isEqualToString:@"editor.syntax.enabled"]) {
         *value = _syntaxHighlighting;
     } else if ([property isEqualToString:@"editor.gutter.lineNumbers"]) {
@@ -803,6 +817,25 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 
 - (NSArray<NSDictionary<NSString*, id>*>*)diagnostics {
     return _diagnostics;
+}
+
+- (NSRect)fixRectForLine:(NSString*)line
+                   index:(NSUInteger)index
+              diagnostic:(NSDictionary<NSString*, id>*)diagnostic {
+    if (![diagnostic[@"fixAvailable"] boolValue]) {
+        return NSZeroRect;
+    }
+    CGFloat messageX = [self editorTextOriginX] - _horizontalScroll +
+                       [line sizeWithAttributes:[self editorTextAttributes]].width + 16.0;
+    CGFloat right = NSWidth(self.bounds) - 8.0;
+    if (right - [self editorContentX] < 42.0) {
+        return NSZeroRect;
+    }
+    NSDictionary* style = @{NSFontAttributeName : [NSFont systemFontOfSize:10.5]};
+    CGFloat messageWidth = [diagnostic[@"message"] sizeWithAttributes:style].width;
+    CGFloat x = MIN(MAX(messageX + messageWidth + 9.0, [self editorContentX]), right - 34.0);
+    CGFloat y = kFirstLineY + index * _lineHeight - _verticalScroll;
+    return NSMakeRect(x, y, 34.0, MIN(17.0, _lineHeight - 2.0));
 }
 
 - (NSRange)selectionRange {
@@ -1545,6 +1578,12 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     if (NSPointInRect(point, [self settingsToggleRectForRow:12])) {
         return 17;
     }
+    if (NSPointInRect(point, [self settingsToggleRectForRow:13])) {
+        return 18;
+    }
+    if (NSPointInRect(point, [self settingsToggleRectForRow:14])) {
+        return 19;
+    }
     return -1;
 }
 
@@ -1607,6 +1646,12 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     case 17:
         _insertTabs = !_insertTabs;
         break;
+    case 18:
+        _indentUnitNavigation = !_indentUnitNavigation;
+        break;
+    case 19:
+        _showIndentGuides = !_showIndentGuides;
+        break;
     default:
         return;
     }
@@ -1648,14 +1693,21 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     } else if (control == 17) {
         property = @"editor.indentation.insertTabs";
         value = _insertTabs;
+    } else if (control == 18) {
+        property = @"editor.indentation.unitNavigation";
+        value = _indentUnitNavigation;
+    } else if (control == 19) {
+        property = @"editor.indentation.guides";
+        value = _showIndentGuides;
     } else {
         property = @"editor.autocomplete.maxResults";
         value = _autocompleteMaxResults;
     }
     [self.commandHandler editorSettingDidChange:property value:value];
-    if (control == 8 || control == 9 || control == 10 || control == 17) {
+    if (control == 8 || control == 9 || control == 10 || control >= 17) {
         KineticIndentationConfig config = {(uint32_t)_tabWidth, (bool)_insertTabs,
-                                           (bool)_autoIndent};
+                                           (bool)_autoIndent, (bool)_indentUnitNavigation,
+                                           (bool)_showIndentGuides};
         _settingsStatus = kineticIndentationWriteConfig(&config) == 0
                               ? @"Indentation saved to ~/.kinetic/config.toml"
                               : @"Indentation applies now, but its config could not be saved.";
@@ -1717,7 +1769,8 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     NSArray<NSString*>* titles = @[
         @"Font Size", @"Line Height", @"Line Numbers", @"Scroll Indicators", @"Natural Scrolling",
         @"Syntax Highlighting", @"Tab Width", @"Auto Indent", @"Auto Pairs", @"Autocomplete",
-        @"Minimum Prefix", @"Maximum Results", @"Insert Tab Characters"
+        @"Minimum Prefix", @"Maximum Results", @"Insert Tab Characters", @"Indent Unit Navigation",
+        @"Indent Guides"
     ];
     [NSGraphicsContext saveGraphicsState];
     [[NSBezierPath bezierPathWithRect:NSMakeRect(0.0, kSettingsStartY - 6.0, NSWidth(self.bounds),
@@ -1748,17 +1801,19 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
             [value drawInRect:NSMakeRect(NSMaxX(rowRect) - 82.0, NSMinY(rowRect) + 10.0, 46.0, 18.0)
                 withAttributes:rowTitleAttributes];
         } else {
-            BOOL enabled = row == 2   ? _showLineNumbers
-                           : row == 3 ? _showScrollIndicators
-                           : row == 4 ? _naturalScrolling
-                           : row == 5 ? _syntaxHighlighting
-                           : row == 7 ? _autoIndent
-                           : row == 8 ? _autoPairs
-                           : row == 9 ? _autocompleteEnabled
-                                      : _insertTabs;
+            BOOL enabled = row == 2    ? _showLineNumbers
+                           : row == 3  ? _showScrollIndicators
+                           : row == 4  ? _naturalScrolling
+                           : row == 5  ? _syntaxHighlighting
+                           : row == 7  ? _autoIndent
+                           : row == 8  ? _autoPairs
+                           : row == 9  ? _autocompleteEnabled
+                           : row == 12 ? _insertTabs
+                           : row == 13 ? _indentUnitNavigation
+                                       : _showIndentGuides;
             [self drawSettingsToggle:enabled
                               inRect:[self settingsToggleRectForRow:row]
-                             hovered:_settingsHoveredControl == (row == 12  ? 17
+                             hovered:_settingsHoveredControl == (row >= 12  ? row + 5
                                                                  : row >= 7 ? row + 3
                                                                             : row + 2)];
         }
@@ -2009,6 +2064,38 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
             [line drawAtPoint:NSMakePoint(textOriginX - _horizontalScroll, y)
                 withAttributes:textAttributes];
         }
+        if (_showIndentGuides) {
+            NSUInteger column = 0;
+            NSDictionary* markerStyle = @{
+                NSFontAttributeName : [NSFont monospacedSystemFontOfSize:10.0
+                                                                  weight:NSFontWeightRegular],
+                NSForegroundColorAttributeName : editorColor(137, 157, 185, 0.48),
+            };
+            for (NSUInteger offset = 0; offset < MIN(line.length, (NSUInteger)256); ++offset) {
+                unichar character = [line characterAtIndex:offset];
+                if (character != ' ' && character != '\t') {
+                    break;
+                }
+                CGFloat markerX =
+                    textOriginX - _horizontalScroll +
+                    [[line substringToIndex:offset] sizeWithAttributes:textAttributes].width;
+                [character == '\t' ? @"→" : @"·" drawAtPoint:NSMakePoint(markerX + 2.0, y + 2.0)
+                                              withAttributes:markerStyle];
+                column += character == '\t' ? _tabWidth - column % _tabWidth : 1;
+                if (column % _tabWidth == 0) {
+                    CGFloat guideX =
+                        textOriginX - _horizontalScroll +
+                        [[line substringToIndex:offset + 1] sizeWithAttributes:textAttributes]
+                            .width -
+                        3.0;
+                    [editorColor(106, 128, 158, 0.24) setStroke];
+                    NSBezierPath* guide = [NSBezierPath bezierPath];
+                    [guide moveToPoint:NSMakePoint(guideX, y)];
+                    [guide lineToPoint:NSMakePoint(guideX, y + _lineHeight)];
+                    [guide stroke];
+                }
+            }
+        }
         NSArray<NSDictionary<NSString*, id>*>* lineDiagnostics = diagnosticsByLine[@(index + 1)];
         for (NSDictionary<NSString*, id>* diagnostic in lineDiagnostics) {
             NSUInteger column = MIN([diagnostic[@"column"] unsignedIntegerValue], line.length);
@@ -2043,9 +2130,11 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
             NSDictionary<NSString*, id>* diagnostic = lineDiagnostics.firstObject;
             CGFloat messageX = textOriginX - _horizontalScroll +
                                [line sizeWithAttributes:textAttributes].width + 16.0;
+            NSRect fixRect = [self fixRectForLine:line index:index diagnostic:diagnostic];
+            CGFloat messageRight =
+                NSIsEmptyRect(fixRect) ? NSMaxX(contentRect) - 8.0 : NSMinX(fixRect) - 7.0;
             [diagnostic[@"message"]
-                    drawInRect:NSMakeRect(messageX, y + 1.0,
-                                          MAX(0.0, NSMaxX(contentRect) - messageX - 8.0),
+                    drawInRect:NSMakeRect(messageX, y + 1.0, MAX(0.0, messageRight - messageX),
                                           _lineHeight - 2.0)
                 withAttributes:@{
                     NSFontAttributeName : [NSFont systemFontOfSize:10.5],
@@ -2054,6 +2143,16 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
                         ? editorColor(255, 132, 137)
                         : editorColor(246, 194, 116),
                 }];
+            if (!NSIsEmptyRect(fixRect)) {
+                [editorColor(68, 106, 164, 0.72) setFill];
+                [[NSBezierPath bezierPathWithRoundedRect:fixRect xRadius:4.0 yRadius:4.0] fill];
+                [@"Fix" drawInRect:NSInsetRect(fixRect, 6.0, 2.0)
+                    withAttributes:@{
+                        NSFontAttributeName : [NSFont systemFontOfSize:10.0
+                                                                weight:NSFontWeightMedium],
+                        NSForegroundColorAttributeName : editorColor(226, 237, 252),
+                    }];
+            }
         }
     }
 
@@ -2197,7 +2296,32 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         return;
     }
 
+    NSArray<NSString*>* lines = [self documentLines];
+    NSUInteger hoveredLine =
+        point.y >= kFirstLineY
+            ? (NSUInteger)floor((point.y - kFirstLineY + _verticalScroll) / _lineHeight)
+            : NSNotFound;
+    if (hoveredLine < lines.count) {
+        for (NSDictionary<NSString*, id>* diagnostic in _diagnostics) {
+            if ([diagnostic[@"line"] unsignedIntegerValue] != hoveredLine + 1 ||
+                !NSPointInRect(point, [self fixRectForLine:lines[hoveredLine]
+                                                     index:hoveredLine
+                                                diagnostic:diagnostic])) {
+                continue;
+            }
+            [self.overlayRenderer
+                applyPluginDiagnosticFixForPath:self.fileUrl.path
+                                           line:hoveredLine + 1
+                                         column:[diagnostic[@"column"] unsignedIntegerValue]
+                                         length:[diagnostic[@"length"] unsignedIntegerValue]];
+            return;
+        }
+    }
+
     NSUInteger index = [self textIndexForPoint:point];
+    if (_indentUnitNavigation) {
+        index = kineticIndentSnapIndex(_text, index, _tabWidth);
+    }
     if ((event.modifierFlags & NSEventModifierFlagShift) == 0) {
         _selectionAnchor = index;
     }
@@ -2636,7 +2760,13 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         } else if (usesOption) {
             _caretIndex = [self previousWordIndexFromIndex:_caretIndex];
         } else if (_caretIndex > 0) {
-            _caretIndex = [_text rangeOfComposedCharacterSequenceAtIndex:_caretIndex - 1].location;
+            NSUInteger stop = _indentUnitNavigation
+                                  ? kineticIndentNavigationIndex(_text, _caretIndex, _tabWidth, NO)
+                                  : NSNotFound;
+            _caretIndex =
+                stop != NSNotFound
+                    ? stop
+                    : [_text rangeOfComposedCharacterSequenceAtIndex:_caretIndex - 1].location;
         }
         if (!extendsSelection) {
             _selectionAnchor = _caretIndex;
@@ -2649,7 +2779,13 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         } else if (usesOption) {
             _caretIndex = [self nextWordIndexFromIndex:_caretIndex];
         } else if (_caretIndex < _text.length) {
-            _caretIndex = NSMaxRange([_text rangeOfComposedCharacterSequenceAtIndex:_caretIndex]);
+            NSUInteger stop = _indentUnitNavigation
+                                  ? kineticIndentNavigationIndex(_text, _caretIndex, _tabWidth, YES)
+                                  : NSNotFound;
+            _caretIndex =
+                stop != NSNotFound
+                    ? stop
+                    : NSMaxRange([_text rangeOfComposedCharacterSequenceAtIndex:_caretIndex]);
         }
         if (!extendsSelection) {
             _selectionAnchor = _caretIndex;

@@ -11,6 +11,8 @@ animate in and out. Every visible control changes editor behavior across open ta
 - Syntax Highlighting: enabled or disabled for recognized source files.
 - Tab Width: 1 through 16 columns per tab stop.
 - Insert Tab Characters: choose literal tabs or spaces for new indentation.
+- Indent Unit Navigation: move the caret across leading spaces one indentation level at a time.
+- Indent Guides: show subtle indentation lines and leading-space/tab markers.
 - Auto Indent: preserve the current line's indentation on Return and indent inside blocks.
 - Auto Pairs: insert matching brackets and quotes, skip existing closing characters, and remove
   empty pairs with Backspace.

@@ -3,7 +3,7 @@
 mod language;
 mod lsp;
 
-use std::ffi::{CString, c_char, c_void};
+use std::ffi::{CStr, CString, c_char, c_void};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -25,6 +25,7 @@ pub struct Diagnostic {
     columnUtf16: u32,
     lengthUtf16: u32,
     severity: u32,
+    flags: u32,
     message: [c_char; 256],
 }
 
@@ -68,7 +69,7 @@ pub struct PluginApi {
     copyString: usize,
     getSelection: unsafe extern "C" fn(*mut c_void, *mut u64, *mut u64) -> i32,
     setSelection: usize,
-    replaceRangeUtf8: usize,
+    replaceRangeUtf8: unsafe extern "C" fn(*mut c_void, u64, u64, *const c_char, u64) -> i32,
     registerShortcut: unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char, u32) -> i32,
     registerFileMenuItem: usize,
     registerPanel: unsafe extern "C" fn(
@@ -93,13 +94,20 @@ pub struct PluginApi {
     ) -> i32,
     copyActiveFilePath: unsafe extern "C" fn(*mut c_void, *mut c_char, u64) -> u64,
     copyWorkspacePath: unsafe extern "C" fn(*mut c_void, *mut c_char, u64) -> u64,
-    publishDiagnostics:
-        unsafe extern "C" fn(*mut c_void, *const c_char, *const Diagnostic, u32) -> i32,
+    publishDiagnostics: usize,
     openLocation: unsafe extern "C" fn(*mut c_void, *const c_char, u32, u32) -> i32,
     registerCompletionProvider: unsafe extern "C" fn(
         *mut c_void,
         *const c_char,
         extern "C" fn(*mut c_void, *const c_char, u64, *mut CompletionRow, u32) -> u32,
+        *mut c_void,
+    ) -> i32,
+    publishDiagnosticsV2:
+        unsafe extern "C" fn(*mut c_void, *const c_char, *const Diagnostic, u32) -> i32,
+    registerDiagnosticFixProvider: unsafe extern "C" fn(
+        *mut c_void,
+        *const c_char,
+        extern "C" fn(*mut c_void, *const c_char, u32, u32, u32) -> i32,
         *mut c_void,
     ) -> i32,
 }
@@ -120,6 +128,7 @@ unsafe impl Sync for PluginDescriptor {}
 static API: AtomicPtr<PluginApi> = AtomicPtr::new(std::ptr::null_mut());
 static STATUS: AtomicU8 = AtomicU8::new(0);
 static SERVER: OnceLock<Mutex<Option<LanguageServer>>> = OnceLock::new();
+static WORKSPACE: OnceLock<Mutex<Option<String>>> = OnceLock::new();
 static FORMAT_CACHE: OnceLock<Mutex<Option<Vec<u8>>>> = OnceLock::new();
 
 fn formatCache() -> &'static Mutex<Option<Vec<u8>>> {
@@ -128,6 +137,10 @@ fn formatCache() -> &'static Mutex<Option<Vec<u8>>> {
 
 fn server() -> &'static Mutex<Option<LanguageServer>> {
     SERVER.get_or_init(|| Mutex::new(None))
+}
+
+fn currentWorkspace() -> &'static Mutex<Option<String>> {
+    WORKSPACE.get_or_init(|| Mutex::new(None))
 }
 
 fn api() -> Option<&'static PluginApi> {
@@ -161,6 +174,21 @@ fn activeDocument() -> Option<(String, String)> {
 }
 
 extern "C" fn documentEvent(_userData: *mut c_void, _eventName: *const c_char) {
+    if let Some(api) = api() {
+        let workspace = copyHostString(api.copyWorkspacePath);
+        if let Ok(mut current) = currentWorkspace().lock()
+            && *current != workspace
+        {
+            if let Ok(mut guard) = server().lock() {
+                if let Some(previous) = guard.take() {
+                    previous.stop();
+                }
+                *guard = LanguageServer::start(workspace.clone()).ok();
+                STATUS.store(u8::from(guard.is_some()), Ordering::Release);
+            }
+            *current = workspace;
+        }
+    }
     if let Some((path, text)) = activeDocument()
         && let Ok(guard) = server().lock()
         && let Some(server) = guard.as_ref()
@@ -266,6 +294,64 @@ extern "C" fn goToDefinition(_userData: *mut c_void) {
         server.updateDocument(path.clone(), text);
         server.goToDefinition(path, line, column);
     }
+}
+
+extern "C" fn applyDiagnosticFix(
+    _userData: *mut c_void,
+    filePath: *const c_char,
+    line: u32,
+    column: u32,
+    length: u32,
+) -> i32 {
+    if filePath.is_null() || line == 0 {
+        return -1;
+    }
+    // SAFETY: The host supplies a NUL-terminated path for the duration of this call.
+    let Ok(requestedPath) = (unsafe { CStr::from_ptr(filePath) }).to_str() else {
+        return -1;
+    };
+    let Some((path, text)) = activeDocument() else {
+        return -1;
+    };
+    if path != requestedPath {
+        return -1;
+    }
+    let response = {
+        let Ok(guard) = server().lock() else {
+            return -1;
+        };
+        let Some(server) = guard.as_ref() else {
+            return -1;
+        };
+        server.updateDocument(path.clone(), text.clone());
+        server.quickFix(&path, line - 1, column, length)
+    };
+    let Some(edits) = response
+        .as_ref()
+        .and_then(|value| lsp::quickFixEdits(value, &path, &text))
+    else {
+        return -1;
+    };
+    if activeDocument().as_ref() != Some(&(path, text)) {
+        return -1;
+    }
+    let Some(api) = api() else { return -1 };
+    for edit in edits {
+        // SAFETY: The host receives valid UTF-8 bytes and validated UTF-16 ranges.
+        if unsafe {
+            (api.replaceRangeUtf8)(
+                api.context,
+                edit.startUtf16,
+                edit.lengthUtf16,
+                edit.text.as_ptr().cast(),
+                edit.text.len() as u64,
+            )
+        } != 0
+        {
+            return -1;
+        }
+    }
+    0
 }
 
 fn counterpart(path: &Path) -> Option<PathBuf> {
@@ -424,6 +510,19 @@ extern "C" fn start(apiPointer: *const PluginApi) -> i32 {
     }
     for extension in [c"c", c"h", c"cc", c"cpp", c"cxx", c"hpp", c"hh", c"hxx"] {
         if unsafe {
+            (api.registerDiagnosticFixProvider)(
+                context,
+                extension.as_ptr(),
+                applyDiagnosticFix,
+                std::ptr::null_mut(),
+            )
+        } != 0
+        {
+            return -1;
+        }
+    }
+    for extension in [c"c", c"h", c"cc", c"cpp", c"cxx", c"hpp", c"hh", c"hxx"] {
+        if unsafe {
             (api.registerCompletionProvider)(
                 context,
                 extension.as_ptr(),
@@ -510,6 +609,9 @@ extern "C" fn start(apiPointer: *const PluginApi) -> i32 {
         }
     }
     let workspace = copyHostString(api.copyWorkspacePath);
+    if let Ok(mut current) = currentWorkspace().lock() {
+        *current = workspace.clone();
+    }
     match LanguageServer::start(workspace) {
         Ok(instance) => {
             STATUS.store(1, Ordering::Release);
@@ -530,6 +632,9 @@ extern "C" fn stop() {
         instance.stop();
     }
     API.store(std::ptr::null_mut(), Ordering::Release);
+    if let Ok(mut current) = currentWorkspace().lock() {
+        *current = None;
+    }
     STATUS.store(0, Ordering::Release);
 }
 
@@ -553,7 +658,7 @@ fn publish(path: &str, diagnostics: &[Diagnostic]) {
     let Ok(path) = CString::new(path) else { return };
     // SAFETY: The host copies the diagnostics before returning.
     unsafe {
-        (api.publishDiagnostics)(
+        (api.publishDiagnosticsV2)(
             api.context,
             path.as_ptr(),
             diagnostics.as_ptr(),

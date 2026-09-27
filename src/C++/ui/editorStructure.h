@@ -24,6 +24,9 @@ KineticStructureEdit* kineticTabEditWithTabs(NSString* text, NSRange selection, 
                                              BOOL outdent, BOOL insertTabs);
 KineticStructureEdit* kineticIndentBackspaceEdit(NSString* text, NSUInteger caretIndex,
                                                  NSUInteger tabWidth);
+NSUInteger kineticIndentNavigationIndex(NSString* text, NSUInteger caretIndex, NSUInteger tabWidth,
+                                        BOOL forward);
+NSUInteger kineticIndentSnapIndex(NSString* text, NSUInteger caretIndex, NSUInteger tabWidth);
 KineticStructureEdit* kineticTypedStructureEdit(NSString* text, NSRange selection,
                                                 NSString* character, NSUInteger tabWidth,
                                                 BOOL autoPairs);

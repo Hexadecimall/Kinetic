@@ -53,6 +53,8 @@ pub struct KineticIndentationConfig {
     pub tabWidth: u32,
     pub insertTabs: bool,
     pub autoIndent: bool,
+    pub indentUnitNavigation: bool,
+    pub showIndentGuides: bool,
 }
 
 impl Default for KineticIndentationConfig {
@@ -61,6 +63,8 @@ impl Default for KineticIndentationConfig {
             tabWidth: 4,
             insertTabs: false,
             autoIndent: true,
+            indentUnitNavigation: true,
+            showIndentGuides: true,
         }
     }
 }
@@ -315,7 +319,7 @@ fn appendMissing(output: &mut String, config: KineticCompletionConfig, seen: [bo
 fn parseIndentation(text: &str) -> Result<KineticIndentationConfig, ()> {
     let mut config = KineticIndentationConfig::default();
     let mut inEditor = false;
-    let mut seen = [false; 3];
+    let mut seen = [false; 5];
     for raw in text.lines() {
         let line = raw.split('#').next().unwrap_or("").trim();
         if line.starts_with('[') {
@@ -345,7 +349,19 @@ fn parseIndentation(text: &str) -> Result<KineticIndentationConfig, ()> {
                 config.autoIndent = value.parse().map_err(|_| ())?;
                 seen[2] = true;
             }
-            "tabWidth" | "insertTabs" | "autoIndent" => return Err(()),
+            "indentUnitNavigation" if !seen[3] => {
+                config.indentUnitNavigation = value.parse().map_err(|_| ())?;
+                seen[3] = true;
+            }
+            "showIndentGuides" if !seen[4] => {
+                config.showIndentGuides = value.parse().map_err(|_| ())?;
+                seen[4] = true;
+            }
+            "tabWidth"
+            | "insertTabs"
+            | "autoIndent"
+            | "indentUnitNavigation"
+            | "showIndentGuides" => return Err(()),
             _ => {}
         }
     }
@@ -355,7 +371,7 @@ fn parseIndentation(text: &str) -> Result<KineticIndentationConfig, ()> {
 fn appendMissingIndentation(
     output: &mut String,
     config: KineticIndentationConfig,
-    seen: [bool; 3],
+    seen: [bool; 5],
 ) {
     if !seen[0] {
         let _ = writeln!(output, "tabWidth = {}", config.tabWidth);
@@ -366,6 +382,16 @@ fn appendMissingIndentation(
     if !seen[2] {
         let _ = writeln!(output, "autoIndent = {}", config.autoIndent);
     }
+    if !seen[3] {
+        let _ = writeln!(
+            output,
+            "indentUnitNavigation = {}",
+            config.indentUnitNavigation
+        );
+    }
+    if !seen[4] {
+        let _ = writeln!(output, "showIndentGuides = {}", config.showIndentGuides);
+    }
 }
 
 fn updateIndentation(text: &str, config: KineticIndentationConfig) -> Result<String, ()> {
@@ -373,7 +399,7 @@ fn updateIndentation(text: &str, config: KineticIndentationConfig) -> Result<Str
     let mut output = String::new();
     let mut inEditor = false;
     let mut found = false;
-    let mut seen = [false; 3];
+    let mut seen = [false; 5];
     for raw in text.split_inclusive('\n') {
         let line = raw.trim_end_matches(['\r', '\n']);
         let trimmed = line.trim();
@@ -385,7 +411,7 @@ fn updateIndentation(text: &str, config: KineticIndentationConfig) -> Result<Str
             if trimmed == "[editor]" {
                 inEditor = true;
                 found = true;
-                seen = [false; 3];
+                seen = [false; 5];
             }
         }
         if inEditor
@@ -396,6 +422,8 @@ fn updateIndentation(text: &str, config: KineticIndentationConfig) -> Result<Str
                 "tabWidth" => Some(0),
                 "insertTabs" => Some(1),
                 "autoIndent" => Some(2),
+                "indentUnitNavigation" => Some(3),
+                "showIndentGuides" => Some(4),
                 _ => None,
             };
             if let Some(index) = index {
@@ -404,7 +432,9 @@ fn updateIndentation(text: &str, config: KineticIndentationConfig) -> Result<Str
                 let value = match index {
                     0 => config.tabWidth.to_string(),
                     1 => config.insertTabs.to_string(),
-                    _ => config.autoIndent.to_string(),
+                    2 => config.autoIndent.to_string(),
+                    3 => config.indentUnitNavigation.to_string(),
+                    _ => config.showIndentGuides.to_string(),
                 };
                 let _ = write!(output, "{} = {value}", key.trim());
                 if !comment.is_empty() {
@@ -433,7 +463,7 @@ fn updateIndentation(text: &str, config: KineticIndentationConfig) -> Result<Str
             output.push('\n');
         }
         output.push_str("[editor]\n");
-        appendMissingIndentation(&mut output, config, [false; 3]);
+        appendMissingIndentation(&mut output, config, [false; 5]);
     }
     Ok(output)
 }
@@ -624,12 +654,16 @@ mod tests {
             tabWidth: 4,
             insertTabs: true,
             autoIndent: false,
+            indentUnitNavigation: false,
+            showIndentGuides: false,
         };
         let updated = updateIndentation(original, config).unwrap();
         assert!(updated.contains("fontSize = 13"));
         assert!(updated.contains("tabWidth = 4 # style"));
         assert!(updated.contains("insertTabs = true"));
         assert!(updated.contains("autoIndent = false"));
+        assert!(updated.contains("indentUnitNavigation = false"));
+        assert!(updated.contains("showIndentGuides = false"));
         assert!(updated.contains("[search]\nshowButton = true"));
         assert_eq!(parseIndentation(&updated).unwrap().tabWidth, 4);
     }

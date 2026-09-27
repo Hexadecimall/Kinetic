@@ -7,6 +7,9 @@
 - (void)undoEdit;
 - (void)redoEdit;
 - (NSRect)completionPopupRect;
+- (NSRect)fixRectForLine:(NSString*)line
+                  index:(NSUInteger)index
+             diagnostic:(NSDictionary<NSString*, id>*)diagnostic;
 @end
 
 @interface KineticActivityBar (SearchTest)
@@ -98,6 +101,20 @@ int main() {
         NSRect compactPopup = [editor completionPopupRect];
         passed = check(NSWidth(compactPopup) < 200.0 && NSHeight(compactPopup) < 40.0,
                        @"one suggestion uses a compact popup") && passed;
+        NSDictionary* fixDiagnostic = @{
+            @"line" : @1,
+            @"column" : @0,
+            @"length" : @4,
+            @"message" : @"Unused include",
+            @"fixAvailable" : @YES,
+        };
+        passed = check(!NSIsEmptyRect([editor fixRectForLine:@"#include <unused>"
+                                                    index:0
+                                               diagnostic:fixDiagnostic]) &&
+                           NSIsEmptyRect([editor fixRectForLine:@"#include <unused>"
+                                                         index:0
+                                                    diagnostic:@{@"message" : @"No fix"}]),
+                       @"Fix button appears only for fixable diagnostics") && passed;
         KineticEditorView* placeholder =
             [[KineticEditorView alloc] initWithFrame:NSMakeRect(0, 0, 1180, 760)
                                             contents:@""

@@ -46,5 +46,9 @@
 - (NSArray<NSDictionary<NSString*, NSString*>*>*)completionItemsForPrefix:(NSString*)prefix
                                                                  fileName:(NSString*)fileName;
 - (BOOL)hasCompletionProviderForFileName:(NSString*)fileName;
+- (BOOL)applyDiagnosticFixForPath:(NSString*)path
+                             line:(NSUInteger)line
+                           column:(NSUInteger)column
+                           length:(NSUInteger)length;
 - (void)emitEvent:(NSString*)eventName;
 @end

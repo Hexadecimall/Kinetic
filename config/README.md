@@ -54,11 +54,16 @@ The editor also reads and saves indentation preferences:
 tabWidth = 4
 insertTabs = false
 autoIndent = true
+indentUnitNavigation = true
+showIndentGuides = true
 ```
 
 `insertTabs = false` inserts spaces to the next tab stop; `true` inserts a literal tab. Backspace
 removes one indentation unit while the caret is in leading whitespace. Other editor configuration
 keys remain part of the future settings registry.
+`indentUnitNavigation` moves the caret by tab stops inside leading whitespace, including
+space-based indentation, and snaps mouse placement to the nearest stop. `showIndentGuides` draws
+subtle indentation guides and marks leading spaces and literal tabs.
 
 Tab sizing and recent-project presentation are recorded in the same contract; recent paths are
 runtime user data stored by the application and never written into the repository.

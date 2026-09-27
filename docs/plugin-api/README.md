@@ -40,6 +40,8 @@ The current host supports:
 | `publishDiagnostics` | Publish up to 2,048 line/column diagnostics for an absolute file path. Safe to call from a worker thread; the host updates the UI on the main thread. |
 | `openLocation` | Open an absolute file path and reveal a 1-based line and 0-based UTF-16 column. Safe to call from a worker thread. |
 | `registerCompletionProvider` | Contribute up to 32 labeled completion items for a file extension and prefix to Kinetic's native autocomplete popup. |
+| `publishDiagnosticsV2` | Publish diagnostics with an explicit `kineticPluginDiagnosticFixAvailable` flag without changing the layout of older diagnostics. |
+| `registerDiagnosticFixProvider` | Register a quick-fix callback for an extension; the editor calls it when a user clicks Fix on a flagged diagnostic. |
 
 These functions are appended to ABI version 1. Older plugins can keep using the original
 structure prefix; new plugins must check `structSize` before reading the appended pointers. A
@@ -48,7 +50,7 @@ after `start` returns. Contributions belong to that plugin and are removed if `s
 An optional trailing `stop` callback in `KineticPluginDescriptor` is invoked before the host
 unloads the library; older descriptors without it remain valid. Registration and editor-event
 callbacks run on the main thread. Syntax callbacks run during rendering on the main thread;
-only `publishDiagnostics` and `openLocation` explicitly support worker-thread calls. Completion
+only `publishDiagnostics`, `publishDiagnosticsV2`, and `openLocation` explicitly support worker-thread calls. Completion
 callbacks run synchronously on the main thread while suggestions refresh and must return quickly;
 each label, insertion, and detail is limited to 95 UTF-8 bytes. No plugin draws the popup.
 Shortcut modifiers use the
@@ -60,6 +62,9 @@ must be valid UTF-8, and is applied as one undoable edit. Formatters run only on
 Format Document invocation, not on save.
 Syntax token kinds use the `kineticPluginSyntax*` constants and per-line UTF-16 offsets.
 Diagnostics use 1-based lines, 0-based UTF-16 columns, and severity constants in the header.
+Fix callbacks run on the main thread, receive the selected diagnostic range, and return zero only
+after applying a verified action. A provider should reject stale or cross-file edits. Hosts built
+before these optional trailing ABI fields remain compatible with older plugins.
 The bounded callbacks do not receive Objective-C++ view pointers.
 
 Supported numeric property keys and ranges:
@@ -71,6 +76,8 @@ Supported numeric property keys and ranges:
 | `editor.text.lineHeight` | 14 to 40 points |
 | `editor.indentation.tabWidth` | Integer 1 to 16 |
 | `editor.indentation.insertTabs` | 0 for spaces, 1 for literal tab characters |
+| `editor.indentation.unitNavigation` | 0 for character navigation, 1 for indentation units |
+| `editor.indentation.guides` | 0 or 1 for indentation guides and markers |
 | `editor.syntax.enabled` | 0 or 1 |
 | `editor.gutter.lineNumbers` | 0 or 1 |
 | `editor.scroll.indicators` | 0 or 1 |

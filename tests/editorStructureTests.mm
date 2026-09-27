@@ -55,6 +55,15 @@ int main() {
                 @"Backspace removes partial indentation");
         require(kineticIndentBackspaceEdit(@"    value", 5, 4) == nil,
                 @"Backspace inside code is a normal character edit");
+        require(kineticIndentNavigationIndex(@"        value", 8, 4, NO) == 4 &&
+                    kineticIndentNavigationIndex(@"        value", 4, 4, NO) == 0 &&
+                    kineticIndentNavigationIndex(@"        value", 0, 4, YES) == 4,
+                @"arrow navigation moves by indentation units");
+        require(kineticIndentSnapIndex(@"        value", 6, 4) == 4 &&
+                    kineticIndentSnapIndex(@"        value", 7, 4) == 8,
+                @"mouse placement snaps to an indentation stop");
+        require(kineticIndentNavigationIndex(@"    code name", 9, 4, NO) == NSNotFound,
+                @"ordinary spaces remain individually navigable");
 
         edit = kineticTypedStructureEdit(@"", NSMakeRange(0, 0), @"{", 4, YES);
         require([applyEdit(@"", edit) isEqualToString:@"{}"] && edit.caretOffset == 1,
