@@ -7,6 +7,12 @@ constexpr CGFloat kRowHeight = 30.0;
 NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
     return [NSColor colorWithSRGBRed:red / 255.0 green:green / 255.0 blue:blue / 255.0 alpha:alpha];
 }
+
+BOOL dialogIsDirectory(NSURL* url) {
+    BOOL directory = NO;
+    [NSFileManager.defaultManager fileExistsAtPath:url.path isDirectory:&directory];
+    return directory;
+}
 } // namespace
 
 @interface KineticFileEntry : NSObject
@@ -48,6 +54,8 @@ NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
                      delegate:(id<KineticFileDialogDelegate>)delegate {
     self = [super initWithFrame:frameRect];
     if (self) {
+        self.wantsLayer = YES;
+        self.layer.opaque = NO;
         _mode = mode;
         _dialogDelegate = delegate;
         _selectedIndex = -1;
@@ -117,12 +125,10 @@ NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
 
     NSMutableArray<KineticFileEntry*>* entries = [[NSMutableArray alloc] init];
     for (NSURL* url in urls) {
-        NSNumber* directory = nil;
-        [url getResourceValue:&directory forKey:NSURLIsDirectoryKey error:nil];
         KineticFileEntry* entry = [[KineticFileEntry alloc] init];
         entry.url = url;
         entry.name = url.lastPathComponent;
-        entry.directory = directory.boolValue;
+        entry.directory = dialogIsDirectory(url);
         [entries addObject:entry];
     }
     [entries
@@ -199,7 +205,7 @@ NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
 
     [dialogColor(5, 8, 13, 0.52) setFill];
     NSRectFill(self.bounds);
-    [dialogColor(39, 48, 61, 0.98) setFill];
+    [dialogColor(39, 48, 61) setFill];
     [[NSBezierPath bezierPathWithRoundedRect:_panelRect xRadius:8.0 yRadius:8.0] fill];
 
     NSDictionary* titleAttributes = @{
@@ -241,7 +247,7 @@ NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
                                               NSWidth(_panelRect) - 102.0, 18.0)
                     withAttributes:pathAttributes];
 
-    [dialogColor(30, 38, 50, 0.92) setFill];
+    [dialogColor(30, 38, 50) setFill];
     [[NSBezierPath bezierPathWithRoundedRect:_listRect xRadius:4.0 yRadius:4.0] fill];
     [NSGraphicsContext saveGraphicsState];
     [[NSBezierPath bezierPathWithRect:_listRect] addClip];
@@ -256,7 +262,7 @@ NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
             continue;
         }
         if ((NSInteger)index == _selectedIndex) {
-            [dialogColor(77, 141, 255, 0.2) setFill];
+            [dialogColor(39, 59, 91) setFill];
             NSRectFill(NSInsetRect(rowRect, 3.0, 2.0));
         }
         KineticFileEntry* entry = _entries[index];

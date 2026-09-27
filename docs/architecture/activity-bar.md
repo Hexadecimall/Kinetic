@@ -16,7 +16,9 @@ New File and New Folder controls. Their Kinetic-drawn dialogs create inside the 
 including a selected subfolder, reject duplicates, and reveal the result in the shared tree. A new
 file opens in its own tab. Dot-prefixed names are valid. The same hidden entries appear in custom
 Open and Save browsers. Kinetic-drawn context menus provide file/folder creation and path copying
-from the Explorer, and opening or path copying from file-browser rows. Compact low-contrast header
+from the Explorer, and opening or path copying from file-browser rows. Directory symlinks are
+navigable folders in both surfaces. The dialog panel, list, and selection fill are opaque, keeping
+Home content from showing through a selected row. Compact low-contrast header
 strips and single-edge dividers
 group the open document, workspace, repository, and installed-plugin sections without accordion
 styling or non-functional disclosure affordances. Source Control/GitHub remains an integration

@@ -7,7 +7,7 @@
 </p>
 
 > [!IMPORTANT]
-> Kinetic `0.19.0` is an early functional preview. Editing, retained multi-document tabs, persisted
+> Kinetic `0.19.1` is an early functional preview. Editing, retained multi-document tabs, persisted
 > recent projects, mouse selection, undo/redo, basic syntax highlighting, auto-indentation,
 > matching delimiters, custom context menus, in-file and project search, the activity bar, GitHub
 > account sign-in, native plugin host, hidden-file browsing, project file and folder creation,

@@ -16,6 +16,12 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
     return [NSColor colorWithSRGBRed:red / 255.0 green:green / 255.0 blue:blue / 255.0 alpha:alpha];
 }
 
+BOOL activityIsDirectory(NSURL* url) {
+    BOOL directory = NO;
+    [NSFileManager.defaultManager fileExistsAtPath:url.path isDirectory:&directory];
+    return directory;
+}
+
 } // namespace
 
 @interface KineticActivityTreeEntry : NSObject
@@ -230,22 +236,18 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
                                                        options:0
                                                          error:nil];
     urls = [urls sortedArrayUsingComparator:^NSComparisonResult(NSURL* left, NSURL* right) {
-      NSNumber* leftDirectory = nil;
-      NSNumber* rightDirectory = nil;
-      [left getResourceValue:&leftDirectory forKey:NSURLIsDirectoryKey error:nil];
-      [right getResourceValue:&rightDirectory forKey:NSURLIsDirectoryKey error:nil];
-      if (leftDirectory.boolValue != rightDirectory.boolValue) {
-          return leftDirectory.boolValue ? NSOrderedAscending : NSOrderedDescending;
+      BOOL leftDirectory = activityIsDirectory(left);
+      BOOL rightDirectory = activityIsDirectory(right);
+      if (leftDirectory != rightDirectory) {
+          return leftDirectory ? NSOrderedAscending : NSOrderedDescending;
       }
       return [left.lastPathComponent localizedCaseInsensitiveCompare:right.lastPathComponent];
     }];
     for (NSURL* url in urls) {
-        NSNumber* directoryValue = nil;
-        [url getResourceValue:&directoryValue forKey:NSURLIsDirectoryKey error:nil];
         KineticActivityTreeEntry* entry = [[KineticActivityTreeEntry alloc] init];
         entry.url = url;
         entry.depth = depth;
-        entry.directory = directoryValue.boolValue;
+        entry.directory = activityIsDirectory(url);
         [entries addObject:entry];
         if (entry.directory && [_expandedPaths containsObject:url.path]) {
             [self appendDirectory:url depth:depth + 1 toEntries:entries];
@@ -385,7 +387,7 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
 }
 
 - (NSRect)newFileButtonRect {
-    return NSMakeRect(kRailWidth + kPanelWidth - 55.0, 183.0, 23.0, 20.0);
+    return NSMakeRect(kRailWidth + kPanelWidth - 63.0, 183.0, 23.0, 20.0);
 }
 
 - (NSRect)treeRowRectAtIndex:(NSUInteger)index {
@@ -442,17 +444,25 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
         [activityColor(77, 141, 255, 0.16) setFill];
         [[NSBezierPath bezierPathWithRoundedRect:rect xRadius:3.0 yRadius:3.0] fill];
     }
+    CGFloat x = NSMinX(rect);
+    CGFloat y = NSMinY(rect);
     NSBezierPath* icon = [NSBezierPath bezierPath];
     icon.lineWidth = 1.15;
     icon.lineCapStyle = NSLineCapStyleRound;
-    [icon appendBezierPathWithRoundedRect:NSMakeRect(NSMinX(rect) + 4.0, NSMinY(rect) + 3.0, 11.0,
-                                                     14.0)
-                                  xRadius:1.3
-                                  yRadius:1.3];
-    [icon moveToPoint:NSMakePoint(NSMinX(rect) + 16.0, NSMinY(rect) + 9.0)];
-    [icon lineToPoint:NSMakePoint(NSMinX(rect) + 22.0, NSMinY(rect) + 9.0)];
-    [icon moveToPoint:NSMakePoint(NSMinX(rect) + 19.0, NSMinY(rect) + 6.0)];
-    [icon lineToPoint:NSMakePoint(NSMinX(rect) + 19.0, NSMinY(rect) + 12.0)];
+    icon.lineJoinStyle = NSLineJoinStyleRound;
+    [icon moveToPoint:NSMakePoint(x + 4.0, y + 2.5)];
+    [icon lineToPoint:NSMakePoint(x + 12.0, y + 2.5)];
+    [icon lineToPoint:NSMakePoint(x + 16.0, y + 6.5)];
+    [icon lineToPoint:NSMakePoint(x + 16.0, y + 16.5)];
+    [icon lineToPoint:NSMakePoint(x + 4.0, y + 16.5)];
+    [icon closePath];
+    [icon moveToPoint:NSMakePoint(x + 12.0, y + 2.5)];
+    [icon lineToPoint:NSMakePoint(x + 12.0, y + 6.5)];
+    [icon lineToPoint:NSMakePoint(x + 16.0, y + 6.5)];
+    [icon moveToPoint:NSMakePoint(x + 9.5, y + 10.5)];
+    [icon lineToPoint:NSMakePoint(x + 15.5, y + 10.5)];
+    [icon moveToPoint:NSMakePoint(x + 12.5, y + 7.5)];
+    [icon lineToPoint:NSMakePoint(x + 12.5, y + 13.5)];
     [activityColor(155, 181, 220) setStroke];
     [icon stroke];
 }
@@ -515,7 +525,7 @@ NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha =
     [self drawSectionHeader:workspaceTitle.uppercaseString
                         atY:181.0
                  attributes:headingAttributes
-              trailingInset:_workspaceUrl == nil ? 0.0 : 49.0];
+              trailingInset:_workspaceUrl == nil ? 0.0 : 64.0];
     if (_workspaceUrl == nil) {
         [@"Open a folder to show its files."
                 drawInRect:NSMakeRect(kRailWidth + 14.0, kTreeStartY + 7.0, kPanelWidth - 28.0,

@@ -120,6 +120,13 @@ target_compile_options(kineticEditorStructureTests PRIVATE "-fobjc-arc")
 target_link_libraries(kineticEditorStructureTests PRIVATE "-framework Foundation")
 add_test(NAME kineticEditorStructure COMMAND kineticEditorStructureTests)
 
+add_executable(kineticFileDialogTests tests/fileDialogTests.mm src/C++/ui/fileDialog.mm
+                                      src/C++/ui/contextMenu.mm)
+target_include_directories(kineticFileDialogTests PRIVATE src/C++/ui)
+target_compile_options(kineticFileDialogTests PRIVATE "-fobjc-arc")
+target_link_libraries(kineticFileDialogTests PRIVATE "-framework AppKit")
+add_test(NAME kineticFileDialog COMMAND kineticFileDialogTests)
+
 add_library(kineticSamplePlugin MODULE tests/samplePlugin.cpp)
 target_include_directories(kineticSamplePlugin PRIVATE include)
 set_target_properties(kineticSamplePlugin PROPERTIES PREFIX "" SUFFIX ".dylib")

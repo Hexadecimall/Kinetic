@@ -2,7 +2,17 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.19.0 - Unreleased
+## 0.19.1 - Unreleased
+
+### Fixed
+
+- Redrew the Explorer's New File control as a compact folded-page icon with its plus inside the
+  page and more space between the file and folder controls.
+- Made the custom file dialog panel, file list, and selected-row fill opaque so Home content cannot
+  bleed through the selection.
+- Treat directory symlinks as folders in the Explorer and file browser, including Open Folder.
+
+## 0.19.0
 
 ### Added
 
