@@ -2,7 +2,14 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.29.0 - Unreleased
+## 0.29.1 - Unreleased
+
+### Changed
+
+- Removed promotional wording and request narration from documentation; corrected configuration, plugin, and language-tooling descriptions.
+- Replaced the Source Control placeholder's repository claim with an unavailable status.
+
+## 0.29.0
 
 ### Added
 
@@ -107,7 +114,7 @@ All notable Kinetic changes are recorded here. Versions use `main.feature.patch`
 ### Added
 
 - Added a searchable Discover/Installed plugin page with publisher, Official status, description,
-  version, technical details, and honest unrated state. Bundled C/C++ Support is marked Included,
+  version, technical details, and unrated state. Bundled C/C++ Support is marked Included,
   not presented as a removable core plugin.
 - Added Rust-owned CLI and in-app plugin install, update, and removal against the public catalog.
   Downloads are size- and SHA-256-checked; native plugins require a restart after changes.

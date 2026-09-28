@@ -49,8 +49,5 @@ The Explorer panel's right edge can be dragged to resize it; its width persists 
 `~/.kinetic/layout.toml`. The Command Palette offers Kinetic Dark, Midnight, and Graphite themes,
 persisted in `~/.kinetic/theme.toml`. Panel rearrangement is not implemented yet.
 
-The rail, panel, icons, selection indicator, hover treatment, section headers, dimensions, opening
-and closing animation durations, visibility, section order, and contributed sections belong to the
-settings and plugin API contract.
-The current preview records those defaults in `config/defaults/kinetic.toml` while runtime settings
-loading is still being built.
+`config/defaults/kinetic.toml` describes configuration defaults. Not every field has a runtime
+control; see [Settings](settings.md) for implemented controls and persistence.

@@ -24,7 +24,7 @@ Header/source switching searches sibling files with a matching stem. A project-l
 `build/debug`) is supplied to clangd. The server restarts when the active workspace changes.
 Other build layouts can still use clangd's normal discovery rules.
 
-The user can disable the included plugin with `disabledFiles = ["libkineticCppSupport.dylib"]` under
+Disable the included plugin with `disabledFiles = ["libkineticCppSupport.dylib"]` under
 `[plugins]` in `~/.kinetic/config.toml`, or disable all native plugins with `enabled = false`.
 The Official designation comes from the registry's project-owned publisher policy, not a plugin
 self-claim. Version 0.1.0 is published as an immutable

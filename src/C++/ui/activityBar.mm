@@ -778,12 +778,9 @@ BOOL activityIsDirectory(NSURL* url) {
         break;
     case KineticActivitySectionSourceControl:
         [self drawSectionHeader:@"REPOSITORY" atY:45.0 attributes:headingAttributes];
-        [@"No repository detected"
+        [@"Source control is unavailable."
                 drawInRect:NSMakeRect(kRailWidth + 14.0, 82.0, kPanelWidth - 28.0, 18.0)
             withAttributes:bodyAttributes];
-        [@"GitHub accounts and repositories will appear here."
-                drawInRect:NSMakeRect(kRailWidth + 14.0, 108.0, kPanelWidth - 28.0, 34.0)
-            withAttributes:mutedAttributes];
         break;
     case KineticActivitySectionPlugins:
         break;

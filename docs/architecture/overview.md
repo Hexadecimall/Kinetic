@@ -19,11 +19,11 @@ between its C++ platform/rendering layer and Rust editor core.
 - Document text, edit application, dirty state, and bounded undo/redo history
 - Plugin contribution metadata and collision rules for commands, shortcuts, menus, panels,
   overlays, and formatters
-- Planned ownership of selections, workspace state, search, settings, and language tooling;
-  these still have Objective-C++ implementations in the current preview
-- Planned settings, TOML configuration, and Lua automation ownership
-- Planned project discovery, tasks, language tooling, and LSP lifecycle ownership
-- Long-term plugin capability policy
+- Indentation and completion configuration, numeric preference persistence
+- C/C++ Support language-server lifecycle and protocol handling
+
+Selections, workspace state, search, and the native plugin host remain in Objective-C++.
+Lua automation is not implemented.
 
 ### ABI boundary
 
@@ -36,7 +36,7 @@ The current native plugin host lives in Objective-C++ because the first exposed 
 the existing custom editor surface. It loads local dynamic libraries through the C ABI; native
 plugins never receive view-object pointers.
 
-## Current editor slice
+## Editor
 
 The current macOS preview has a custom text surface, retained multi-document tabs with independent
 editing state, dirty-state presentation, persisted recent projects, a custom folder/file browser,
@@ -48,16 +48,15 @@ compositor backdrop sampling; controls, browser rows, selection presentation, te
 menus, and transitions are Kinetic-owned.
 
 The editor activity rail and its Explorer, Source Control/GitHub, Plugins, and Settings sections are
-also Kinetic-owned. File and project search share a top-right editor dropdown. Sections may be
-hidden, reordered, replaced, or extended once the
-settings and plugin registries are live; no section is a permanent hard-coded limit.
+also Kinetic-owned. File and project search share a top-right editor dropdown. Source Control is
+currently a placeholder. Settings and Plugins open in rounded overlays.
 
 The titlebar account control is also Kinetic-drawn. GitHub authorization happens in the user's
 browser through the public Kinetic OAuth app; Kinetic stores the resulting session in the macOS
 Keychain and refreshes expiring tokens. See [`accounts.md`](accounts.md) for the current permissions
 and sign-out behavior.
 
-The dedicated Plugins page browses the public catalog and manages installed native plugins.
+The Plugins overlay browses the public catalog and manages installed native plugins.
 Commands are registered editor actions rather than Plugins-page rows. Contributed panel rows
 remain supported by the plugin ABI, but no longer occupy the package browser. A plugin can set supported numeric and string properties, including letter
 spacing, font, and editor canvas
@@ -74,23 +73,17 @@ Opening a workspace folder populates an expandable file tree without using a nat
 The Explorer shows hidden entries and creates files and folders through Kinetic-drawn dialogs; the
 custom Open and Save browsers show hidden entries too. Context menus serve tabs, project files,
 browser rows and fields, recent projects, and search alongside the editor surface.
-The dedicated Settings page exposes only controls already connected to editor behavior.
+The Settings overlay exposes controls connected to editor behavior.
 
 See [`tabs-and-recents.md`](tabs-and-recents.md) for document retention, tab switching, closing, and
 recent-project persistence behavior.
 
-Values embedded during this phase are defaults pending the settings registry. They must migrate to
-typed settings without changing their established behavior. Plugins will reach supported behavior
-through commands and settings rather than patching views directly.
-
 ## Language tooling
 
-Kinetic discovers project-local tools, explicit configuration, standard toolchain locations, and
-`PATH`. Opening a file without an available language server may trigger an installation offer that
-names the package, publisher, and official status. No tool is downloaded silently.
-
-Formatters and linters remain quiet until their capability is invoked. The core owns LSP process
-lifecycle; installable language plugins provide tested defaults instead of core-only implementations.
+C/C++ Support uses bundled clangd and clang-format unless an explicit environment override is set.
+Outside the app bundle, it falls back to `PATH`. The plugin owns the clangd process and protocol
+handling. See [language support](language-support.md) for implemented capabilities and packaging
+limits.
 
 ## Platform direction
 

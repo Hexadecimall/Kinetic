@@ -112,24 +112,21 @@ no Rust or C++ internal object layout is exposed through the boundary.
 
 ## Customization contract
 
-Every user-facing feature must eventually have a supported customization route. The property-key
-ABI is an extensible entry point rather than a frozen list of ten preferences. Text layout remains
-inside Kinetic's renderer: plugins change a property, not per-glyph callbacks. This keeps letter
-spacing customizable without placing plugin dispatch in the drawing hot path.
+The property-key ABI exposes the settings listed above. Text layout stays in Kinetic's renderer;
+property updates do not add per-glyph plugin callbacks.
 
 The GitHub-backed publication flow and Official policy are documented in
 [`registry/README.md`](../../registry/README.md). The Plugins page browses and installs from that catalog.
 
 [`C/C++ Support`](../../plugins/official/cppSupport/README.md) is a first-party example of the
-language hooks. It has an immutable Official catalog release but does not ship in the app bundle.
+language hooks. It ships in the app bundle; separately published versions are available through
+the Official catalog.
 
 The current ABI does **not** yet expose every editor control. The Rust contribution registry now
 owns metadata and collision rules for commands, shortcuts, menus, panels, overlays, and formatters;
 the C++ host still owns native callbacks and rendering. Syntax providers, diagnostics, and
 location navigation and completion are now public hooks. Settings registration, arbitrary widget
-layout, additional language-tool methods, and file-system providers remain future work. Changing one
-exposed property or registering an overlay does not imply arbitrary view control. The next backend
-boundary work is moving selection, workspace search, and settings to Rust. API growth must preserve
+layout, additional language-tool methods, and file-system providers are not exposed. Selection and
+workspace search remain in Objective-C++; numeric preference persistence is in Rust. API changes must preserve
 old structure prefixes, check `structSize`, and avoid exposing Objective-C++ view pointers or unstable Rust
-internals. Marketplace trust and official-publisher verification are separate future work, not
-implied by a local plugin's metadata.
+internals. Official status comes from the registry's publisher policy, not local plugin metadata.

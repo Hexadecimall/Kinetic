@@ -11,9 +11,9 @@ supported_archs     arm64
 license             Apache-2
 maintainers         nomaintainer
 
-description         A deeply customizable, GPU-rendered code editor
-long_description    Kinetic is a deeply customizable code editor with a polished, \
-                    ready-to-go experience and a custom macOS interface.
+description         A macOS code editor with Rust/C++ plugin support
+long_description    Kinetic is a code editor with a custom macOS interface, \
+                    project navigation, language tooling, and native plugins.
 homepage            https://github.com/Hexadecimall/Kinetic
 
 master_sites        https://github.com/Hexadecimall/Kinetic/releases/download/v${version}/

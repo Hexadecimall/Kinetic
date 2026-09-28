@@ -25,6 +25,5 @@ application defaults domain. Missing folders are filtered before display. Home d
 name and truncated parent path as custom rows; selecting one restores that workspace without
 creating an Untitled file.
 
-Tab widths, dirty markers, recent-list limits, path visibility, colors, shortcuts, and transition
-timings are settings and plugin API contract points. The current implementation establishes their
-behavior while the typed runtime settings registry is still being built.
+Settings exposes preferred tab width. Other customization limits are documented in
+[`settings.md`](settings.md) and the [plugin API](../plugin-api/README.md).
