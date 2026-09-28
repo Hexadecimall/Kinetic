@@ -65,7 +65,10 @@ NSArray<NSDictionary*>* kineticSettingsRows(void) {
         row(@"Navigation", @"Scroll indicators", @"editor.scroll.indicators"),
         row(@"Interface", @"Panel and switch animations", @"interface.motion.enabled"),
         row(@"Interface", @"Animation duration (ms)", @"interface.motion.duration", 80, 400, 20),
-        row(@"Interface", @"Preferred tab width", @"editor.tabs.preferredWidth", 100, 240, 4)
+        row(@"Interface", @"Preferred tab width", @"editor.tabs.preferredWidth", 100, 240, 4),
+        row(@"Interface", @"Smooth caret", @"editor.caret.smooth"),
+        row(@"Interface", @"Caret duration (ms)", @"editor.caret.duration", 40, 300, 10),
+        row(@"Interface", @"Caret stretch", @"editor.caret.stretch", 0, 1, 0.1)
     ];
 }
 
@@ -198,8 +201,8 @@ NSArray<NSDictionary*>* kineticSettingsRows(void) {
         double value = self.readNumber ? self.readNumber(item[@"key"]) : 0;
         NSRect control = [self controlRect:index];
         NSArray* choices = item[@"choices"];
-        BOOL toggle = [item[@"min"] doubleValue] == 0 && [item[@"max"] doubleValue] == 1 &&
-                      choices.count == 0;
+        BOOL toggle = [item[@"step"] doubleValue] == 1 && [item[@"min"] doubleValue] == 0 &&
+                      [item[@"max"] doubleValue] == 1 && choices.count == 0;
         if (toggle) {
             NSRect track = NSMakeRect(NSMaxX(control) - 38, NSMidY(control) - 11, 38, 22);
             CGFloat progress = [self switchProgress:item[@"key"] value:value];
@@ -262,7 +265,8 @@ NSArray<NSDictionary*>* kineticSettingsRows(void) {
     NSString* key = item[@"key"];
     double current = self.readNumber(key);
     double minimum = [item[@"min"] doubleValue], maximum = [item[@"max"] doubleValue];
-    BOOL toggle = minimum == 0 && maximum == 1 && [item[@"choices"] count] == 0;
+    BOOL toggle = minimum == 0 && maximum == 1 && [item[@"step"] doubleValue] == 1 &&
+                  [item[@"choices"] count] == 0;
     double value =
         toggle ? !current
                : MIN(maximum, MAX(minimum, current + direction * [item[@"step"] doubleValue]));
@@ -354,7 +358,8 @@ NSArray<NSDictionary*>* kineticSettingsRows(void) {
                                    }];
             return;
         }
-        BOOL toggle = [item[@"min"] doubleValue] == 0 && [item[@"max"] doubleValue] == 1;
+        BOOL toggle = [item[@"step"] doubleValue] == 1 && [item[@"min"] doubleValue] == 0 &&
+                      [item[@"max"] doubleValue] == 1;
         if (!toggle && [item[@"choices"] count] == 0 && point.x > NSMinX(control) + 30 &&
             point.x < NSMaxX(control) - 30)
             return;

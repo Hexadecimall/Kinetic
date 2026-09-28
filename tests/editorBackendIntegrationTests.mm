@@ -7,6 +7,7 @@
 @interface KineticEditorView (HistoryTest)
 - (void)undoEdit;
 - (void)redoEdit;
+- (void)drawCaretAtRect:(NSRect)target;
 - (NSRect)completionPopupRect;
 - (NSRect)fixRectForLine:(NSUInteger)index diagnostic:(NSDictionary<NSString*, id>*)diagnostic;
 @end
@@ -51,6 +52,33 @@ int main() {
                      passed;
         }
         editor.tabTitles = @[ @"Document" ];
+        passed = check([editor setPluginNumber:1 property:@"editor.caret.smooth"],
+                       @"smooth caret enabled") &&
+                 passed;
+        passed = check([editor setPluginNumber:120 property:@"editor.caret.duration"] &&
+                           ![editor setPluginNumber:0 property:@"editor.caret.duration"] &&
+                           [editor setPluginNumber:0.6 property:@"editor.caret.stretch"] &&
+                           ![editor setPluginNumber:2 property:@"editor.caret.stretch"],
+                       @"caret animation ranges") &&
+                 passed;
+        [editor setPluginNumber:1 property:@"interface.motion.enabled"];
+        NSImage* caretImage = [[NSImage alloc] initWithSize:NSMakeSize(200, 100)];
+        [caretImage lockFocus];
+        [editor drawCaretAtRect:NSMakeRect(10, 10, 1.5, 16)];
+        [editor drawCaretAtRect:NSMakeRect(90, 50, 1.5, 16)];
+        passed = check(NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion ||
+                           [editor valueForKey:@"caretTimer"] != nil,
+                       @"caret movement starts an animation") &&
+                 passed;
+        passed = check(NSEqualRanges(editor.pluginSelection, NSMakeRange(0, 0)),
+                       @"visual caret animation leaves selection unchanged") &&
+                 passed;
+        [editor setPluginNumber:0 property:@"editor.caret.smooth"];
+        [editor drawCaretAtRect:NSMakeRect(120, 50, 1.5, 16)];
+        passed = check([editor valueForKey:@"caretTimer"] == nil,
+                       @"disabling smooth caret stops the timer") &&
+                 passed;
+        [caretImage unlockFocus];
         [editor setActivitySection:KineticActivitySectionSettings animated:NO];
         passed = check(editor.tabTitles.count == 1, @"settings preserves document tabs") && passed;
         passed =

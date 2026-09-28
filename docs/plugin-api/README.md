@@ -82,6 +82,9 @@ Supported numeric property keys and ranges:
 | `interface.theme` | Integer 0 to 2: Kinetic Dark, Midnight, Graphite; persists via the theme store |
 | `interface.motion.enabled` | 0 or 1 for Settings/Plugins panels and Settings switches |
 | `interface.motion.duration` | 80 to 400 milliseconds; system Reduced Motion takes precedence |
+| `editor.caret.smooth` | 0 or 1; enables visual caret motion, default 0 |
+| `editor.caret.duration` | 40 to 300 milliseconds, default 120 |
+| `editor.caret.stretch` | 0 to 1; corner timing difference, default 0.6 |
 | `editor.indentation.tabWidth` | Integer 1 to 16 |
 | `editor.indentation.insertTabs` | 0 for spaces, 1 for literal tab characters |
 | `editor.indentation.unitNavigation` | 0 for character navigation, 1 for indentation units |

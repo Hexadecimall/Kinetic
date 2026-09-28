@@ -2,7 +2,13 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.29.1 - Unreleased
+## 0.30.0 - Unreleased
+
+### Added
+
+- Optional smooth caret movement with adjustable duration and stretch, exposed in Settings and the plugin API. Reduced Motion disables the effect.
+
+## 0.29.1
 
 ### Changed
 

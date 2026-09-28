@@ -118,6 +118,15 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     KineticUtilityPanel* _utilityPanel;
     BOOL _motionEnabled;
     CGFloat _motionDuration;
+    BOOL _smoothCaret;
+    CGFloat _caretDuration;
+    CGFloat _caretStretch;
+    NSPoint _caretCorners[4];
+    NSPoint _caretStarts[4];
+    NSRect _caretTarget;
+    BOOL _caretPositionValid;
+    NSTimeInterval _caretStartTime;
+    NSTimer* _caretTimer;
     BOOL _showCurrentLine;
     BOOL _showDiagnostics;
     CGFloat _preferredTabWidth;
@@ -199,6 +208,9 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         _completionSelectedIndex = 0;
         _motionEnabled = YES;
         _motionDuration = 180;
+        _smoothCaret = NO;
+        _caretDuration = 120;
+        _caretStretch = 0.6;
         _showDiagnostics = YES;
         _preferredTabWidth = kPreferredTabWidth;
         _appPackageStatus = @"Application updates are manual.";
@@ -274,6 +286,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 }
 
 - (void)dealloc {
+    [_caretTimer invalidate];
     [_completionPollTimer invalidate];
     kineticDocumentDestroy(_document);
 }
@@ -601,6 +614,12 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     } else if ([property isEqualToString:@"interface.motion.duration"] && value >= 80 &&
                value <= 400) {
         _motionDuration = value;
+    } else if ([property isEqualToString:@"editor.caret.smooth"] && (value == 0 || value == 1)) {
+        _smoothCaret = value == 1;
+    } else if ([property isEqualToString:@"editor.caret.duration"] && value >= 40 && value <= 300) {
+        _caretDuration = value;
+    } else if ([property isEqualToString:@"editor.caret.stretch"] && value >= 0 && value <= 1) {
+        _caretStretch = value;
     } else if ([property isEqualToString:@"editor.currentLine.enabled"] &&
                (value == 0 || value == 1)) {
         _showCurrentLine = value == 1;
@@ -686,6 +705,12 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         *value = _motionEnabled;
     } else if ([property isEqualToString:@"interface.motion.duration"]) {
         *value = _motionDuration;
+    } else if ([property isEqualToString:@"editor.caret.smooth"]) {
+        *value = _smoothCaret;
+    } else if ([property isEqualToString:@"editor.caret.duration"]) {
+        *value = _caretDuration;
+    } else if ([property isEqualToString:@"editor.caret.stretch"]) {
+        *value = _caretStretch;
     } else if ([property isEqualToString:@"editor.currentLine.enabled"]) {
         *value = _showCurrentLine;
     } else if ([property isEqualToString:@"editor.diagnostics.enabled"]) {
@@ -1613,6 +1638,83 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     [self ensureCaretVisible];
 }
 
+- (void)drawCaretAtRect:(NSRect)target {
+    NSPoint destinations[4] = {
+        NSMakePoint(NSMinX(target), NSMinY(target)),
+        NSMakePoint(NSMaxX(target), NSMinY(target)),
+        NSMakePoint(NSMaxX(target), NSMaxY(target)),
+        NSMakePoint(NSMinX(target), NSMaxY(target)),
+    };
+    BOOL animate = _smoothCaret && _motionEnabled && !_draggingSelection &&
+                   !NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion;
+    NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
+    if (!_caretPositionValid || !animate) {
+        for (NSUInteger i = 0; i < 4; ++i) {
+            _caretCorners[i] = destinations[i];
+        }
+        _caretTarget = target;
+        _caretPositionValid = YES;
+        [_caretTimer invalidate];
+        _caretTimer = nil;
+    } else if (!NSEqualRects(target, _caretTarget)) {
+        for (NSUInteger i = 0; i < 4; ++i) {
+            _caretStarts[i] = _caretCorners[i];
+        }
+        _caretTarget = target;
+        _caretStartTime = now;
+        if (_caretTimer == nil) {
+            __weak KineticEditorView* weakSelf = self;
+            _caretTimer = [NSTimer timerWithTimeInterval:1.0 / 120.0
+                                                 repeats:YES
+                                                   block:^(NSTimer* timer) {
+                                                     KineticEditorView* view = weakSelf;
+                                                     if (view == nil || view.window == nil ||
+                                                         NSProcessInfo.processInfo.systemUptime -
+                                                                 view->_caretStartTime >=
+                                                             view->_caretDuration / 1000.0) {
+                                                         [timer invalidate];
+                                                         if (view != nil) {
+                                                             view->_caretTimer = nil;
+                                                         }
+                                                     }
+                                                     view.needsDisplay = YES;
+                                                   }];
+            [NSRunLoop.mainRunLoop addTimer:_caretTimer forMode:NSRunLoopCommonModes];
+        }
+    }
+    if (animate && _caretTimer != nil) {
+        CGFloat progress = MIN(1.0, (now - _caretStartTime) / (_caretDuration / 1000.0));
+        NSPoint center = NSMakePoint(0, 0);
+        for (NSUInteger i = 0; i < 4; ++i) {
+            center.x += _caretStarts[i].x / 4;
+            center.y += _caretStarts[i].y / 4;
+        }
+        CGFloat dx = NSMidX(target) - center.x;
+        CGFloat dy = NSMidY(target) - center.y;
+        for (NSUInteger i = 0; i < 4; ++i) {
+            CGFloat facing = (destinations[i].x - NSMidX(target)) * dx +
+                             (destinations[i].y - NSMidY(target)) * dy;
+            CGFloat speed = facing > 0 ? 1 + _caretStretch * 2 : 1;
+            CGFloat inverse = 1 - MIN(1.0, progress * speed);
+            CGFloat eased = 1 - inverse * inverse * inverse;
+            _caretCorners[i] =
+                NSMakePoint(_caretStarts[i].x + (destinations[i].x - _caretStarts[i].x) * eased,
+                            _caretStarts[i].y + (destinations[i].y - _caretStarts[i].y) * eased);
+        }
+    } else {
+        for (NSUInteger i = 0; i < 4; ++i) {
+            _caretCorners[i] = destinations[i];
+        }
+    }
+    NSBezierPath* shape = [NSBezierPath bezierPath];
+    [shape moveToPoint:_caretCorners[0]];
+    for (NSUInteger i = 1; i < 4; ++i) {
+        [shape lineToPoint:_caretCorners[i]];
+    }
+    [shape closePath];
+    [shape fill];
+}
+
 - (void)drawRect:(NSRect)dirtyRect {
     (void)dirtyRect;
     [(_canvasColor ?: editorColor(47, 57, 71, 0.9)) setFill];
@@ -1888,7 +1990,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         textOriginX - _horizontalScroll + [caretLine sizeWithAttributes:textAttributes].width;
     CGFloat caretY = kFirstLineY + (caretLines.count - 1) * _lineHeight - _verticalScroll;
     [editorColor(111, 166, 255) setFill];
-    NSRectFill(NSMakeRect(floor(caretX), caretY + 1.0, 1.5, 16.0));
+    [self drawCaretAtRect:NSMakeRect(floor(caretX), caretY + 1.0, 1.5, _fontSize + 3.0)];
     [self.overlayRenderer drawPluginOverlaysInRect:contentRect];
     [NSGraphicsContext restoreGraphicsState];
 

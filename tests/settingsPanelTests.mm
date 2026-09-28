@@ -30,7 +30,7 @@ int main() {
             [keys addObject:row[@"key"]];
             passed &= check([row[@"min"] doubleValue] < [row[@"max"] doubleValue], @"valid limits");
         }
-        passed &= check(keys.count == 23, @"all settings exposed");
+        passed &= check(keys.count == 26, @"all settings exposed");
         KineticSettingsPanel* settings =
             [[KineticSettingsPanel alloc] initWithFrame:NSMakeRect(0, 0, 680, 406)];
         NSMutableDictionary* values = [@{
@@ -64,6 +64,12 @@ int main() {
         [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.25]];
         passed &= check([settings switchProgress:@"editor.gutter.lineNumbers" value:0] == 0,
                         @"toggle settles");
+        NSTextField* search = [settings valueForKey:@"search"];
+        search.stringValue = @"caret";
+        values[@"editor.caret.stretch"] = @0.6;
+        [settings changeRow:2 direction:1];
+        passed &= check(fabs([values[@"editor.caret.stretch"] doubleValue] - 0.7) < 0.0001,
+                        @"fractional zero-to-one settings use a stepper");
         NSView* host = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 720, 446)];
         KineticUtilityPanel* panel = [[KineticUtilityPanel alloc] initWithFrame:host.bounds
                                                                         content:settings];

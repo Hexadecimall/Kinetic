@@ -5,7 +5,7 @@ Settings and Plugins preserve the underlying document tabs and Explorer. Both an
 closed; Escape, Command-W, the close button, or a backdrop click dismiss the panel.
 
 Settings has searchable Appearance, Indentation, Completion, Navigation, Interface, and
-Application categories. The 23 preference controls update open tabs immediately. Number controls
+Application categories. The 26 preference controls update open tabs immediately. Number controls
 use a centered value between compact minus/plus buttons. Switch positions and colors tween from
 their current state, including when toggled again mid-animation. Reduced Motion disables these
 transitions. Success is silent; a failed preference write shows an error.
@@ -34,6 +34,9 @@ Supported controls:
   default to one character and 12 results; C/C++ member access can trigger clangd immediately.
 - Panel and switch animations: enable/disable, with duration from 80 to 400 milliseconds.
 - Preferred Tab Width: 100 through 240 points; tabs still shrink to fit available space.
+- Smooth Caret: optional stretching motion, disabled by default. Duration is 40–300 milliseconds;
+  stretch is 0–1. Reduced Motion and disabling interface animations suppress the effect. Selection
+  and text edits remain immediate; dragging a selection uses a stationary-shape caret.
 
 Backspace removes one indentation unit in leading whitespace. The settings list scrolls in
 shorter windows. Indentation and autocomplete settings are read from and saved to
