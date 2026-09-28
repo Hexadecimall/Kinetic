@@ -84,12 +84,14 @@ NSColor* paletteColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 
     [paletteColor(8, 13, 21, 0.58) setFill];
     NSRectFill(self.bounds);
     NSRect panel = [self panelRect];
-    [paletteColor(39, 49, 64, 0.99) setFill];
+    [paletteColor(39, 49, 64) setFill];
     [[NSBezierPath bezierPathWithRoundedRect:panel xRadius:8.0 yRadius:8.0] fill];
     [paletteColor(82, 102, 130, 0.9) setStroke];
     [[NSBezierPath bezierPathWithRoundedRect:panel xRadius:8.0 yRadius:8.0] stroke];
     [paletteColor(69, 84, 105, 0.7) setFill];
-    NSRectFill(NSMakeRect(NSMinX(panel), NSMinY(panel) + 61.0, NSWidth(panel), 1.0));
+    NSRectFillUsingOperation(
+        NSMakeRect(NSMinX(panel) + 1.0, NSMinY(panel) + 61.0, NSWidth(panel) - 2.0, 1.0),
+        NSCompositingOperationSourceOver);
     NSArray* filtered = [self filteredCommands];
     NSDictionary* titleStyle = @{
         NSFontAttributeName : [NSFont systemFontOfSize:13.0],

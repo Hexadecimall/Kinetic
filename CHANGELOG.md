@@ -2,7 +2,13 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.27.1 - Unreleased
+## 0.27.2 - Unreleased
+
+### Fixed
+
+- Keep the Command Palette opaque beneath its search divider, preventing background content from leaking through the separator.
+
+## 0.27.1
 
 ### Improved
 
