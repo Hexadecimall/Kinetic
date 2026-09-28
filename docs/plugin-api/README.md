@@ -1,9 +1,10 @@
 # Native plugin API (preview)
 
 Kinetic 0.15.0 and later load local Apple Silicon `.dylib` plugins from
-`~/.kinetic/plugins/` when the first editor tab opens. C/C++ Support is an Official catalog plugin,
-not bundled with Kinetic.app. The package manager installs, updates, and verifies catalog assets;
-the plugin host loads installed libraries. Only install code whose author is trusted: a native
+`~/.kinetic/plugins/` when the first editor tab opens. Official C/C++ Support is bundled with
+Kinetic.app and loaded through the same public ABI before user plugins. The package manager
+installs, updates, and verifies other catalog assets; the plugin host loads installed libraries.
+Only install code whose author is trusted: a native
 plugin runs in Kinetic's process with the user's privileges and can crash the app.
 Plugin loading can be disabled globally or per `.dylib` filename through the optional
 `[plugins]` table in `~/.kinetic/config.toml`; see

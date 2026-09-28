@@ -1,5 +1,9 @@
 # Configuration sources
 
+Window position and size are saved automatically in `~/.kinetic/window.json` and restored on launch.
+Fullscreen and minimized geometry do not overwrite the normal window bounds. If the monitor layout
+changes, restored bounds are fitted to an available screen.
+
 Kinetic configuration is layered from built-in defaults, user TOML, workspace TOML, Lua
 automation, and plugin-provided settings. Later layers may override earlier layers only through a
 registered typed setting.
@@ -24,11 +28,11 @@ disabledFiles = ["example.dylib"]
 ```
 
 The file is optional. If it is absent, installed local plugins load by default. C/C++ Support
-is an installable Official plugin, not part of Kinetic.app. Add its installed `.dylib` filename to
+is an included Official plugin in Kinetic.app. Add `libkineticCppSupport.dylib` to
 `disabledFiles` to skip loading it without uninstalling it.
 If the plugin
 table is invalid or unreadable, no native plugin loads and the Plugins panel displays the error.
-Disabled filenames are checked before opening libraries in `~/.kinetic/plugins/`. Changes take
+Disabled filenames are checked before opening bundled and user-installed libraries. Changes take
 effect on the next launch;
 loaded native plugins cannot be safely unloaded in place.
 
@@ -42,7 +46,7 @@ maxResults = 12
 ```
 
 `minPrefix` accepts 1–8 characters and `maxResults` accepts 1–32 suggestions. C/C++ Support
-uses clangd completion when installed; otherwise native document-word completion remains available.
+uses clangd completion when enabled and clangd is available; otherwise native document-word completion remains available.
 Control-Space requests suggestions after one
 character; C/C++ member access also triggers clangd without a prefix. Arrow keys select, Return or
 Tab inserts, and Escape dismisses. Invalid autocomplete

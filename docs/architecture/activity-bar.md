@@ -25,8 +25,9 @@ group the open document, workspace, repository, and installed-plugin sections wi
 styling or non-functional disclosure affordances. Source Control/GitHub remains an integration
 placeholder. The Plugins page browses the public catalog, searches plugins and publishers, and
 separates Discover from Installed. It shows description, publisher, Official status, version,
-unrated state, and install/update/remove actions with a dedicated confirmation panel. Official C/C++ Support is removable just like
-other catalog plugins. Plugin commands remain registered editor actions, not navigation items.
+unrated state, and install/update/remove actions with a dedicated confirmation panel. Official
+C/C++ Support is marked Included and cannot be removed from the app. Plugin commands remain
+registered editor actions, not navigation items.
 GitHub account connection lives in the titlebar.
 
 Search lives in a Kinetic-drawn dropdown anchored beneath the Search icon at the right edge of the
@@ -42,6 +43,10 @@ contents, common generated folders, files over 1 MiB, and binary files are skipp
 Settings opens a dedicated editor page instead of a narrow side panel. Live controls cover editor
 type, scrolling, syntax highlighting, indentation, delimiter pairing, and autocomplete. Application package
 controls check for updates and manage a user-scoped installation with explicit confirmation.
+
+The Explorer panel's right edge can be dragged to resize it; its width persists in
+`~/.kinetic/layout.toml`. The Command Palette offers Kinetic Dark, Midnight, and Graphite themes,
+persisted in `~/.kinetic/theme.toml`. Panel rearrangement is not implemented yet.
 
 The rail, panel, icons, selection indicator, hover treatment, section headers, dimensions, opening
 and closing animation durations, visibility, section order, and contributed sections belong to the

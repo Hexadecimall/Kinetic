@@ -89,6 +89,7 @@ add_executable(
                               src/C++/app/keyboardShortcuts.mm
                               src/C++/app/pluginHost.mm src/C++/app/workspaceSearch.mm
                               src/C++/ui/activityBar.mm src/C++/ui/contextMenu.mm
+                              src/C++/ui/cloneDialog.mm src/C++/ui/commandPalette.mm
                               src/C++/ui/editorView.mm
                               src/C++/ui/editorStructure.mm
                               src/C++/ui/fileDialog.mm
@@ -97,6 +98,8 @@ add_executable(
                               src/C++/ui/searchPopover.mm
                               src/C++/ui/syntaxHighlight.mm
                               src/C++/ui/trafficBar.mm src/C++/ui/tween.mm
+                              src/C++/ui/theme.mm
+                              src/C++/ui/windowState.mm
                               "${KINETIC_APP_ICON}")
 target_include_directories(Kinetic PRIVATE include src/C++/app src/C++/bridge src/C++/ui)
 target_compile_options(Kinetic PRIVATE "-fobjc-arc")
@@ -119,12 +122,14 @@ add_custom_command(
     POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E make_directory
             "$<TARGET_BUNDLE_DIR:Kinetic>/Contents/Resources/bin"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "$<TARGET_BUNDLE_DIR:Kinetic>/Contents/PlugIns"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:kinetic_cli>"
             "$<TARGET_BUNDLE_DIR:Kinetic>/Contents/Resources/bin/kinetic"
-    COMMAND "${CMAKE_COMMAND}" -E rm -f
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${KINETIC_CPP_PLUGIN}"
             "$<TARGET_BUNDLE_DIR:Kinetic>/Contents/PlugIns/libkineticCppSupport.dylib"
-    COMMENT "Embedding the Kinetic CLI")
-add_dependencies(Kinetic kinetic_cli)
+    COMMENT "Embedding the Kinetic CLI and C/C++ Support")
+add_dependencies(Kinetic kinetic_cli kinetic_cpp_support)
 add_custom_target(
     kinetic_sign_bundle ALL
     COMMAND codesign --force --sign -
@@ -135,6 +140,11 @@ add_custom_target(
     VERBATIM)
 
 enable_testing()
+add_executable(kineticWindowStateTests tests/windowStateTests.mm src/C++/ui/windowState.mm)
+target_include_directories(kineticWindowStateTests PRIVATE src/C++/ui)
+target_compile_options(kineticWindowStateTests PRIVATE "-fobjc-arc")
+target_link_libraries(kineticWindowStateTests PRIVATE "-framework AppKit")
+add_test(NAME kineticWindowState COMMAND kineticWindowStateTests)
 add_test(NAME kinetic_cli_version COMMAND kinetic_cli --version)
 set_tests_properties(kinetic_cli_version PROPERTIES PASS_REGULAR_EXPRESSION "kinetic ${PROJECT_VERSION}")
 
@@ -146,8 +156,9 @@ add_test(NAME kineticDocumentBackend COMMAND kineticDocumentBackendTests)
 add_executable(kineticEditorBackendIntegrationTests
     tests/editorBackendIntegrationTests.mm
     src/C++/ui/editorView.mm src/C++/ui/activityBar.mm src/C++/ui/contextMenu.mm
+    src/C++/ui/cloneDialog.mm src/C++/ui/commandPalette.mm
     src/C++/ui/editorStructure.mm src/C++/ui/pluginBrowser.mm src/C++/ui/searchPopover.mm src/C++/ui/syntaxHighlight.mm
-    src/C++/ui/tween.mm src/C++/app/workspaceSearch.mm)
+    src/C++/ui/tween.mm src/C++/ui/theme.mm src/C++/app/workspaceSearch.mm)
 target_include_directories(kineticEditorBackendIntegrationTests PRIVATE
     include src/C++/app src/C++/bridge src/C++/ui)
 target_compile_options(kineticEditorBackendIntegrationTests PRIVATE "-fobjc-arc")
@@ -176,7 +187,7 @@ target_link_libraries(kineticEditorStructureTests PRIVATE "-framework Foundation
 add_test(NAME kineticEditorStructure COMMAND kineticEditorStructureTests)
 
 add_executable(kineticFileDialogTests tests/fileDialogTests.mm src/C++/ui/fileDialog.mm
-                                      src/C++/ui/contextMenu.mm)
+                                      src/C++/ui/contextMenu.mm src/C++/ui/theme.mm)
 target_include_directories(kineticFileDialogTests PRIVATE src/C++/ui)
 target_compile_options(kineticFileDialogTests PRIVATE "-fobjc-arc")
 target_link_libraries(kineticFileDialogTests PRIVATE "-framework AppKit")

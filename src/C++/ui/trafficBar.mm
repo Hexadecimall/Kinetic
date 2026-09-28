@@ -1,4 +1,5 @@
 #import "trafficBar.h"
+#import "theme.h"
 
 namespace {
 
@@ -13,7 +14,7 @@ constexpr NSInteger kSearchHit = 200;
 constexpr NSInteger kAccountHit = 201;
 
 NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
-    return [NSColor colorWithSRGBRed:red / 255.0 green:green / 255.0 blue:blue / 255.0 alpha:alpha];
+    return kineticThemeColor(red, green, blue, alpha);
 }
 
 } // namespace
@@ -273,8 +274,11 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
     self = [super initWithFrame:frame];
     if (self) {
         _owner = owner;
-        _titles = @[ @"New File", @"Open File…", @"Open Folder…", @"", @"Save", @"", @"Close Tab" ];
-        _shortcuts = @[ @"⌘N", @"⌘O", @"", @"", @"⌘S", @"", @"⌘W" ];
+        _titles = @[
+            @"New File", @"Open File…", @"Open Folder…", @"", @"Save", @"", @"Close Tab", @"",
+            @"Clone Repository…", @"Command Palette…"
+        ];
+        _shortcuts = @[ @"⌘N", @"⌘O", @"", @"", @"⌘S", @"", @"⌘W", @"", @"", @"⇧⌘P" ];
         if (_owner.fileMenuItems.count > 0) {
             NSMutableArray<NSString*>* titles = [_titles mutableCopy];
             NSMutableArray<NSString*>* shortcuts = [_shortcuts mutableCopy];
@@ -447,8 +451,14 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
         if (![_owner.commandHandler closeActiveTab]) {
             [self.window performClose:nil];
         }
-    } else if (row >= 8 && (NSUInteger)(row - 8) < _owner.fileMenuItems.count) {
-        NSString* commandId = _owner.fileMenuItems[(NSUInteger)(row - 8)][@"id"];
+    } else if (row == 8) {
+        [_owner closeMenu];
+        [_owner.commandHandler cloneRepository];
+    } else if (row == 9) {
+        [_owner closeMenu];
+        [_owner.commandHandler showCommandPalette];
+    } else if (row >= 11 && (NSUInteger)(row - 11) < _owner.fileMenuItems.count) {
+        NSString* commandId = _owner.fileMenuItems[(NSUInteger)(row - 11)][@"id"];
         [_owner closeMenu];
         [_owner.commandHandler executePluginCommand:commandId];
     } else if (!NSPointInRect(point, _menuFrame)) {
@@ -476,9 +486,15 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
         if (![_owner.commandHandler closeActiveTab]) {
             [self.window performClose:nil];
         }
-    } else if (event.keyCode == 36 && _selectedRow >= 8 &&
-               (NSUInteger)(_selectedRow - 8) < _owner.fileMenuItems.count) {
-        NSString* commandId = _owner.fileMenuItems[(NSUInteger)(_selectedRow - 8)][@"id"];
+    } else if (event.keyCode == 36 && _selectedRow == 8) {
+        [_owner closeMenu];
+        [_owner.commandHandler cloneRepository];
+    } else if (event.keyCode == 36 && _selectedRow == 9) {
+        [_owner closeMenu];
+        [_owner.commandHandler showCommandPalette];
+    } else if (event.keyCode == 36 && _selectedRow >= 11 &&
+               (NSUInteger)(_selectedRow - 11) < _owner.fileMenuItems.count) {
+        NSString* commandId = _owner.fileMenuItems[(NSUInteger)(_selectedRow - 11)][@"id"];
         [_owner closeMenu];
         [_owner.commandHandler executePluginCommand:commandId];
     } else {

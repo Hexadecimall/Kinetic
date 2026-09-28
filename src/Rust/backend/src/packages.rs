@@ -29,6 +29,23 @@ fn pluginRoot() -> Result<PathBuf, String> {
     Ok(homePath()?.join(".kinetic/plugins"))
 }
 
+fn bundledCppSupport() -> bool {
+    env::current_exe()
+        .ok()
+        .and_then(|executable| {
+            executable
+                .parent()?
+                .parent()?
+                .parent()
+                .map(Path::to_path_buf)
+        })
+        .is_some_and(|contents| {
+            contents
+                .join("PlugIns/libkineticCppSupport.dylib")
+                .is_file()
+        })
+}
+
 fn appRoot() -> Result<PathBuf, String> {
     Ok(homePath()?.join("Applications/Kinetic.app"))
 }
@@ -274,7 +291,9 @@ fn pluginList(jsonOutput: bool) -> Result<(), String> {
         }
         let release = latestPluginRelease(plugin)?;
         let installed = installedRecord(id)?;
-        let state = if let Some(record) = installed {
+        let state = if id == "kinetic.cpp-support" && bundledCppSupport() {
+            "included".to_string()
+        } else if let Some(record) = installed {
             let version = record["version"].as_str().unwrap_or("unknown");
             if versionParts(version) < versionParts(string(release, "version")?) {
                 format!("update available ({version})")
@@ -318,6 +337,9 @@ fn pluginList(jsonOutput: bool) -> Result<(), String> {
 fn pluginInstall(id: &str, updateOnly: bool) -> Result<(), String> {
     if !safeId(id) {
         return Err("invalid plugin ID".into());
+    }
+    if id == "kinetic.cpp-support" && bundledCppSupport() {
+        return Err("C/C++ Support is included with this Kinetic build".into());
     }
     let catalog = catalog()?;
     let plugin = catalogPlugin(&catalog, id)?;

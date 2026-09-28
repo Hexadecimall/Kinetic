@@ -65,7 +65,7 @@ color; subscribe to document events; edit an explicit UTF-16 range or selection;
 shortcuts, File menu items, viewport overlays, extension-specific formatters, syntax providers,
 diagnostics, and source navigation. Rust owns the
 contribution registry; the Objective-C++ host retains callbacks and renders the custom UI in
-process. The separately installable Rust C/C++ Support plugin runs clangd for live errors and Go
+process. The included Rust C/C++ Support plugin runs clangd for live errors and Go
 to Definition. Rust owns native document-word completion and the `[autocomplete]` dotfile
 configuration; plugins can contribute completion items through the public C ABI. Settings
 registration and arbitrary widget layouts are not yet exposed.

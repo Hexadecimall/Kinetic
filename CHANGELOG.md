@@ -2,7 +2,20 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.26.0 - Unreleased
+## 0.27.0 - Unreleased
+
+### Added
+
+- Remember window position and size across launches, keeping restored windows visible on the current monitors.
+- Bundled Official C/C++ Support 0.2.0 inside Kinetic.app and marked it Included in the plugin browser and bundled CLI.
+- Added a searchable Command Palette with Command-Shift-P, a custom Clone Repository flow, and an Explorer panel edge that resizes and persists in `~/.kinetic/layout.toml`.
+- Added Kinetic Dark, Midnight, and Graphite color presets selectable from the Command Palette; the choice persists in `~/.kinetic/theme.toml`.
+
+### Fixed
+
+- Gave the Plugins search field enough inset so its text no longer overlaps the search icon.
+
+## 0.26.0
 
 ### Added
 

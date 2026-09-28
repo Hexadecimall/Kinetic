@@ -1,8 +1,8 @@
 # macOS packaging
 
 `Kinetic.app` is the canonical product. It contains the GUI executable, the matching `kinetic`
-command-line client at `Contents/Resources/bin/kinetic`. C/C++ Support is a separately built
-Official catalog plugin, never a library in the app bundle. The CLI and app are signed after
+command-line client at `Contents/Resources/bin/kinetic`, and Official C/C++ Support at
+`Contents/PlugIns/libkineticCppSupport.dylib`. The CLI, plugin, and app are signed after
 bundle assembly. The plugin's Mach-O install name is `@rpath/libkineticCppSupport.dylib`, never
 an absolute build path. Its public release strips build-only symbols and is re-signed before upload.
 

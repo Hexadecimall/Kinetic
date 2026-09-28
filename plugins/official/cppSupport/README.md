@@ -1,7 +1,7 @@
 # C/C++ Support
 
-First-party native plugin `kinetic.cpp-support`, installed separately from Kinetic.app through the
-Official catalog.
+First-party native plugin `kinetic.cpp-support`, included in Kinetic.app and loaded through the
+same public API as third-party plugins.
 It uses the public plugin ABI: there is no private syntax, navigation, or diagnostics hook.
 
 The plugin provides C/C++ syntax tokens for `.c`, `.h`, `.cc`, `.cpp`, `.cxx`, `.hpp`, `.hh`, and
@@ -19,16 +19,16 @@ Header/source switching searches sibling files with a matching stem. A project-l
 `build/debug`) is supplied to clangd. The server restarts when the active workspace changes.
 Other build layouts can still use clangd's normal discovery rules.
 
-The user can disable the installed plugin with `disabledFiles = ["kinetic.cpp-support.dylib"]` under
+The user can disable the included plugin with `disabledFiles = ["libkineticCppSupport.dylib"]` under
 `[plugins]` in `~/.kinetic/config.toml`, or disable all native plugins with `enabled = false`.
 The Official designation comes from the registry's project-owned publisher policy, not a plugin
 self-claim. Version 0.1.0 is published as an immutable
 [GitHub Release](https://github.com/Hexadecimall/Kinetic/releases/tag/cpp-support-v0.1.0).
 Version 0.2.0 adds clangd completion, project build-directory discovery, and quick fixes, and is
 prepared for the next immutable release; the catalog
-will list it only after that asset is published and its digest is verified. Install, update, or remove it from the Plugins page or
-with `kinetic plugins install kinetic.cpp-support`. Native code runs with the user's privileges;
-installation or removal takes effect after restarting Kinetic.
+will list it only after that asset is published and its digest is verified. The bundled version is
+marked Included in the Plugins page and bundled CLI; it is not separately installed or removed.
+Native code runs with the user's privileges; disabling it takes effect after restarting Kinetic.
 
 Build and test through `./scripts/test`. The Rust plugin crate has isolated unit tests; the
 native integration test starts an actual clangd and checks diagnostics, completion, quick fixes,

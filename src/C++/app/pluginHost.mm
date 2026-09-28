@@ -19,6 +19,7 @@
 @interface KineticPluginHost () {
     NSMutableArray<NSString*>* _loadedPluginNames;
     NSMutableSet<NSString*>* _loadedPluginIds;
+    NSMutableDictionary<NSString*, NSString*>* _loadedPluginVersions;
     NSMutableArray<NSDictionary<NSString*, id>*>* _registeredCommands;
     NSMutableArray<NSDictionary<NSString*, id>*>* _subscriptions;
     NSMutableArray<NSDictionary<NSString*, id>*>* _panelCallbacks;
@@ -221,6 +222,7 @@ static BOOL readPluginConfiguration(NSURL* configurationUrl, BOOL* enabled,
     if (self) {
         _loadedPluginNames = [NSMutableArray array];
         _loadedPluginIds = [NSMutableSet set];
+        _loadedPluginVersions = [NSMutableDictionary dictionary];
         _registeredCommands = [NSMutableArray array];
         _subscriptions = [NSMutableArray array];
         _panelCallbacks = [NSMutableArray array];
@@ -282,6 +284,10 @@ static BOOL readPluginConfiguration(NSURL* configurationUrl, BOOL* enabled,
 
 - (NSArray<NSString*>*)loadedPluginNames {
     return [_loadedPluginNames copy];
+}
+
+- (NSDictionary<NSString*, NSString*>*)loadedPluginVersions {
+    return [_loadedPluginVersions copy];
 }
 
 - (NSString*)configurationError {
@@ -935,6 +941,10 @@ static int32_t replaceRangeUtf8(void* context, uint64_t startUtf16, uint64_t len
         }
         [_loadedPluginIds addObject:pluginId];
         [_loadedPluginNames addObject:displayName];
+        NSString* version = stringForUtf8(descriptor->version);
+        if (version != nil) {
+            _loadedPluginVersions[pluginId] = version;
+        }
     }
 }
 

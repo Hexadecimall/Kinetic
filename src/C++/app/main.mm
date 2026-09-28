@@ -3,6 +3,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#include "cloneDialog.h"
+#include "commandPalette.h"
 #include "editorView.h"
 #include "fileDialog.h"
 #include "githubAccount.h"
@@ -12,8 +14,10 @@
 #include "kineticBackend.h"
 #include "kineticCommands.h"
 #include "pluginHost.h"
+#include "theme.h"
 #include "trafficBar.h"
 #include "tween.h"
+#include "windowState.h"
 #include "workspaceSearch.h"
 
 @interface KineticApplication : NSApplication
@@ -23,6 +27,10 @@
 
 - (void)sendEvent:(NSEvent*)event {
     NSWindow* window = self.keyWindow ?: self.mainWindow;
+    if (kineticShortcutCommandForEvent(event) == KineticShortcutCommandCommandPalette) {
+        [(id<KineticCommandHandler>)self.delegate showCommandPalette];
+        return;
+    }
     if (event.type == NSEventTypeKeyDown && !event.isARepeat &&
         [(id<KineticCommandHandler>)self.delegate executePluginShortcutForEvent:event]) {
         return;
@@ -45,6 +53,8 @@
         return;
     case KineticShortcutCommandSettings:
         [(id<KineticCommandHandler>)self.delegate showSettings];
+        return;
+    case KineticShortcutCommandCommandPalette:
         return;
     case KineticShortcutCommandPreviousTab:
         [(id<KineticCommandHandler>)self.delegate selectPreviousTab];
@@ -124,14 +134,20 @@
 @interface KineticApplicationDelegate
     : NSObject <NSApplicationDelegate, KineticCommandHandler, KineticFileDialogDelegate,
                 KineticPluginHostDelegate, KineticGitHubAccountDelegate,
-                KineticEditorOverlayRenderer>
+                KineticEditorOverlayRenderer, KineticCommandPaletteDelegate,
+                KineticCloneDialogDelegate>
 @property(nonatomic, strong) NSWindow* window;
+@property(nonatomic, strong) KineticWindowState* windowState;
 @property(nonatomic, strong) NSView* content;
 @property(nonatomic, strong) KineticHomeView* home;
 @property(nonatomic, strong) KineticTrafficBar* trafficBar;
 @property(nonatomic, strong) KineticEditorView* editor;
 @property(nonatomic, strong) NSMutableArray<KineticEditorView*>* editors;
 @property(nonatomic, strong) KineticFileDialog* fileDialog;
+@property(nonatomic, strong) KineticCommandPalette* commandPalette;
+@property(nonatomic, strong) KineticCloneDialog* cloneDialog;
+@property(nonatomic, strong) NSTask* cloneTask;
+@property(nonatomic, copy) NSString* pendingCloneUrl;
 @property(nonatomic, strong) KineticPluginHost* pluginHost;
 @property(nonatomic, copy) NSArray<NSDictionary<NSString*, id>*>* catalogPlugins;
 @property(nonatomic, copy) NSString* pluginCatalogStatus;
@@ -221,7 +237,10 @@
     [self.content addSubview:self.home];
     [self.content addSubview:self.trafficBar];
     self.window.contentView = self.content;
-    [self.window center];
+    self.windowState = [[KineticWindowState alloc] initWithWindow:self.window];
+    if (![self.windowState restore]) {
+        [self.window center];
+    }
     [self.window makeKeyAndOrderFront:nil];
     [NSApp activateIgnoringOtherApps:YES];
     [self.githubAccount restoreSession];
@@ -313,6 +332,8 @@
         NSURL* pluginRootUrl = [KineticPluginHost userPluginRootUrl];
         NSURL* pluginsUrl = [pluginRootUrl URLByAppendingPathComponent:@"plugins" isDirectory:YES];
         NSURL* configurationUrl = [pluginRootUrl URLByAppendingPathComponent:@"config.toml"];
+        NSURL* bundledPluginsUrl = [NSBundle.mainBundle.builtInPlugInsURL URLByStandardizingPath];
+        [self.pluginHost loadPluginsAtUrl:bundledPluginsUrl configurationUrl:configurationUrl];
         [self.pluginHost loadPluginsAtUrl:pluginsUrl configurationUrl:configurationUrl];
         for (KineticEditorView* editor in self.editors) {
             [editor setPluginNames:self.pluginHost.loadedPluginNames
@@ -469,7 +490,19 @@
 }
 
 - (void)showPluginCatalog:(NSArray<NSDictionary<NSString*, id>*>*)plugins status:(NSString*)status {
-    self.catalogPlugins = plugins ?: @[];
+    NSMutableArray<NSDictionary<NSString*, id>*>* displayed = [NSMutableArray array];
+    for (NSDictionary<NSString*, id>* plugin in plugins ?: @[]) {
+        if ([plugin[@"id"] isEqualToString:@"kinetic.cpp-support"] &&
+            self.pluginHost.loadedPluginVersions[@"kinetic.cpp-support"] != nil) {
+            NSMutableDictionary<NSString*, id>* included = [plugin mutableCopy];
+            included[@"state"] = @"included";
+            included[@"version"] = self.pluginHost.loadedPluginVersions[@"kinetic.cpp-support"];
+            [displayed addObject:included];
+        } else {
+            [displayed addObject:plugin];
+        }
+    }
+    self.catalogPlugins = displayed;
     self.pluginCatalogStatus = status;
     for (KineticEditorView* editor in self.editors) {
         [editor setCatalogPlugins:self.catalogPlugins status:status];
@@ -540,6 +573,7 @@
 - (void)managePlugin:(NSDictionary<NSString*, id>*)plugin action:(NSString*)action {
     NSString* pluginId = plugin[@"id"];
     if (self.pluginManagerBusy || pluginId.length == 0 ||
+        [plugin[@"state"] isEqualToString:@"included"] ||
         ![self.catalogPlugins containsObject:plugin] ||
         ![@[ @"install", @"update", @"uninstall" ] containsObject:action]) {
         return;
@@ -874,6 +908,158 @@
     [self.editor setActivitySection:KineticActivitySectionSettings animated:YES];
 }
 
+- (void)showCommandPalette {
+    if (self.commandPalette != nil) {
+        [self commandPaletteDidClose:self.commandPalette];
+        return;
+    }
+    NSMutableArray<NSDictionary<NSString*, NSString*>*>* commands =
+        [NSMutableArray arrayWithArray:@[
+            @{
+                @"id" : @"newFile",
+                @"title" : @"New Text File",
+                @"shortcut" : @"⌘N",
+                @"category" : @"File"
+            },
+            @{
+                @"id" : @"openFile",
+                @"title" : @"Open File…",
+                @"shortcut" : @"⌘O",
+                @"category" : @"File"
+            },
+            @{
+                @"id" : @"openFolder",
+                @"title" : @"Open Folder…",
+                @"shortcut" : @"",
+                @"category" : @"File"
+            },
+            @{
+                @"id" : @"clone",
+                @"title" : @"Clone Repository…",
+                @"shortcut" : @"",
+                @"category" : @"Git"
+            },
+            @{@"id" : @"themeDark", @"title" : @"Theme: Kinetic Dark", @"category" : @"Appearance"},
+            @{@"id" : @"themeMidnight", @"title" : @"Theme: Midnight", @"category" : @"Appearance"},
+            @{@"id" : @"themeGraphite", @"title" : @"Theme: Graphite", @"category" : @"Appearance"},
+        ]];
+    if (self.editor != nil) {
+        [commands addObjectsFromArray:@[
+            @{@"id" : @"save", @"title" : @"Save File", @"shortcut" : @"⌘S", @"category" : @"File"},
+            @{
+                @"id" : @"closeTab",
+                @"title" : @"Close Tab",
+                @"shortcut" : @"⌘W",
+                @"category" : @"File"
+            },
+            @{
+                @"id" : @"findFile",
+                @"title" : @"Find in File",
+                @"shortcut" : @"⌘F",
+                @"category" : @"Search"
+            },
+            @{
+                @"id" : @"findProject",
+                @"title" : @"Find in Project",
+                @"shortcut" : @"⇧⌘F",
+                @"category" : @"Search"
+            },
+            @{
+                @"id" : @"plugins",
+                @"title" : @"Show Plugins",
+                @"shortcut" : @"",
+                @"category" : @"View"
+            },
+            @{
+                @"id" : @"settings",
+                @"title" : @"Show Settings",
+                @"shortcut" : @"⌘,",
+                @"category" : @"View"
+            },
+        ]];
+        for (NSDictionary<NSString*, NSString*>* pluginCommand in self.pluginHost.commands) {
+            NSString* identifier = pluginCommand[@"id"];
+            NSString* title = pluginCommand[@"title"];
+            if (identifier.length > 0 && title.length > 0) {
+                [commands addObject:@{
+                    @"id" : [@"plugin:" stringByAppendingString:identifier],
+                    @"title" : title,
+                    @"shortcut" : @"",
+                    @"category" : @"Extension"
+                }];
+            }
+        }
+    }
+    KineticCommandPalette* palette =
+        [[KineticCommandPalette alloc] initWithFrame:self.content.bounds];
+    palette.delegate = self;
+    palette.commands = commands;
+    palette.alphaValue = 0.0;
+    self.commandPalette = palette;
+    [self.content addSubview:palette positioned:NSWindowAbove relativeTo:nil];
+    [KineticTween animateView:palette
+                      toFrame:palette.frame
+                      toAlpha:1.0
+                     duration:0.12
+                   completion:nil];
+    [palette focusQuery];
+}
+
+- (void)commandPaletteDidClose:(KineticCommandPalette*)palette {
+    if (palette != self.commandPalette) {
+        return;
+    }
+    self.commandPalette = nil;
+    [KineticTween animateView:palette
+                      toFrame:palette.frame
+                      toAlpha:0.0
+                     duration:0.1
+                   completion:^{
+                     [palette removeFromSuperview];
+                   }];
+    [self.window makeFirstResponder:self.editor ?: self.home];
+}
+
+- (void)commandPalette:(KineticCommandPalette*)palette didChooseCommand:(NSString*)commandId {
+    [self commandPaletteDidClose:palette];
+    if ([commandId isEqualToString:@"newFile"]) {
+        [self newTextFile];
+    } else if ([commandId isEqualToString:@"openFile"]) {
+        [self openFile];
+    } else if ([commandId isEqualToString:@"openFolder"]) {
+        [self openFolder];
+    } else if ([commandId isEqualToString:@"clone"]) {
+        [self cloneRepository];
+    } else if ([commandId hasPrefix:@"theme"]) {
+        NSString* name = [commandId isEqualToString:@"themeMidnight"]   ? @"midnight"
+                         : [commandId isEqualToString:@"themeGraphite"] ? @"graphite"
+                                                                        : @"kinetic-dark";
+        kineticSetThemeName(name);
+        for (NSView* view in self.content.subviews) {
+            view.needsDisplay = YES;
+            for (NSView* child in view.subviews) {
+                child.needsDisplay = YES;
+            }
+        }
+    } else if ([commandId isEqualToString:@"save"]) {
+        [self saveFile];
+    } else if ([commandId isEqualToString:@"closeTab"]) {
+        [self closeActiveTab];
+    } else if ([commandId isEqualToString:@"findFile"]) {
+        [self focusFileSearch];
+    } else if ([commandId isEqualToString:@"findProject"]) {
+        [self focusWorkspaceSearch];
+    } else if ([commandId isEqualToString:@"plugins"]) {
+        self.activitySection = KineticActivitySectionPlugins;
+        [self.editor setActivitySection:KineticActivitySectionPlugins animated:YES];
+        [self refreshPluginCatalog];
+    } else if ([commandId isEqualToString:@"settings"]) {
+        [self showSettings];
+    } else if ([commandId hasPrefix:@"plugin:"]) {
+        [self executePluginCommand:[commandId substringFromIndex:7]];
+    }
+}
+
 - (void)toggleFileSearch {
     if (self.editor == nil) {
         return;
@@ -899,6 +1085,139 @@
 
 - (void)openFolder {
     [self presentFileDialogWithMode:KineticFileDialogModeOpenFolder initialPath:@"~/"];
+}
+
+- (void)cloneRepository {
+    if (self.cloneDialog != nil) {
+        [self.cloneDialog focusUrl];
+        return;
+    }
+    KineticCloneDialog* dialog = [[KineticCloneDialog alloc] initWithFrame:self.content.bounds];
+    dialog.delegate = self;
+    dialog.alphaValue = 0.0;
+    self.cloneDialog = dialog;
+    [self.content addSubview:dialog positioned:NSWindowAbove relativeTo:nil];
+    [KineticTween animateView:dialog toFrame:dialog.frame toAlpha:1.0 duration:0.14 completion:nil];
+    [dialog focusUrl];
+}
+
+- (void)cloneDialogDidCancel:(KineticCloneDialog*)dialog {
+    if (dialog != self.cloneDialog) {
+        return;
+    }
+    if (self.cloneTask.isRunning) {
+        [self.cloneTask terminate];
+    }
+    self.pendingCloneUrl = nil;
+    self.cloneDialog = nil;
+    [KineticTween animateView:dialog
+                      toFrame:dialog.frame
+                      toAlpha:0.0
+                     duration:0.1
+                   completion:^{
+                     [dialog removeFromSuperview];
+                   }];
+    [self.window makeFirstResponder:self.editor ?: self.home];
+}
+
+- (void)cloneDialog:(KineticCloneDialog*)dialog didRequestDestinationForUrl:(NSString*)url {
+    NSString* trimmed =
+        [url stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    NSURLComponents* components = [NSURLComponents componentsWithString:trimmed];
+    NSString* repositoryName = components.path.lastPathComponent;
+    if ([repositoryName hasSuffix:@".git"]) {
+        repositoryName = [repositoryName substringToIndex:repositoryName.length - 4];
+    }
+    NSCharacterSet* invalidName = [[NSCharacterSet
+        characterSetWithCharactersInString:
+            @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"] invertedSet];
+    if (![components.scheme.lowercaseString isEqualToString:@"https"] ||
+        components.host.length == 0 || components.user != nil || components.password != nil ||
+        components.query != nil || components.fragment != nil ||
+        [trimmed rangeOfCharacterFromSet:NSCharacterSet.whitespaceAndNewlineCharacterSet]
+                .location != NSNotFound ||
+        repositoryName.length == 0 || [repositoryName isEqualToString:@"."] ||
+        [repositoryName isEqualToString:@".."] ||
+        [repositoryName rangeOfCharacterFromSet:invalidName].location != NSNotFound) {
+        dialog.status = @"Enter an HTTPS repository URL without credentials or query text.";
+        return;
+    }
+    self.pendingCloneUrl = trimmed;
+    dialog.status = @"Choose the parent folder for the new repository.";
+    [self presentFileDialogWithMode:KineticFileDialogModeOpenFolder initialPath:@"~/"];
+}
+
+- (void)startCloneIntoDirectory:(NSURL*)parentUrl {
+    NSString* repositoryUrl = self.pendingCloneUrl;
+    self.pendingCloneUrl = nil;
+    NSString* repositoryName =
+        [NSURLComponents componentsWithString:repositoryUrl].path.lastPathComponent;
+    if ([repositoryName hasSuffix:@".git"]) {
+        repositoryName = [repositoryName substringToIndex:repositoryName.length - 4];
+    }
+    NSURL* targetUrl = [parentUrl URLByAppendingPathComponent:repositoryName isDirectory:YES];
+    if ([NSFileManager.defaultManager fileExistsAtPath:targetUrl.path]) {
+        self.cloneDialog.status =
+            @"A file or folder with that repository name already exists here.";
+        [self.cloneDialog focusUrl];
+        return;
+    }
+    KineticCloneDialog* dialog = self.cloneDialog;
+    dialog.busy = YES;
+    dialog.status = [NSString stringWithFormat:@"Cloning %@…", repositoryName];
+    NSTask* task = [[NSTask alloc] init];
+    task.executableURL = [NSURL fileURLWithPath:@"/usr/bin/git"];
+    task.arguments = @[ @"clone", @"--", repositoryUrl, targetUrl.path ];
+    NSMutableDictionary<NSString*, NSString*>* environment =
+        [NSProcessInfo.processInfo.environment mutableCopy];
+    environment[@"GIT_TERMINAL_PROMPT"] = @"0";
+    environment[@"GIT_ASKPASS"] = @"/usr/bin/false";
+    task.environment = environment;
+    task.standardInput = NSFileHandle.fileHandleWithNullDevice;
+    NSPipe* output = [NSPipe pipe];
+    task.standardError = output;
+    task.standardOutput = output;
+    self.cloneTask = task;
+    NSError* launchError = nil;
+    BOOL launched = [task launchAndReturnError:&launchError];
+    if (!launched) {
+        self.cloneTask = nil;
+        dialog.busy = NO;
+        dialog.status =
+            [NSString stringWithFormat:@"Clone could not start: %@",
+                                       launchError.localizedDescription ?: @"Git is unavailable."];
+        return;
+    }
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+      NSData* data = [output.fileHandleForReading readDataToEndOfFile];
+      [task waitUntilExit];
+      NSString* message = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] ?: @"";
+      dispatch_async(dispatch_get_main_queue(), ^{
+        if (self.cloneTask == task) {
+            self.cloneTask = nil;
+        }
+        if (self.cloneDialog != dialog) {
+            return;
+        }
+        dialog.busy = NO;
+        if (task.terminationStatus == 0) {
+            [self cloneDialogDidCancel:dialog];
+            [self openRecentProjectAtUrl:targetUrl];
+        } else {
+            NSString* detail = message;
+            detail = [detail
+                stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+            dialog.status =
+                detail.length > 0
+                    ? [NSString
+                          stringWithFormat:@"Clone failed: %@",
+                                           [detail substringFromIndex:detail.length > 180
+                                                                          ? detail.length - 180
+                                                                          : 0]]
+                    : @"Clone failed. Check the URL, connection, and Git credentials.";
+        }
+      });
+    });
 }
 
 - (void)createFolder {
@@ -976,7 +1295,11 @@
                    completion:^{
                      [closingDialog removeFromSuperview];
                    }];
-    [self.window makeFirstResponder:self.editor ?: self.home];
+    if (self.cloneDialog != nil) {
+        [self.cloneDialog focusUrl];
+    } else {
+        [self.window makeFirstResponder:self.editor ?: self.home];
+    }
 }
 
 - (void)fileDialog:(KineticFileDialog*)dialog
@@ -1031,6 +1354,11 @@
         if (![NSFileManager.defaultManager fileExistsAtPath:path isDirectory:&isDirectory] ||
             !isDirectory) {
             [dialog showError:@"That folder does not exist."];
+            return;
+        }
+        if (self.pendingCloneUrl != nil) {
+            [self dismissFileDialog];
+            [self startCloneIntoDirectory:fileUrl];
             return;
         }
         ++self.searchGeneration;
@@ -1088,6 +1416,7 @@
 
 - (void)fileDialogDidCancel:(KineticFileDialog*)dialog {
     if (dialog == self.fileDialog) {
+        self.pendingCloneUrl = nil;
         [self dismissFileDialog];
     }
 }

@@ -7,19 +7,24 @@
 </p>
 
 > [!IMPORTANT]
-> Kinetic `0.26.0` is an early functional preview. Editing, retained multi-document tabs, persisted
+> Kinetic `0.27.0` is an early functional preview. Editing, retained multi-document tabs, persisted
 > recent projects, mouse selection, undo/redo, basic syntax highlighting, auto-indentation,
 > matching delimiters, custom context menus, in-file and project search, the activity bar, GitHub
 > account sign-in, native plugin host, hidden-file browsing, project file and folder creation,
 > file-name search, configurable indentation, opening, saving, scrolling, shortcuts, and the macOS shell work, but production editor features
 > are still under active development.
 
-The installable Official [C/C++ Support](plugins/official/cppSupport/README.md) plugin adds C/C++ syntax,
+The bundled Official [C/C++ Support](plugins/official/cppSupport/README.md) plugin adds C/C++ syntax,
 clangd diagnostics, completion, Go to Definition, clang-format, and header/source switching. The
 0.2.0 completion build awaits its immutable release before it appears in the public catalog. It uses the
 same public plugin API available to third-party native plugins. Its first signed arm64 asset is
 published in the GitHub-backed catalog as Official. The Plugins page browses that catalog and
-manages Official and third-party native plugins. C/C++ Support is not bundled with the app.
+manages third-party native plugins. C/C++ Support is included in the app; its source and public API
+remain the same as separately published native plugins.
+
+Command-Shift-P opens the Command Palette, including Clone Repository and three color presets.
+Drag the Explorer panel's right edge to resize it. Layout and theme choices persist in
+`~/.kinetic/layout.toml` and `~/.kinetic/theme.toml`.
 
 ## Direction
 

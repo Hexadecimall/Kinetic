@@ -1,19 +1,22 @@
 #import "activityBar.h"
 #import "contextMenu.h"
+#import "theme.h"
 
 #import "tween.h"
 
 namespace {
 
 constexpr CGFloat kRailWidth = 38.0;
-constexpr CGFloat kPanelWidth = 224.0;
+CGFloat kPanelWidth = 224.0;
+constexpr CGFloat kMinimumPanelWidth = 176.0;
+constexpr CGFloat kMaximumPanelWidth = 520.0;
 constexpr CGFloat kButtonSize = 30.0;
 constexpr CGFloat kButtonGap = 5.0;
 constexpr CGFloat kTreeRowHeight = 23.0;
 constexpr CGFloat kTreeStartY = 255.0;
 
 NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
-    return [NSColor colorWithSRGBRed:red / 255.0 green:green / 255.0 blue:blue / 255.0 alpha:alpha];
+    return kineticThemeColor(red, green, blue, alpha);
 }
 
 BOOL activityIsDirectory(NSURL* url) {
@@ -46,6 +49,7 @@ BOOL activityIsDirectory(NSURL* url) {
     CGFloat _treeScrollOffset;
     CGFloat _pluginScrollOffset;
     BOOL _animating;
+    BOOL _resizingPanel;
 }
 @end
 
@@ -58,6 +62,25 @@ BOOL activityIsDirectory(NSURL* url) {
 - (instancetype)initWithFrame:(NSRect)frameRect {
     self = [super initWithFrame:frameRect];
     if (self) {
+        static dispatch_once_t loadLayout;
+        dispatch_once(&loadLayout, ^{
+          NSString* path =
+              [NSHomeDirectory() stringByAppendingPathComponent:@".kinetic/layout.toml"];
+          NSString* saved = [NSString stringWithContentsOfFile:path
+                                                      encoding:NSUTF8StringEncoding
+                                                         error:nil];
+          NSRegularExpression* widthLine = [NSRegularExpression
+              regularExpressionWithPattern:@"(?m)^panelWidth\\s*=\\s*([0-9]+(?:\\.[0-9]+)?)\\s*$"
+                                   options:0
+                                     error:nil];
+          NSTextCheckingResult* match = [widthLine firstMatchInString:saved ?: @""
+                                                              options:0
+                                                                range:NSMakeRange(0, saved.length)];
+          if (match != nil) {
+              CGFloat width = [[saved substringWithRange:[match rangeAtIndex:1]] doubleValue];
+              kPanelWidth = MIN(kMaximumPanelWidth, MAX(kMinimumPanelWidth, width));
+          }
+        });
         _activeSection = KineticActivitySectionNone;
         _displayedSection = KineticActivitySectionNone;
         _hoveredSection = KineticActivitySectionNone;
@@ -805,6 +828,10 @@ BOOL activityIsDirectory(NSURL* url) {
     }
 
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+    if (NSWidth(self.bounds) > kRailWidth + 1.0 && point.x >= NSWidth(self.bounds) - 7.0) {
+        _resizingPanel = YES;
+        return;
+    }
     KineticActivitySection section = [self sectionAtPoint:point];
     if (section != KineticActivitySectionNone) {
         if (section == _activeSection) {
@@ -897,6 +924,41 @@ BOOL activityIsDirectory(NSURL* url) {
     }
 }
 
+- (void)mouseDragged:(NSEvent*)event {
+    if (!_resizingPanel) {
+        return;
+    }
+    NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+    CGFloat availableWidth = MAX(kMinimumPanelWidth, NSWidth(self.superview.bounds) - 260.0);
+    kPanelWidth =
+        MIN(MIN(kMaximumPanelWidth, availableWidth), MAX(kMinimumPanelWidth, point.x - kRailWidth));
+    NSRect frame = self.frame;
+    frame.size.width = kRailWidth + kPanelWidth;
+    self.frame = frame;
+    _searchField.frame = NSMakeRect(kRailWidth + 22.0, 221.0, kPanelWidth - 42.0, 21.0);
+    self.needsDisplay = YES;
+    self.superview.needsDisplay = YES;
+    [self.superview.window invalidateCursorRectsForView:self];
+}
+
+- (void)mouseUp:(NSEvent*)event {
+    (void)event;
+    if (!_resizingPanel) {
+        return;
+    }
+    _resizingPanel = NO;
+    NSString* directory = [NSHomeDirectory() stringByAppendingPathComponent:@".kinetic"];
+    [NSFileManager.defaultManager createDirectoryAtPath:directory
+                            withIntermediateDirectories:YES
+                                             attributes:nil
+                                                  error:nil];
+    NSString* path = [directory stringByAppendingPathComponent:@"layout.toml"];
+    NSString* layout = [NSString
+        stringWithFormat:@"# Kinetic workspace layout\n[activityBar]\npanelWidth = %.1f\n",
+                         kPanelWidth];
+    [layout writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:nil];
+}
+
 - (void)rightMouseDown:(NSEvent*)event {
     if (_animating || _activeSection != KineticActivitySectionExplorer) {
         return;
@@ -970,6 +1032,10 @@ BOOL activityIsDirectory(NSURL* url) {
 - (void)resetCursorRects {
     [super resetCursorRects];
     [self addCursorRect:self.bounds cursor:NSCursor.arrowCursor];
+    if (NSWidth(self.bounds) > kRailWidth + 1.0) {
+        [self addCursorRect:NSMakeRect(NSWidth(self.bounds) - 7.0, 0.0, 7.0, NSHeight(self.bounds))
+                     cursor:NSCursor.resizeLeftRightCursor];
+    }
 }
 
 - (void)scrollWheel:(NSEvent*)event {

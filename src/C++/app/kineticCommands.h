@@ -7,6 +7,8 @@
 - (void)openFile;
 - (void)openFileAtUrl:(NSURL*)fileUrl;
 - (void)openFolder;
+- (void)cloneRepository;
+- (void)showCommandPalette;
 - (void)createFolder;
 - (void)createFileInDirectory:(NSURL*)directoryUrl;
 - (void)createFolderInDirectory:(NSURL*)directoryUrl;

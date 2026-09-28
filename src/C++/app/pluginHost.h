@@ -30,6 +30,7 @@
 @interface KineticPluginHost : NSObject
 @property(nonatomic, assign) id<KineticPluginHostDelegate> delegate;
 @property(nonatomic, readonly, copy) NSArray<NSString*>* loadedPluginNames;
+@property(nonatomic, readonly, copy) NSDictionary<NSString*, NSString*>* loadedPluginVersions;
 @property(nonatomic, readonly, copy) NSArray<NSDictionary<NSString*, NSString*>*>* commands;
 @property(nonatomic, readonly, copy) NSArray<NSDictionary<NSString*, NSString*>*>* fileMenuItems;
 @property(nonatomic, readonly, copy) NSArray<NSDictionary<NSString*, id>*>* panels;

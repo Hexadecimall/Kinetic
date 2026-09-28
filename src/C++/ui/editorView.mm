@@ -1,4 +1,5 @@
 #import "editorView.h"
+#import "theme.h"
 
 #import "activityBar.h"
 #import "contextMenu.h"
@@ -40,7 +41,7 @@ enum class EditorMenuCommand : NSInteger {
 };
 
 NSColor* editorColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
-    return [NSColor colorWithSRGBRed:red / 255.0 green:green / 255.0 blue:blue / 255.0 alpha:alpha];
+    return kineticThemeColor(red, green, blue, alpha);
 }
 
 NSColor* syntaxColor(KineticSyntaxKind kind) {

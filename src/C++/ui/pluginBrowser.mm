@@ -1,4 +1,5 @@
 #import "pluginBrowser.h"
+#import "theme.h"
 
 namespace {
 constexpr CGFloat kListWidth = 340.0;
@@ -6,7 +7,7 @@ constexpr CGFloat kCardHeight = 106.0;
 constexpr CGFloat kCardGap = 9.0;
 
 NSColor* browserColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
-    return [NSColor colorWithSRGBRed:red / 255.0 green:green / 255.0 blue:blue / 255.0 alpha:alpha];
+    return kineticThemeColor(red, green, blue, alpha);
 }
 
 NSDictionary* browserText(CGFloat size, NSFontWeight weight, NSColor* color) {
@@ -64,7 +65,7 @@ NSDictionary* browserText(CGFloat size, NSFontWeight weight, NSColor* color) {
 
 - (void)layout {
     [super layout];
-    _searchField.frame = NSMakeRect(47.0, 92.0, MIN(420.0, NSWidth(self.bounds) - 94.0), 24.0);
+    _searchField.frame = NSMakeRect(64.0, 92.0, MIN(402.0, NSWidth(self.bounds) - 112.0), 24.0);
 }
 
 - (void)setPlugins:(NSArray<NSDictionary<NSString*, id>*>*)plugins {
@@ -265,13 +266,15 @@ NSDictionary* browserText(CGFloat size, NSFontWeight weight, NSColor* color) {
     [selected[@"summary"] drawInRect:NSMakeRect(x, 302.0, width, 68.0)
                       withAttributes:summaryAttributes];
     NSString* state = selected[@"state"] ?: @"available";
-    NSString* action = [state hasPrefix:@"update available"] ? @"Update"
-                       : [state hasPrefix:@"installed"]      ? @"Installed"
-                                                             : @"Install";
-    [self drawAction:action
-              inRect:[self primaryActionRect]
-             enabled:![action isEqualToString:@"Installed"]];
-    if (![state isEqualToString:@"available"]) {
+    NSString* action = [state isEqualToString:@"included"]     ? @"Included"
+                       : [state hasPrefix:@"update available"] ? @"Update"
+                       : [state hasPrefix:@"installed"]        ? @"Installed"
+                                                               : @"Install";
+    [self
+        drawAction:action
+            inRect:[self primaryActionRect]
+           enabled:![action isEqualToString:@"Installed"] && ![action isEqualToString:@"Included"]];
+    if (![state isEqualToString:@"available"] && ![state isEqualToString:@"included"]) {
         [self drawAction:@"Remove" inRect:[self secondaryActionRect] enabled:YES];
     }
     [@"VERSION" drawAtPoint:NSMakePoint(x, 436.0) withAttributes:small];
@@ -379,6 +382,9 @@ NSDictionary* browserText(CGFloat size, NSFontWeight weight, NSColor* color) {
     NSDictionary* selected = [self selectedPlugin];
     NSString* state = selected[@"state"] ?: @"available";
     if (selected != nil && NSPointInRect(point, [self primaryActionRect])) {
+        if ([state isEqualToString:@"included"]) {
+            return;
+        }
         NSString* action = [state hasPrefix:@"update available"] ? @"update" : @"install";
         if (![state hasPrefix:@"installed"]) {
             [self showConfirmationForPlugin:selected action:action atPoint:point];
@@ -388,7 +394,7 @@ NSDictionary* browserText(CGFloat size, NSFontWeight weight, NSColor* color) {
         return;
     }
     if (selected != nil && NSPointInRect(point, [self secondaryActionRect]) &&
-        ![state isEqualToString:@"available"]) {
+        ![state isEqualToString:@"available"] && ![state isEqualToString:@"included"]) {
         [self showConfirmationForPlugin:selected action:@"uninstall" atPoint:point];
     }
 }
