@@ -16,6 +16,10 @@ also uses that empty workspace until an actual file is opened. Command-Shift-Lef
 Command-Shift-Right Bracket cycle through tabs with wrapping. Recent-project rows have custom
 Open Project and Copy Path menus.
 
+The tab strip collapses when no document or utility tabs are visible. The activity rail and
+Explorer then start directly beneath the titlebar; opening a document, Settings, or Plugins
+restores the strip and its reserved space.
+
 Opening a workspace folder moves it to the front of a bounded recent-project list stored in the
 application defaults domain. Missing folders are filtered before display. Home draws the project
 name and truncated parent path as custom rows; selecting one restores that workspace without

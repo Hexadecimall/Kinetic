@@ -224,6 +224,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         _pluginBrowser.delegate = self;
         _pluginBrowser.hidden = YES;
         [self addSubview:_pluginBrowser];
+        [self updateWorkspaceLayout];
         _searchPopover = [[KineticSearchPopover alloc]
             initWithFrame:NSMakeRect(MAX(8.0, NSWidth(frameRect) - kSearchPopoverWidth - 12.0),
                                      38.0, kSearchPopoverWidth, 165.0)];
@@ -271,6 +272,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 
 - (void)setTabTitles:(NSArray<NSString*>*)tabTitles {
     _tabTitles = [tabTitles copy];
+    [self updateWorkspaceLayout];
     self.needsDisplay = YES;
 }
 
@@ -496,12 +498,14 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     [self setSettingsVisible:section == KineticActivitySectionSettings animated:animated];
     _pluginsVisible = section == KineticActivitySectionPlugins;
     _pluginBrowser.hidden = !_pluginsVisible;
+    [self updateWorkspaceLayout];
     [_activityBar activateSection:section animated:animated];
     self.needsDisplay = YES;
 }
 
 - (void)setSettingsVisible:(BOOL)visible animated:(BOOL)animated {
     _settingsVisible = visible;
+    [self updateWorkspaceLayout];
     [_settingsTimer invalidate];
     _settingsTimer = nil;
     CGFloat target = visible ? 1.0 : 0.0;
@@ -759,6 +763,23 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 
 - (NSUInteger)visibleTabCount {
     return _tabTitles.count + ((_settingsVisible || _pluginsVisible) ? 1 : 0);
+}
+
+- (CGFloat)workspaceContentY {
+    return kTabBarY + ([self visibleTabCount] > 0 ? kTabBarHeight : 0.0);
+}
+
+- (void)updateWorkspaceLayout {
+    CGFloat top = [self workspaceContentY];
+    NSRect railFrame = _activityBar.frame;
+    railFrame.origin.y = top;
+    railFrame.size.height = MAX(0.0, NSHeight(self.bounds) - top);
+    _activityBar.frame = railFrame;
+    NSRect browserFrame = _pluginBrowser.frame;
+    browserFrame.origin.y = top;
+    browserFrame.size.height = MAX(0.0, NSHeight(self.bounds) - top);
+    _pluginBrowser.frame = browserFrame;
+    [self.window invalidateCursorRectsForView:self];
 }
 
 - (CGFloat)tabWidth {
@@ -1878,8 +1899,10 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     [(_canvasColor ?: editorColor(47, 57, 71, 0.9)) setFill];
     NSRectFill(self.bounds);
 
-    [editorColor(42, 51, 64, 0.9) setFill];
-    NSRectFill(NSMakeRect(0.0, kTabBarY, NSWidth(self.bounds), kTabBarHeight));
+    if ([self visibleTabCount] > 0) {
+        [editorColor(42, 51, 64, 0.9) setFill];
+        NSRectFill(NSMakeRect(0.0, kTabBarY, NSWidth(self.bounds), kTabBarHeight));
+    }
 
     NSDictionary* tabAttributes = @{
         NSFontAttributeName : [NSFont systemFontOfSize:12.0 weight:NSFontWeightMedium],
@@ -2256,6 +2279,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
                     [self setSettingsVisible:NO animated:YES];
                     _pluginsVisible = NO;
                     _pluginBrowser.hidden = YES;
+                    [self updateWorkspaceLayout];
                     [_activityBar deactivateSection];
                     self.needsDisplay = YES;
                 } else {
@@ -2269,6 +2293,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
                         [self setSettingsVisible:NO animated:YES];
                         _pluginsVisible = NO;
                         _pluginBrowser.hidden = YES;
+                        [self updateWorkspaceLayout];
                         [_activityBar deactivateSection];
                     }
                     [self.commandHandler activateTabAtIndex:index];
@@ -2362,6 +2387,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
                                          [self setSettingsVisible:NO animated:YES];
                                          _pluginsVisible = NO;
                                          _pluginBrowser.hidden = YES;
+                                         [self updateWorkspaceLayout];
                                          [_activityBar deactivateSection];
                                          self.needsDisplay = YES;
                                      } else {
@@ -2420,6 +2446,14 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 
 - (void)resetCursorRects {
     [super resetCursorRects];
+    if (_workspacePlaceholder && !_settingsVisible && !_pluginsVisible) {
+        CGFloat top = [self workspaceContentY];
+        [self addCursorRect:NSMakeRect([self editorContentX], top,
+                                       NSWidth(self.bounds) - [self editorContentX],
+                                       MAX(0.0, NSHeight(self.bounds) - top))
+                     cursor:NSCursor.arrowCursor];
+        return;
+    }
     if (_settingsVisible || _pluginsVisible) {
         [self addCursorRect:NSMakeRect(KineticActivityBar.railWidth, 68.0,
                                        NSWidth(self.bounds) - KineticActivityBar.railWidth,
@@ -2487,6 +2521,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     [self setSettingsVisible:section == KineticActivitySectionSettings animated:YES];
     _pluginsVisible = section == KineticActivitySectionPlugins;
     _pluginBrowser.hidden = !_pluginsVisible;
+    [self updateWorkspaceLayout];
     if (section == KineticActivitySectionPlugins) {
         [self.commandHandler refreshPluginCatalog];
     }
@@ -2660,6 +2695,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
             [self setSettingsVisible:NO animated:YES];
             _pluginsVisible = NO;
             _pluginBrowser.hidden = YES;
+            [self updateWorkspaceLayout];
             [_activityBar deactivateSection];
             [self.window invalidateCursorRectsForView:self];
             self.needsDisplay = YES;

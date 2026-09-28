@@ -2,7 +2,13 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.27.2 - Unreleased
+## 0.27.3 - Unreleased
+
+### Fixed
+
+- Collapse the empty tab strip and move the Explorer beneath the titlebar when no tabs are open, preserving the strip for documents, Settings, and Plugins.
+
+## 0.27.2
 
 ### Fixed
 
