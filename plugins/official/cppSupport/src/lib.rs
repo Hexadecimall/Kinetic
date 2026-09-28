@@ -2,11 +2,12 @@
 
 mod language;
 mod lsp;
+mod tools;
 
 use std::ffi::{CStr, CString, c_char, c_void};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::sync::atomic::{AtomicPtr, AtomicU8, Ordering};
 use std::sync::{Mutex, OnceLock};
 
@@ -358,8 +359,8 @@ fn counterpart(path: &Path) -> Option<PathBuf> {
     let extension = path.extension()?.to_str()?;
     let candidates: &[&str] = match extension {
         "c" => &["h"],
-        "cc" | "cpp" | "cxx" => &["hpp", "h", "hh", "hxx"],
-        "h" | "hpp" | "hh" | "hxx" => &["cpp", "cc", "cxx", "c"],
+        "cc" | "cpp" | "cxx" | "m" | "mm" => &["hpp", "h", "hh", "hxx"],
+        "h" | "hpp" | "hh" | "hxx" => &["cpp", "cc", "cxx", "c", "m", "mm"],
         _ => return None,
     };
     candidates
@@ -384,8 +385,7 @@ extern "C" fn switchHeaderSource(_userData: *mut c_void) {
 fn formatText(input: &[u8]) -> Option<Vec<u8>> {
     let api = api()?;
     let path = copyHostString(api.copyActiveFilePath)?;
-    let mut child = Command::new("xcrun")
-        .arg("clang-format")
+    let mut child = tools::command("clang-format")
         .arg(format!("--assume-filename={path}"))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -452,7 +452,7 @@ extern "C" fn panelRows(_userData: *mut c_void, rows: *mut PanelRow, capacity: u
     let status = match STATUS.load(Ordering::Acquire) {
         2 => "clangd connected",
         1 => "clangd starting...",
-        _ => "clangd unavailable; install Xcode Command Line Tools",
+        _ => "clangd unavailable; check the configured executable",
     };
     writeField(&mut rows[0].title, status);
     rows[1].kind = 2;
@@ -494,7 +494,9 @@ extern "C" fn start(apiPointer: *const PluginApi) -> i32 {
     }
     API.store(apiPointer.cast_mut(), Ordering::Release);
     let context = api.context;
-    for extension in [c"c", c"h", c"cc", c"cpp", c"cxx", c"hpp", c"hh", c"hxx"] {
+    for extension in [
+        c"c", c"h", c"cc", c"cpp", c"cxx", c"hpp", c"hh", c"hxx", c"m", c"mm",
+    ] {
         // SAFETY: All pointers and callbacks remain valid until stop.
         if unsafe {
             (api.registerSyntaxProvider)(
@@ -508,7 +510,9 @@ extern "C" fn start(apiPointer: *const PluginApi) -> i32 {
             return -1;
         }
     }
-    for extension in [c"c", c"h", c"cc", c"cpp", c"cxx", c"hpp", c"hh", c"hxx"] {
+    for extension in [
+        c"c", c"h", c"cc", c"cpp", c"cxx", c"hpp", c"hh", c"hxx", c"m", c"mm",
+    ] {
         if unsafe {
             (api.registerDiagnosticFixProvider)(
                 context,
@@ -521,7 +525,9 @@ extern "C" fn start(apiPointer: *const PluginApi) -> i32 {
             return -1;
         }
     }
-    for extension in [c"c", c"h", c"cc", c"cpp", c"cxx", c"hpp", c"hh", c"hxx"] {
+    for extension in [
+        c"c", c"h", c"cc", c"cpp", c"cxx", c"hpp", c"hh", c"hxx", c"m", c"mm",
+    ] {
         if unsafe {
             (api.registerCompletionProvider)(
                 context,
@@ -589,12 +595,14 @@ extern "C" fn start(apiPointer: *const PluginApi) -> i32 {
     {
         return -1;
     }
-    if Command::new("xcrun")
-        .args(["--find", "clang-format"])
+    if tools::command("clang-format")
+        .arg("--version")
         .output()
         .is_ok_and(|output| output.status.success())
     {
-        for extension in [c"c", c"h", c"cc", c"cpp", c"cxx", c"hpp", c"hh", c"hxx"] {
+        for extension in [
+            c"c", c"h", c"cc", c"cpp", c"cxx", c"hpp", c"hh", c"hxx", c"m", c"mm",
+        ] {
             if unsafe {
                 (api.registerFormatter)(
                     context,
@@ -643,7 +651,7 @@ static DESCRIPTOR: PluginDescriptor = PluginDescriptor {
     structSize: std::mem::size_of::<PluginDescriptor>() as u32,
     pluginId: c"kinetic.cpp-support".as_ptr(),
     displayName: c"C/C++ Support".as_ptr(),
-    version: c"0.2.0".as_ptr(),
+    version: c"0.3.0".as_ptr(),
     start,
     stop,
 };

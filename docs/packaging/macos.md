@@ -1,5 +1,10 @@
 # macOS packaging
 
+The app contains clangd and clang-format under `Contents/Resources/tools/llvm`, together with
+their runtime libraries, resource headers, and license notices. See [LLVM tools](../../lib/llvm/README.md)
+for build-source selection and the release macOS-compatibility guard. The tools do not replace
+project compilers, SDKs, or build-system dependencies.
+
 `Kinetic.app` is the canonical product. It contains the GUI executable, the matching `kinetic`
 command-line client at `Contents/Resources/bin/kinetic`, and Official C/C++ Support at
 `Contents/PlugIns/libkineticCppSupport.dylib`. The CLI, plugin, and app are signed after

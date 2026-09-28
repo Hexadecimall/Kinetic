@@ -13,6 +13,23 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_OSX_ARCHITECTURES arm64 CACHE STRING "Supported architecture" FORCE)
 set(CMAKE_OSX_DEPLOYMENT_TARGET 15.0 CACHE STRING "Minimum macOS version" FORCE)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(KINETIC_LLVM_ROOT "" CACHE PATH "Redistributable LLVM installation for bundled clang tools")
+if(NOT KINETIC_LLVM_ROOT)
+    find_program(KINETIC_CLANGD_EXECUTABLE clangd
+        PATHS /opt/homebrew/opt/llvm/bin /opt/homebrew/opt/llvm@23/bin
+              /opt/homebrew/opt/llvm@22/bin /opt/homebrew/opt/llvm@21/bin
+              /usr/local/opt/llvm/bin NO_DEFAULT_PATH)
+    if(NOT KINETIC_CLANGD_EXECUTABLE)
+        message(FATAL_ERROR "Set KINETIC_LLVM_ROOT to an LLVM distribution containing clangd, clang-format, resource headers, and licenses")
+    endif()
+    get_filename_component(KINETIC_LLVM_BIN "${KINETIC_CLANGD_EXECUTABLE}" DIRECTORY)
+    get_filename_component(KINETIC_LLVM_ROOT "${KINETIC_LLVM_BIN}" DIRECTORY)
+endif()
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set(KINETIC_LLVM_BUNDLE_ARGS)
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
+    list(APPEND KINETIC_LLVM_BUNDLE_ARGS --allow-newer-for-development)
+endif()
 set(KINETIC_GITHUB_CLIENT_ID "Ov23li0CaegWQ9lfPBQl" CACHE STRING "Public GitHub OAuth client ID")
 if(NOT KINETIC_GITHUB_CLIENT_ID)
     set(KINETIC_GITHUB_CLIENT_ID "Ov23li0CaegWQ9lfPBQl")
@@ -51,6 +68,7 @@ add_custom_command(
         "${CMAKE_SOURCE_DIR}/plugins/official/cppSupport/src/lib.rs"
         "${CMAKE_SOURCE_DIR}/plugins/official/cppSupport/src/language.rs"
         "${CMAKE_SOURCE_DIR}/plugins/official/cppSupport/src/lsp.rs"
+        "${CMAKE_SOURCE_DIR}/plugins/official/cppSupport/src/tools.rs"
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     COMMENT "Building the separate Official C/C++ Support plugin"
     VERBATIM)
@@ -71,6 +89,7 @@ add_custom_command(
         "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/document.rs"
         "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/extensions.rs"
         "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/packages.rs"
+        "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/preferences.rs"
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     COMMENT "Building Kinetic's Rust backend"
     VERBATIM)
@@ -134,6 +153,11 @@ add_custom_command(
 add_dependencies(Kinetic kinetic_cli kinetic_cpp_support)
 add_custom_target(
     kinetic_sign_bundle ALL
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${KINETIC_CPP_PLUGIN}"
+            "$<TARGET_BUNDLE_DIR:Kinetic>/Contents/PlugIns/libkineticCppSupport.dylib"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/scripts/bundleClangTools.py"
+            --llvm-root "${KINETIC_LLVM_ROOT}" --app "$<TARGET_BUNDLE_DIR:Kinetic>"
+            --minimum-macos "${CMAKE_OSX_DEPLOYMENT_TARGET}" ${KINETIC_LLVM_BUNDLE_ARGS}
     COMMAND "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_SOURCE_DIR}/assets/themes"
             "$<TARGET_BUNDLE_DIR:Kinetic>/Contents/Resources/themes"
     COMMAND codesign --force --sign -
@@ -228,6 +252,8 @@ target_link_libraries(kineticCppSupportPluginTests PRIVATE kinetic_backend "-fra
 add_dependencies(kineticCppSupportPluginTests kinetic_cpp_support)
 add_test(NAME kineticCppSupportPlugin COMMAND kineticCppSupportPluginTests
     "${KINETIC_CPP_PLUGIN_DIR}/${KINETIC_CARGO_PROFILE}")
+set_tests_properties(kineticCppSupportPlugin PROPERTIES ENVIRONMENT
+    "KINETIC_CLANGD=$<TARGET_BUNDLE_DIR:Kinetic>/Contents/Resources/tools/llvm/bin/clangd;KINETIC_CLANG_FORMAT=$<TARGET_BUNDLE_DIR:Kinetic>/Contents/Resources/tools/llvm/bin/clang-format")
 
 add_executable(kineticGitHubAccountTests tests/githubAccountTests.mm
                                          src/C++/app/githubAccount.mm)

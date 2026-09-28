@@ -132,6 +132,12 @@ int main(int argc, const char* argv[]) {
               configurationUrl:
                   [NSURL fileURLWithPath:[root stringByAppendingPathComponent:@"config.toml"]]];
         require([host.loadedPluginNames containsObject:@"C/C++ Support"], @"plugin loaded");
+        require([host hasCompletionProviderForFileName:@"Controller.m"],
+                @"Objective-C completion registered");
+        require([host hasCompletionProviderForFileName:@"Controller.mm"],
+                @"Objective-C++ completion registered");
+        require([host hasFormatterForFileName:@"Controller.mm"],
+                @"Objective-C++ formatter registered");
         NSArray* syntax = [host syntaxTokensForLines:@[ @"constexpr int value = 42;" ]
                                             fileName:@"main.cpp"];
         require(syntax.count == 1 && [syntax[0] count] >= 3, @"plugin syntax tokens");

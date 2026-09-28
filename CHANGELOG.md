@@ -2,7 +2,15 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.28.0 - Unreleased
+## 0.29.0 - Unreleased
+
+### Added
+
+- Bundle clangd, clang-format, resource headers, runtime libraries, and redistribution notices; prefer those tools over system installations.
+- Handle Objective-C and Objective-C++ documents through clangd with the correct language IDs, completion, diagnostics, formatting, and header/source navigation.
+- Reject incompatible LLVM binaries when preparing a macOS release; development bundles explicitly warn about newer toolchain requirements.
+
+## 0.28.0
 
 ### Improved
 

@@ -1,5 +1,10 @@
 # C/C++ Support
 
+The app bundle supplies clangd and clang-format, including runtime libraries and Clang headers.
+Objective-C (`.m`) and Objective-C++ (`.mm`) use the same server with their correct language IDs.
+The tools can be overridden with `KINETIC_CLANGD` and `KINETIC_CLANG_FORMAT`; non-bundled plugin
+hosts use PATH. A project still supplies its compiler, SDK, and build configuration.
+
 First-party native plugin `kinetic.cpp-support`, included in Kinetic.app and loaded through the
 same public API as third-party plugins.
 It uses the public plugin ABI: there is no private syntax, navigation, or diagnostics hook.
@@ -11,8 +16,8 @@ Switch Header / Source is Command-Option-H. These actions are editor commands, n
 Format Document appears in File for matching extensions when clang-format is available. The
 formatter honors a nearby `.clang-format` file through clang-format's normal discovery.
 
-Kinetic uses an existing `clangd` on `PATH` and the active Xcode toolchain's `clang-format`.
-Neither is downloaded by the plugin. If clangd is unavailable, syntax highlighting remains
+Kinetic prefers its bundled clangd and clang-format; neither is downloaded by this plugin.
+Explicit executable overrides take precedence. If clangd is unavailable, syntax highlighting remains
 active, while diagnostics and navigation are unavailable.
 Header/source switching searches sibling files with a matching stem. A project-local
 `compile_commands.json` in the project root or a common CMake build directory (including
@@ -24,7 +29,8 @@ The user can disable the included plugin with `disabledFiles = ["libkineticCppSu
 The Official designation comes from the registry's project-owned publisher policy, not a plugin
 self-claim. Version 0.1.0 is published as an immutable
 [GitHub Release](https://github.com/Hexadecimall/Kinetic/releases/tag/cpp-support-v0.1.0).
-Version 0.2.0 adds clangd completion, project build-directory discovery, and quick fixes, and is
+Version 0.2.0 added clangd completion, project build-directory discovery, and quick fixes.
+Version 0.3.0 adds bundled-tool resolution and Objective-C/C++ routing, and is
 prepared for the next immutable release; the catalog
 will list it only after that asset is published and its digest is verified. The bundled version is
 marked Included in the Plugins page and bundled CLI; it is not separately installed or removed.

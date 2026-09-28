@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::io::{self, BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 use std::sync::{Arc, Mutex, mpsc};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
@@ -230,7 +230,12 @@ fn readFrame<R: BufRead>(input: &mut R) -> io::Result<Option<Value>> {
 }
 
 fn didOpen(path: &str, text: &str) -> Value {
-    let language = if path.ends_with(".c") { "c" } else { "cpp" };
+    let language = match path.rsplit('.').next() {
+        Some("c") => "c",
+        Some("m") => "objective-c",
+        Some("mm") => "objective-cpp",
+        _ => "cpp",
+    };
     json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{
         "uri":uri(path),"languageId":language,"version":1,"text":text
     }}})
@@ -364,7 +369,7 @@ fn completionItems(message: &Value) -> Vec<CompletionItem> {
 
 impl LanguageServer {
     pub fn start(workspace: Option<String>) -> io::Result<Self> {
-        let mut command = Command::new("clangd");
+        let mut command = crate::tools::command("clangd");
         command.arg("--background-index");
         if let Some(directory) = workspace.as_deref().and_then(compilationDatabase) {
             command.arg(format!("--compile-commands-dir={}", directory.display()));
@@ -477,7 +482,7 @@ impl LanguageServer {
                 "capabilities":{"general":{"positionEncodings":["utf-16"]},
                                 "textDocument":{"publishDiagnostics":{},
                                                 "completion":{"completionItem":{"snippetSupport":false}}}},
-                "clientInfo":{"name":"Kinetic C/C++ Support","version":"0.2.0"}
+                "clientInfo":{"name":"Kinetic C/C++ Support","version":env!("CARGO_PKG_VERSION")}
             }}),
         );
         Ok(Self {
@@ -492,7 +497,7 @@ impl LanguageServer {
     pub fn updateDocument(&self, path: String, text: String) {
         if !matches!(
             path.rsplit('.').next(),
-            Some("c" | "h" | "cc" | "cpp" | "cxx" | "hpp" | "hh" | "hxx")
+            Some("c" | "h" | "cc" | "cpp" | "cxx" | "hpp" | "hh" | "hxx" | "m" | "mm")
         ) {
             return;
         }
