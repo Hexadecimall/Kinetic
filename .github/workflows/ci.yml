@@ -19,6 +19,16 @@ jobs:
         run: ./scripts/bootstrap
       - name: Format
         run: ./scripts/format --check
+      - name: Prepare standalone language tools for integration tests
+        env:
+          KINETIC_TOOLS_DIR: ${{ runner.temp }}/kinetic-test-tools
+          KINETIC_TOOL_SEARCH_PATH: ""
+        run: |
+          ./scripts/build --debug
+          build/debug/Kinetic.app/Contents/Resources/bin/kinetic tools install clangd --yes
+          build/debug/Kinetic.app/Contents/Resources/bin/kinetic tools install clang-format --yes
       - name: Test
+        env:
+          KINETIC_TOOLS_DIR: ${{ runner.temp }}/kinetic-test-tools
+          KINETIC_TOOL_SEARCH_PATH: ""
         run: ./scripts/test
-

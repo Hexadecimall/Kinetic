@@ -8,7 +8,7 @@ cask "kinetic" do
   homepage "https://github.com/Hexadecimall/Kinetic"
 
   depends_on arch: :arm64
-  depends_on macos: ">= :sequoia"
+  depends_on macos: :sequoia
 
   app "Kinetic.app"
   binary "#{appdir}/Kinetic.app/Contents/Resources/bin/kinetic"
