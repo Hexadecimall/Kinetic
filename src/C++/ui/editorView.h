@@ -53,6 +53,7 @@
 - (void)revealCreatedFolderAtUrl:(NSURL*)url;
 - (void)revealCreatedFileAtUrl:(NSURL*)url;
 - (void)setActivitySection:(KineticActivitySection)section animated:(BOOL)animated;
+- (BOOL)closeUtilityPanelIfOpen;
 - (void)markSaved;
 - (BOOL)setPluginNumber:(double)value property:(NSString*)property;
 - (BOOL)getPluginNumber:(double*)value property:(NSString*)property;

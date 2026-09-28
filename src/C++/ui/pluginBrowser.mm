@@ -173,7 +173,7 @@ NSDictionary* browserText(CGFloat size, NSFontWeight weight, NSColor* color) {
 
 - (void)drawRect:(NSRect)dirtyRect {
     (void)dirtyRect;
-    [browserColor(44, 54, 68, 0.97) setFill];
+    [browserColor(44, 54, 68) setFill];
     NSRectFill(self.bounds);
     NSDictionary* title = browserText(25.0, NSFontWeightSemibold, browserColor(235, 241, 249));
     NSDictionary* body = browserText(14.0, NSFontWeightMedium, browserColor(222, 230, 242));
@@ -181,8 +181,6 @@ NSDictionary* browserText(CGFloat size, NSFontWeight weight, NSColor* color) {
     NSDictionary* small = browserText(11.0, NSFontWeightMedium, browserColor(139, 179, 250));
 
     [@"Plugins" drawAtPoint:NSMakePoint(25.0, 27.0) withAttributes:title];
-    [@"Find and manage extensions for this editor." drawAtPoint:NSMakePoint(26.0, 61.0)
-                                                 withAttributes:muted];
     if (_status.length > 0) {
         [_status drawInRect:NSMakeRect(NSWidth(self.bounds) - 305.0, 45.0, 280.0, 22.0)
              withAttributes:muted];
@@ -427,6 +425,18 @@ NSDictionary* browserText(CGFloat size, NSFontWeight weight, NSColor* color) {
     _listScroll =
         MIN(MAX(0.0, contentHeight - viewport), MAX(0.0, _listScroll - event.scrollingDeltaY));
     self.needsDisplay = YES;
+}
+
+- (BOOL)control:(NSControl*)control
+               textView:(NSTextView*)textView
+    doCommandBySelector:(SEL)selector {
+    (void)control;
+    (void)textView;
+    if (selector == @selector(cancelOperation:)) {
+        [self.nextResponder tryToPerform:selector with:self];
+        return YES;
+    }
+    return NO;
 }
 
 @end

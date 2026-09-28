@@ -49,7 +49,8 @@
         "easing": { "type": "string" },
         "editorEnterMilliseconds": { "type": "integer", "minimum": 0 },
         "editorExitMilliseconds": { "type": "integer", "minimum": 0 },
-        "modalMilliseconds": { "type": "integer", "minimum": 0 }
+        "modalMilliseconds": { "type": "integer", "minimum": 0 },
+        "settingsPanelMilliseconds": { "type": "integer", "minimum": 80, "maximum": 400 }
       }
     },
     "editor": {
@@ -57,6 +58,10 @@
       "additionalProperties": false,
       "properties": {
         "fontSize": { "type": "number", "minimum": 6.0 },
+        "fontPreset": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "letterSpacing": { "type": "number", "minimum": -2.0, "maximum": 8.0 },
+        "highlightCurrentLine": { "type": "boolean" },
+        "showDiagnostics": { "type": "boolean" },
         "lineHeight": { "type": "number", "minimum": 8.0 },
         "tabWidth": { "type": "integer", "minimum": 1, "maximum": 16 },
         "insertTabs": { "type": "boolean" },

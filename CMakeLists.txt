@@ -95,6 +95,8 @@ add_executable(
                               src/C++/ui/fileDialog.mm
                               src/C++/ui/homeView.mm
                               src/C++/ui/pluginBrowser.mm
+                              src/C++/ui/settingsPanel.mm
+                              src/C++/ui/utilityPanel.mm
                               src/C++/ui/searchPopover.mm
                               src/C++/ui/syntaxHighlight.mm
                               src/C++/ui/trafficBar.mm src/C++/ui/tween.mm
@@ -105,7 +107,7 @@ target_include_directories(Kinetic PRIVATE include src/C++/app src/C++/bridge sr
 target_compile_options(Kinetic PRIVATE "-fobjc-arc")
 target_link_libraries(
     Kinetic PRIVATE kinetic_backend "-framework AppKit" "-framework Metal" "-framework MetalKit"
-                           "-framework Security")
+                           "-framework Security" "-framework QuartzCore")
 set_target_properties(
     Kinetic
     PROPERTIES
@@ -142,6 +144,13 @@ add_custom_target(
     VERBATIM)
 
 enable_testing()
+add_executable(kineticSettingsPanelTests tests/settingsPanelTests.mm
+    src/C++/ui/settingsPanel.mm src/C++/ui/utilityPanel.mm
+    src/C++/ui/theme.mm src/C++/ui/contextMenu.mm)
+target_include_directories(kineticSettingsPanelTests PRIVATE src/C++/ui)
+target_compile_options(kineticSettingsPanelTests PRIVATE "-fobjc-arc")
+target_link_libraries(kineticSettingsPanelTests PRIVATE "-framework AppKit" "-framework QuartzCore")
+add_test(NAME kineticSettingsPanel COMMAND kineticSettingsPanelTests)
 add_executable(kineticThemeTests tests/themeTests.mm src/C++/ui/theme.mm)
 target_include_directories(kineticThemeTests PRIVATE src/C++/ui)
 target_compile_options(kineticThemeTests PRIVATE "-fobjc-arc")
@@ -165,11 +174,12 @@ add_executable(kineticEditorBackendIntegrationTests
     src/C++/ui/editorView.mm src/C++/ui/activityBar.mm src/C++/ui/contextMenu.mm
     src/C++/ui/cloneDialog.mm src/C++/ui/commandPalette.mm
     src/C++/ui/editorStructure.mm src/C++/ui/pluginBrowser.mm src/C++/ui/searchPopover.mm src/C++/ui/syntaxHighlight.mm
+    src/C++/ui/settingsPanel.mm src/C++/ui/utilityPanel.mm
     src/C++/ui/tween.mm src/C++/ui/theme.mm src/C++/app/workspaceSearch.mm)
 target_include_directories(kineticEditorBackendIntegrationTests PRIVATE
     include src/C++/app src/C++/bridge src/C++/ui)
 target_compile_options(kineticEditorBackendIntegrationTests PRIVATE "-fobjc-arc")
-target_link_libraries(kineticEditorBackendIntegrationTests PRIVATE kinetic_backend "-framework AppKit")
+target_link_libraries(kineticEditorBackendIntegrationTests PRIVATE kinetic_backend "-framework AppKit" "-framework QuartzCore")
 add_test(NAME kineticEditorBackendIntegration COMMAND kineticEditorBackendIntegrationTests)
 
 add_executable(kineticWorkspaceSearchTests tests/workspaceSearchTests.mm

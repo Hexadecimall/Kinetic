@@ -1035,6 +1035,10 @@
                          : [commandId isEqualToString:@"themeGraphite"] ? @"graphite"
                                                                         : @"kinetic-dark";
         kineticSetThemeName(name);
+        self.pluginNumberOverrides[@"interface.theme"] =
+            @([name isEqualToString:@"midnight"]   ? 1
+              : [name isEqualToString:@"graphite"] ? 2
+                                                   : 0);
         kineticRefreshThemeInView(self.content);
         for (KineticEditorView* editor in self.editors) {
             kineticRefreshThemeInView(editor);
@@ -1420,6 +1424,8 @@
 }
 
 - (BOOL)closeActiveTab {
+    if ([self.editor closeUtilityPanelIfOpen])
+        return YES;
     if (self.editor == nil) {
         return NO;
     }

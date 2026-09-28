@@ -2,7 +2,16 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.27.3 - Unreleased
+## 0.28.0 - Unreleased
+
+### Improved
+
+- Replaced Settings and Plugins editor pages with rounded, animated overlays that preserve the workspace and Explorer.
+- Organized 23 settings into searchable categories, with centered compact steppers, animated switches, and silent successful saves.
+- Added Settings controls for themes, font presets, letter spacing, current-line highlighting, diagnostics, tab sizing, and panel motion.
+- Persisted numeric editor preferences through Rust with validated loading and atomic writes; retained TOML indentation/completion and theme configuration.
+
+## 0.27.3
 
 ### Fixed
 

@@ -2,7 +2,7 @@
 
 The activity bar is a compact Kinetic-drawn rail shown only inside the editor. Its initial sections
 are Explorer, Source Control/GitHub, Plugins, and Settings. Explorer and Source Control open a
-side panel; Plugins and Settings open dedicated editor pages. The rail stays close to the editor surface color
+side panel; Plugins and Settings open rounded overlays without changing the active side panel. The rail stays close to the editor surface color
 so it reads as navigation rather than a separate dark column. Opening and closing use the same
 ease-out motion; panel content remains rendered through the closing tween instead of disappearing
 before the panel reaches the rail.
@@ -40,8 +40,9 @@ open files. Its query and results follow the window's project across tabs. Hidde
 contents, common generated folders, files over 1 MiB, and binary files are skipped; results stop at
 300 matches or 10,000 scanned files.
 
-Settings opens a dedicated editor page instead of a narrow side panel. Live controls cover editor
-type, scrolling, syntax highlighting, indentation, delimiter pairing, and autocomplete. Application package
+Settings opens a searchable, categorized overlay with animated switches and compact steppers.
+Live controls cover editor type, scrolling, syntax highlighting, indentation, delimiter pairing,
+autocomplete, themes, diagnostics, tab sizing, and panel motion. Application package
 controls check for updates and manage a user-scoped installation with explicit confirmation.
 
 The Explorer panel's right edge can be dragged to resize it; its width persists in

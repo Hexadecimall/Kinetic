@@ -833,6 +833,10 @@ BOOL activityIsDirectory(NSURL* url) {
         return;
     }
     KineticActivitySection section = [self sectionAtPoint:point];
+    if (section == KineticActivitySectionSettings || section == KineticActivitySectionPlugins) {
+        [self.delegate activityBar:self didActivateSection:section];
+        return;
+    }
     if (section != KineticActivitySectionNone) {
         if (section == _activeSection) {
             [self.delegate activityBar:self didActivateSection:KineticActivitySectionNone];

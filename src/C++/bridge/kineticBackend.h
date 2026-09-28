@@ -7,6 +7,9 @@
 extern "C" {
 #endif
 
+bool kineticPreferenceRead(const char* key, double* value);
+bool kineticPreferenceWrite(const char* key, double value);
+
 uint32_t kineticBackendAbiVersion(void);
 const char* kineticBackendVersion(void);
 int32_t kineticPackageMain(void);

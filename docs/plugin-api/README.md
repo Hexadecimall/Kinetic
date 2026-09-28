@@ -75,6 +75,13 @@ Supported numeric property keys and ranges:
 | `editor.text.letterSpacing` | -2 to 8 points; changes glyph spacing and text measurements |
 | `editor.text.fontSize` | 8 to 28 points |
 | `editor.text.lineHeight` | 14 to 40 points |
+| `editor.text.fontPreset` | Integer 0 to 3: system monospace, Menlo, Monaco, Courier |
+| `editor.currentLine.enabled` | 0 or 1 for the caret-line background |
+| `editor.diagnostics.enabled` | 0 or 1 for diagnostic presentation; language servers stay active |
+| `editor.tabs.preferredWidth` | 100 to 240 points |
+| `interface.theme` | Integer 0 to 2: Kinetic Dark, Midnight, Graphite; persists via the theme store |
+| `interface.motion.enabled` | 0 or 1 for Settings/Plugins panels and Settings switches |
+| `interface.motion.duration` | 80 to 400 milliseconds; system Reduced Motion takes precedence |
 | `editor.indentation.tabWidth` | Integer 1 to 16 |
 | `editor.indentation.insertTabs` | 0 for spaces, 1 for literal tab characters |
 | `editor.indentation.unitNavigation` | 0 for character navigation, 1 for indentation units |

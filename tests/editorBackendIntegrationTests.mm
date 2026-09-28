@@ -1,5 +1,6 @@
 #import "activityBar.h"
 #import "editorView.h"
+#import "settingsPanel.h"
 
 #import <AppKit/AppKit.h>
 
@@ -43,6 +44,20 @@ int main() {
             check(editor.dirty, @"dirty after edit") &&
             check(NSEqualRanges(editor.pluginSelection, NSMakeRange(5, 0)), @"caret after edit");
         [editor undoEdit];
+        for (NSDictionary* setting in kineticSettingsRows()) {
+            double value = 0;
+            passed = check([editor getPluginNumber:&value property:setting[@"key"]],
+                           @"settings controls map to real editor properties") &&
+                     passed;
+        }
+        editor.tabTitles = @[ @"Document" ];
+        [editor setActivitySection:KineticActivitySectionSettings animated:NO];
+        passed = check(editor.tabTitles.count == 1, @"settings preserves document tabs") && passed;
+        passed =
+            check([editor closeUtilityPanelIfOpen], @"settings closes without closing document") &&
+            passed;
+        passed =
+            check(![editor closeUtilityPanelIfOpen], @"closed panel is not reopened") && passed;
         passed = check([editor.documentText isEqualToString:@"initial"], @"undo text") &&
                  check(!editor.dirty, @"undo save state") && passed;
         [editor redoEdit];
