@@ -180,7 +180,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         _letterSpacing = 0.0;
         _fontName = @"";
         _canvasColorHex = @"#2F3947";
-        _canvasColor = editorColor(47, 57, 71, 0.9);
+        _canvasColor = nil;
         KineticIndentationConfig indentationConfig = {};
         if (kineticIndentationReadConfig(&indentationConfig) != 0) {
             indentationConfig = {4, false, true, true, true};
@@ -663,7 +663,10 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         unsigned int rgb = 0;
         [[NSScanner scannerWithString:[value substringFromIndex:1]] scanHexInt:&rgb];
         _canvasColorHex = [value.uppercaseString copy];
-        _canvasColor = editorColor((rgb >> 16) & 0xff, (rgb >> 8) & 0xff, rgb & 0xff, 0.9);
+        _canvasColor = [NSColor colorWithSRGBRed:((rgb >> 16) & 0xff) / 255.0
+                                           green:((rgb >> 8) & 0xff) / 255.0
+                                            blue:(rgb & 0xff) / 255.0
+                                           alpha:0.9];
     } else {
         return NO;
     }
@@ -1859,7 +1862,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     [NSGraphicsContext saveGraphicsState];
     CGContextRef context = NSGraphicsContext.currentContext.CGContext;
     CGContextSetAlpha(context, _settingsProgress);
-    [_canvasColor setFill];
+    [(_canvasColor ?: editorColor(47, 57, 71, 0.9)) setFill];
     NSRectFill(NSMakeRect(KineticActivityBar.railWidth, 68.0,
                           NSWidth(self.bounds) - KineticActivityBar.railWidth,
                           NSHeight(self.bounds) - 68.0));
@@ -1872,7 +1875,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 
 - (void)drawRect:(NSRect)dirtyRect {
     (void)dirtyRect;
-    [_canvasColor setFill];
+    [(_canvasColor ?: editorColor(47, 57, 71, 0.9)) setFill];
     NSRectFill(self.bounds);
 
     [editorColor(42, 51, 64, 0.9) setFill];

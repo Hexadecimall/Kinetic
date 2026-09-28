@@ -1,5 +1,22 @@
 # Configuration sources
 
+## Themes
+
+Use Command-Shift-P and search for `Theme` to choose Kinetic Dark, Midnight, or Graphite.
+Midnight pairs navy surfaces with cyan accents and cool syntax colors. Graphite pairs warm charcoal
+with amber accents, cream text, and muted mineral syntax colors. Existing tabs update immediately.
+
+The alternate palettes ship as `assets/themes/kinetic-midnight.toml` and
+`assets/themes/kinetic-graphite.toml`. Copy either into `~/.kinetic/themes/` with the same filename
+to customize it. A partial file overrides only the supplied colors. Supported values are quoted
+six-digit RGB hex colors under `[colors]` and `[syntax]`; existing component opacity is preserved.
+Re-select the theme to reload edits. Invalid entries fall back to the bundled palette.
+
+`~/.kinetic/theme.toml` stores the selected name. Kinetic Dark retains its original appearance.
+An explicit plugin canvas background remains independent of the selected theme.
+
+## Window state
+
 Window position and size are saved automatically in `~/.kinetic/window.json` and restored on launch.
 Fullscreen and minimized geometry do not overwrite the normal window bounds. If the monitor layout
 changes, restored bounds are fitted to an available screen.

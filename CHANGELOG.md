@@ -2,7 +2,15 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.27.0 - Unreleased
+## 0.27.1 - Unreleased
+
+### Improved
+
+- Redesigned Midnight and Graphite with complete surface, text, selection, diagnostic, and syntax palettes loaded from bundled TOML files.
+- Fixed immediate theme switching for existing editor canvases and input fields, while preserving explicit plugin canvas colors.
+- Added user palette overrides in `~/.kinetic/themes/` and contrast validation for both alternate themes.
+
+## 0.27.0
 
 ### Added
 

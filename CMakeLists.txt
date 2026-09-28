@@ -132,6 +132,8 @@ add_custom_command(
 add_dependencies(Kinetic kinetic_cli kinetic_cpp_support)
 add_custom_target(
     kinetic_sign_bundle ALL
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_SOURCE_DIR}/assets/themes"
+            "$<TARGET_BUNDLE_DIR:Kinetic>/Contents/Resources/themes"
     COMMAND codesign --force --sign -
             "$<TARGET_BUNDLE_DIR:Kinetic>/Contents/Resources/bin/kinetic"
     COMMAND codesign --force --sign - "$<TARGET_BUNDLE_DIR:Kinetic>"
@@ -140,6 +142,11 @@ add_custom_target(
     VERBATIM)
 
 enable_testing()
+add_executable(kineticThemeTests tests/themeTests.mm src/C++/ui/theme.mm)
+target_include_directories(kineticThemeTests PRIVATE src/C++/ui)
+target_compile_options(kineticThemeTests PRIVATE "-fobjc-arc")
+target_link_libraries(kineticThemeTests PRIVATE "-framework AppKit")
+add_test(NAME kineticThemes COMMAND kineticThemeTests "${CMAKE_SOURCE_DIR}/assets/themes")
 add_executable(kineticWindowStateTests tests/windowStateTests.mm src/C++/ui/windowState.mm)
 target_include_directories(kineticWindowStateTests PRIVATE src/C++/ui)
 target_compile_options(kineticWindowStateTests PRIVATE "-fobjc-arc")

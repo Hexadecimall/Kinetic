@@ -1035,11 +1035,9 @@
                          : [commandId isEqualToString:@"themeGraphite"] ? @"graphite"
                                                                         : @"kinetic-dark";
         kineticSetThemeName(name);
-        for (NSView* view in self.content.subviews) {
-            view.needsDisplay = YES;
-            for (NSView* child in view.subviews) {
-                child.needsDisplay = YES;
-            }
+        kineticRefreshThemeInView(self.content);
+        for (KineticEditorView* editor in self.editors) {
+            kineticRefreshThemeInView(editor);
         }
     } else if ([commandId isEqualToString:@"save"]) {
         [self saveFile];

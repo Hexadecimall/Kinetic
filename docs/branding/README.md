@@ -1,5 +1,11 @@
 # Kinetic brand
 
+Midnight and Graphite have complete runtime palettes under `assets/themes/`. Midnight uses cool
+navy surfaces, cyan navigation, and pastel syntax. Graphite uses warm charcoal, amber navigation,
+cream text, and muted mineral syntax. Their editor text, syntax, diagnostics, and primary-button
+contrast are validated by `kineticThemeTests`. User overrides are documented in
+[`config/README.md`](../../config/README.md).
+
 Kinetic's identity pairs structural electric blue with forward orange motion. The revised mark is
 a clean geometric K with a blue stem and upper arm and an orange lower arm. It must remain recognizable at application-icon,
 favicon, and toolbar sizes.
