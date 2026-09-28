@@ -2,7 +2,13 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.30.0 - Unreleased
+## 0.30.1 - Unreleased
+
+### Fixed
+
+- Command-Delete clears the name field in Save As, New File, and New Folder using the editor's shared line-deletion helper. Backspace still deletes one grapheme.
+
+## 0.30.0
 
 ### Added
 

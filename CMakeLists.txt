@@ -228,7 +228,7 @@ target_link_libraries(kineticEditorStructureTests PRIVATE "-framework Foundation
 add_test(NAME kineticEditorStructure COMMAND kineticEditorStructureTests)
 
 add_executable(kineticFileDialogTests tests/fileDialogTests.mm src/C++/ui/fileDialog.mm
-                                      src/C++/ui/contextMenu.mm src/C++/ui/theme.mm)
+                                      src/C++/ui/contextMenu.mm src/C++/ui/theme.mm src/C++/ui/editorStructure.mm)
 target_include_directories(kineticFileDialogTests PRIVATE src/C++/ui)
 target_compile_options(kineticFileDialogTests PRIVATE "-fobjc-arc")
 target_link_libraries(kineticFileDialogTests PRIVATE "-framework AppKit")

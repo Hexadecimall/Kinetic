@@ -1,5 +1,17 @@
 #import "editorStructure.h"
 
+NSRange kineticDeleteToLineStartRange(NSString* text, NSUInteger caretIndex) {
+    NSUInteger end = MIN(caretIndex, text.length);
+    NSUInteger start = end;
+    while (start > 0 && [text characterAtIndex:start - 1] != '\n') {
+        --start;
+    }
+    if (start == end && start > 0) {
+        --start;
+    }
+    return NSMakeRange(start, end - start);
+}
+
 @implementation KineticStructureEdit
 
 - (instancetype)initWithRange:(NSRange)range

@@ -2,6 +2,8 @@
 
 #import <Foundation/Foundation.h>
 
+NSRange kineticDeleteToLineStartRange(NSString* text, NSUInteger caretIndex);
+
 @interface KineticStructureEdit : NSObject
 @property(nonatomic, readonly) NSRange range;
 @property(nonatomic, readonly, copy) NSString* replacement;

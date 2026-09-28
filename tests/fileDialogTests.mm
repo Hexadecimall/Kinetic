@@ -1,3 +1,4 @@
+#import "editorStructure.h"
 #import "fileDialog.h"
 
 #import <AppKit/AppKit.h>
@@ -45,6 +46,50 @@ int main() {
                                    withDestinationURL:hiddenFolder
                                                 error:&error];
         BOOL passed = setup;
+        passed &=
+            check(NSEqualRanges(kineticDeleteToLineStartRange(@"one\ntwo", 6), NSMakeRange(4, 2)),
+                  @"Command-Delete stops at the current line start");
+        passed &= check(NSEqualRanges(kineticDeleteToLineStartRange(@"", 0), NSMakeRange(0, 0)),
+                        @"Empty line deletion is safe");
+        for (NSNumber* mode in @[
+                 @(KineticFileDialogModeSave), @(KineticFileDialogModeCreateFile),
+                 @(KineticFileDialogModeCreateFolder)
+             ]) {
+            KineticFileDialog* nameDialog =
+                [[KineticFileDialog alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)
+                                                    mode:(KineticFileDialogMode)mode.integerValue
+                                             initialPath:root.path
+                                                delegate:nil];
+            NSMutableString* name = [nameDialog valueForKey:@"fileName"];
+            [name setString:@"example.cpp"];
+            NSEvent* deleteKey = [NSEvent keyEventWithType:NSEventTypeKeyDown
+                                                  location:NSZeroPoint
+                                             modifierFlags:NSEventModifierFlagCommand
+                                                 timestamp:0
+                                              windowNumber:0
+                                                   context:nil
+                                                characters:@"\177"
+                               charactersIgnoringModifiers:@"\177"
+                                                 isARepeat:NO
+                                                   keyCode:51];
+            [nameDialog keyDown:deleteKey];
+            passed &= check(name.length == 0, @"Command-Delete clears the name field");
+            [nameDialog keyDown:deleteKey];
+            passed &= check(name.length == 0, @"Command-Delete on an empty name is safe");
+            [name setString:@"file😀"];
+            NSEvent* backspace = [NSEvent keyEventWithType:NSEventTypeKeyDown
+                                                  location:NSZeroPoint
+                                             modifierFlags:0
+                                                 timestamp:0
+                                              windowNumber:0
+                                                   context:nil
+                                                characters:@"\177"
+                               charactersIgnoringModifiers:@"\177"
+                                                 isARepeat:NO
+                                                   keyCode:51];
+            [nameDialog keyDown:backspace];
+            passed &= check([name isEqualToString:@"file"], @"Backspace removes one grapheme");
+        }
         if (setup) {
             KineticFileDialog* dialog =
                 [[KineticFileDialog alloc] initWithFrame:NSMakeRect(0.0, 0.0, 800.0, 600.0)
@@ -57,7 +102,8 @@ int main() {
             for (id entry in entries) {
                 directories[[entry valueForKey:@"name"]] = [entry valueForKey:@"directory"];
             }
-            passed = check([directories[@".hiddenFolder"] boolValue],
+            passed = passed &&
+                     check([directories[@".hiddenFolder"] boolValue],
                            @"Hidden folder missing from Open Folder") &&
                      check(directories[@".hiddenFile"] != nil &&
                                ![directories[@".hiddenFile"] boolValue],
@@ -66,11 +112,12 @@ int main() {
                            @"Directory symlink did not behave as a folder");
             NSTextField* search = [dialog valueForKey:@"_searchField"];
             search.stringValue = @"hidden";
-            [dialog controlTextDidChange:[NSNotification notificationWithName:NSControlTextDidChangeNotification
-                                                                        object:search]];
+            [dialog controlTextDidChange:[NSNotification
+                                             notificationWithName:NSControlTextDidChangeNotification
+                                                           object:search]];
             NSArray* filtered = [dialog valueForKey:@"_entries"];
-            passed = check(filtered.count == 2, @"File picker search did not filter entries") &&
-                     passed;
+            passed =
+                check(filtered.count == 2, @"File picker search did not filter entries") && passed;
         } else {
             NSLog(@"Could not populate dialog test fixture: %@", error);
         }

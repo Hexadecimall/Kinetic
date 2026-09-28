@@ -2531,10 +2531,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
             }
             NSUInteger deletionStart = 0;
             if (usesCommand) {
-                deletionStart = [self lineStartIndexFromIndex:_caretIndex];
-                if (deletionStart == _caretIndex) {
-                    --deletionStart;
-                }
+                deletionStart = kineticDeleteToLineStartRange(_text, _caretIndex).location;
             } else if (usesOption) {
                 deletionStart = [self previousWordIndexFromIndex:_caretIndex];
             } else {

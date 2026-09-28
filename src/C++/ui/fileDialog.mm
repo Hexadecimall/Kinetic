@@ -1,5 +1,6 @@
 #import "fileDialog.h"
 #import "contextMenu.h"
+#import "editorStructure.h"
 #import "theme.h"
 
 namespace {
@@ -487,12 +488,15 @@ BOOL dialogIsDirectory(NSURL* url) {
         [_dialogDelegate fileDialogDidCancel:self];
     } else if (event.keyCode == 36 || event.keyCode == 76) {
         [self confirm];
-    } else if ([self requiresName] && _editingFileName && event.keyCode == 51 &&
-               _fileName.length > 0) {
-        [_fileName
-            deleteCharactersInRange:[_fileName
-                                        rangeOfComposedCharacterSequenceAtIndex:_fileName.length -
-                                                                                1]];
+    } else if ([self requiresName] && _editingFileName && event.keyCode == 51) {
+        if (_fileName.length == 0) {
+            return;
+        }
+        NSRange deletion =
+            (event.modifierFlags & NSEventModifierFlagCommand) != 0
+                ? kineticDeleteToLineStartRange(_fileName, _fileName.length)
+                : [_fileName rangeOfComposedCharacterSequenceAtIndex:_fileName.length - 1];
+        [_fileName deleteCharactersInRange:deletion];
         _errorMessage = nil;
         self.needsDisplay = YES;
     } else if (!_editingFileName && event.keyCode == 126 && _selectedIndex > 0) {
