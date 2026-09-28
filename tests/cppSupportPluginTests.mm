@@ -191,7 +191,8 @@ int main(int argc, const char* argv[]) {
                 }),
                 @"opening a CMake project reconfigures clangd and resolves its header");
 
-        delegate.source = @"int answer() { return 42; }\nint main() { return answer(); }\n";
+        delegate.source =
+            @"int answer() { return 42; }\nint main() { return answer() + definitionProbe; }\n";
         require([delegate.source writeToFile:delegate.path
                                   atomically:YES
                                     encoding:NSUTF8StringEncoding
@@ -202,7 +203,12 @@ int main(int argc, const char* argv[]) {
         delegate.diagnostics = nil;
         [host emitEvent:@"document.changed"];
         require(waitUntil(^BOOL {
-                  return delegate.diagnostics != nil;
+                  for (NSDictionary* diagnostic in delegate.diagnostics) {
+                      if ([diagnostic[@"message"] containsString:@"definitionProbe"]) {
+                          return YES;
+                      }
+                  }
+                  return NO;
                 }),
                 @"clangd analyzed the changed C++ document");
         require([host executeCommand:@"kinetic.cpp.goToDefinition"], @"definition command");
