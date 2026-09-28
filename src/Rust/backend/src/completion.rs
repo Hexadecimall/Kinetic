@@ -41,8 +41,8 @@ impl Default for KineticCompletionConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            minPrefix: 2,
-            maxResults: 8,
+            minPrefix: 1,
+            maxResults: 12,
         }
     }
 }
@@ -643,7 +643,7 @@ mod tests {
         let updated = updateConfiguration(original, KineticCompletionConfig::default()).unwrap();
         assert!(updated.contains("[plugins]\nenabled = true"));
         assert!(updated.contains("# Keep this note\nenabled = true # toggle"));
-        assert!(updated.contains("minPrefix = 2\n\nmaxResults = 8\n[search]"));
+        assert!(updated.contains("minPrefix = 1\n\nmaxResults = 12\n[search]"));
         assert!(updated.ends_with("[search]\nshowButton = true\n"));
     }
 

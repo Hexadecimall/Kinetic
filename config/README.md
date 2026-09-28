@@ -37,14 +37,15 @@ The native autocomplete engine reads these user settings at editor startup:
 ```toml
 [autocomplete]
 enabled = true
-minPrefix = 2
-maxResults = 8
+minPrefix = 1
+maxResults = 12
 ```
 
 `minPrefix` accepts 1–8 characters and `maxResults` accepts 1–32 suggestions. C/C++ Support
 uses clangd completion when installed; otherwise native document-word completion remains available.
 Control-Space requests suggestions after one
-character; arrow keys select, Return or Tab inserts, and Escape dismisses. Invalid autocomplete
+character; C/C++ member access also triggers clangd without a prefix. Arrow keys select, Return or
+Tab inserts, and Escape dismisses. Invalid autocomplete
 values fall back to defaults.
 
 The editor also reads and saves indentation preferences:

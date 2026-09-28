@@ -16,7 +16,8 @@ animate in and out. Every visible control changes editor behavior across open ta
 - Auto Indent: preserve the current line's indentation on Return and indent inside blocks.
 - Auto Pairs: insert matching brackets and quotes, skip existing closing characters, and remove
   empty pairs with Backspace.
-- Autocomplete: on/off, minimum prefix (1–8), and maximum results (1–32).
+- Autocomplete: on/off, minimum prefix (1–8), and maximum results (1–32). New configurations
+  default to one character and 12 results; C/C++ member access can trigger clangd immediately.
 
 Backspace removes one indentation unit in leading whitespace. The settings list scrolls in
 shorter windows. Indentation and autocomplete settings are read from and saved to

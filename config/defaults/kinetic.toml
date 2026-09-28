@@ -44,8 +44,8 @@ optionWordNavigation = true
 
 [autocomplete]
 enabled = true
-minPrefix = 2
-maxResults = 8
+minPrefix = 1
+maxResults = 12
 
 [activityBar]
 visible = true

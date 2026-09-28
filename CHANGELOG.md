@@ -6,6 +6,8 @@ All notable Kinetic changes are recorded here. Versions use `main.feature.patch`
 
 ### Added
 
+- Added clangd member completion after `.`, `->`, and `::` without requiring a typed prefix;
+  new configurations default to 12 suggestions after one character.
 - Added small inline Fix buttons for clangd diagnostics with quick fixes, backed by actual
   `textDocument/codeAction` requests and same-file edit validation.
 - Added indentation-unit cursor movement and faint indentation markers/guides, with Settings and
@@ -13,6 +15,8 @@ All notable Kinetic changes are recorded here. Versions use `main.feature.patch`
 
 ### Fixed
 
+- Diagnostic messages no longer occupy the code line; hovering an underline reveals a compact
+  message popover with the Fix action when available.
 - C/C++ Support discovers CMake compilation databases in common build directories and restarts
   clangd when the active project changes, avoiding fallback-parser error cascades.
 

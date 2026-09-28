@@ -1,5 +1,5 @@
-#import "editorView.h"
 #import "activityBar.h"
+#import "editorView.h"
 
 #import <AppKit/AppKit.h>
 
@@ -7,9 +7,7 @@
 - (void)undoEdit;
 - (void)redoEdit;
 - (NSRect)completionPopupRect;
-- (NSRect)fixRectForLine:(NSString*)line
-                  index:(NSUInteger)index
-             diagnostic:(NSDictionary<NSString*, id>*)diagnostic;
+- (NSRect)fixRectForLine:(NSUInteger)index diagnostic:(NSDictionary<NSString*, id>*)diagnostic;
 @end
 
 @interface KineticActivityBar (SearchTest)
@@ -69,38 +67,42 @@ int main() {
         passed = check([editor.documentText isEqualToString:@"hello"], @"keyboard undo") &&
                  check(!editor.dirty, @"keyboard undo save state") && passed;
         passed = check([editor setPluginNumber:2 property:@"editor.autocomplete.minPrefix"],
-                       @"autocomplete property") && passed;
-        passed = check([editor replaceRangeFromPlugin:NSMakeRange(0, 5)
-                                           withString:@"helper he"], @"completion fixture") && passed;
+                       @"autocomplete property") &&
+                 passed;
+        passed = check([editor replaceRangeFromPlugin:NSMakeRange(0, 5) withString:@"helper he"],
+                       @"completion fixture") &&
+                 passed;
         NSEvent* completionKey = [NSEvent keyEventWithType:NSEventTypeKeyDown
-                                                location:NSZeroPoint
-                                           modifierFlags:0
-                                               timestamp:0
-                                            windowNumber:0
-                                                 context:nil
-                                              characters:@"l"
-                             charactersIgnoringModifiers:@"l"
-                                               isARepeat:NO
-                                                 keyCode:37];
+                                                  location:NSZeroPoint
+                                             modifierFlags:0
+                                                 timestamp:0
+                                              windowNumber:0
+                                                   context:nil
+                                                characters:@"l"
+                               charactersIgnoringModifiers:@"l"
+                                                 isARepeat:NO
+                                                   keyCode:37];
         [editor keyDown:completionKey];
         NSEvent* acceptKey = [NSEvent keyEventWithType:NSEventTypeKeyDown
-                                            location:NSZeroPoint
-                                       modifierFlags:0
-                                           timestamp:0
-                                        windowNumber:0
-                                             context:nil
-                                          characters:@"\r"
-                         charactersIgnoringModifiers:@"\r"
-                                           isARepeat:NO
-                                             keyCode:36];
+                                              location:NSZeroPoint
+                                         modifierFlags:0
+                                             timestamp:0
+                                          windowNumber:0
+                                               context:nil
+                                            characters:@"\r"
+                           charactersIgnoringModifiers:@"\r"
+                                             isARepeat:NO
+                                               keyCode:36];
         [editor keyDown:acceptKey];
         passed = check([editor.documentText isEqualToString:@"helper helper"],
-                       @"native completion accepted") && passed;
+                       @"native completion accepted") &&
+                 passed;
         [editor setValue:@[ @{@"label" : @"using", @"insertText" : @"using", @"detail" : @"Word"} ]
-                    forKey:@"_completionItems"];
+                  forKey:@"_completionItems"];
         NSRect compactPopup = [editor completionPopupRect];
         passed = check(NSWidth(compactPopup) < 200.0 && NSHeight(compactPopup) < 40.0,
-                       @"one suggestion uses a compact popup") && passed;
+                       @"one suggestion uses a compact popup") &&
+                 passed;
         NSDictionary* fixDiagnostic = @{
             @"line" : @1,
             @"column" : @0,
@@ -108,13 +110,11 @@ int main() {
             @"message" : @"Unused include",
             @"fixAvailable" : @YES,
         };
-        passed = check(!NSIsEmptyRect([editor fixRectForLine:@"#include <unused>"
-                                                    index:0
-                                               diagnostic:fixDiagnostic]) &&
-                           NSIsEmptyRect([editor fixRectForLine:@"#include <unused>"
-                                                         index:0
-                                                    diagnostic:@{@"message" : @"No fix"}]),
-                       @"Fix button appears only for fixable diagnostics") && passed;
+        passed = check(!NSIsEmptyRect([editor fixRectForLine:0 diagnostic:fixDiagnostic]) &&
+                           NSIsEmptyRect([editor fixRectForLine:0
+                                                     diagnostic:@{@"message" : @"No fix"}]),
+                       @"Fix button appears only for fixable diagnostics") &&
+                 passed;
         KineticEditorView* placeholder =
             [[KineticEditorView alloc] initWithFrame:NSMakeRect(0, 0, 1180, 760)
                                             contents:@""
@@ -122,7 +122,8 @@ int main() {
         placeholder.workspacePlaceholder = YES;
         [placeholder keyDown:key];
         passed = check(placeholder.documentText.length == 0 && !placeholder.dirty,
-                       @"workspace placeholder does not create an untitled document") && passed;
+                       @"workspace placeholder does not create an untitled document") &&
+                 passed;
         NSString* root = [NSTemporaryDirectory()
             stringByAppendingPathComponent:[NSString stringWithFormat:@"kinetic-tree-%@",
                                                                       NSUUID.UUID.UUIDString]];
@@ -150,7 +151,8 @@ int main() {
             passed = check(results.count == 1, @"explorer searches nested files") && passed;
             passed = check([[[results firstObject] valueForKey:@"displayName"]
                                isEqualToString:@"nested/found.cpp"],
-                           @"explorer shows result path") && passed;
+                           @"explorer shows result path") &&
+                     passed;
         }
         [NSFileManager.defaultManager removeItemAtURL:rootUrl error:nil];
         return passed ? 0 : 1;

@@ -78,6 +78,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     NSTrackingArea* _trackingArea;
     NSInteger _hoveredTabIndex;
     NSInteger _hoveredTabCloseIndex;
+    NSUInteger _hoveredDiagnosticIndex;
     BOOL _draggingSelection;
     BOOL _contextMenuVisible;
     NSInteger _contextMenuHoveredIndex;
@@ -160,6 +161,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         _selectionAnchor = 0;
         _hoveredTabIndex = -1;
         _hoveredTabCloseIndex = -1;
+        _hoveredDiagnosticIndex = NSNotFound;
         _draggingSelection = NO;
         _contextMenuVisible = NO;
         _contextMenuHoveredIndex = -1;
@@ -812,6 +814,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 
 - (void)setDiagnostics:(NSArray<NSDictionary<NSString*, id>*>*)diagnostics {
     _diagnostics = [diagnostics copy] ?: @[];
+    _hoveredDiagnosticIndex = NSNotFound;
     self.needsDisplay = YES;
 }
 
@@ -819,23 +822,27 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     return _diagnostics;
 }
 
-- (NSRect)fixRectForLine:(NSString*)line
-                   index:(NSUInteger)index
-              diagnostic:(NSDictionary<NSString*, id>*)diagnostic {
+- (NSRect)diagnosticPopoverRectForLine:(NSUInteger)index {
+    CGFloat left = [self editorContentX] + 8.0;
+    CGFloat width = MIN(420.0, NSWidth(self.bounds) - left - 12.0);
+    if (width < 120.0) {
+        return NSZeroRect;
+    }
+    CGFloat y = kFirstLineY + index * _lineHeight - _verticalScroll + _lineHeight + 5.0;
+    if (y + 48.0 > NSHeight(self.bounds) - 8.0) {
+        y = kFirstLineY + index * _lineHeight - _verticalScroll - 53.0;
+    }
+    return NSMakeRect(left, y, width, 48.0);
+}
+
+- (NSRect)fixRectForLine:(NSUInteger)index diagnostic:(NSDictionary<NSString*, id>*)diagnostic {
     if (![diagnostic[@"fixAvailable"] boolValue]) {
         return NSZeroRect;
     }
-    CGFloat messageX = [self editorTextOriginX] - _horizontalScroll +
-                       [line sizeWithAttributes:[self editorTextAttributes]].width + 16.0;
-    CGFloat right = NSWidth(self.bounds) - 8.0;
-    if (right - [self editorContentX] < 42.0) {
-        return NSZeroRect;
-    }
-    NSDictionary* style = @{NSFontAttributeName : [NSFont systemFontOfSize:10.5]};
-    CGFloat messageWidth = [diagnostic[@"message"] sizeWithAttributes:style].width;
-    CGFloat x = MIN(MAX(messageX + messageWidth + 9.0, [self editorContentX]), right - 34.0);
-    CGFloat y = kFirstLineY + index * _lineHeight - _verticalScroll;
-    return NSMakeRect(x, y, 34.0, MIN(17.0, _lineHeight - 2.0));
+    NSRect popover = [self diagnosticPopoverRectForLine:index];
+    return NSIsEmptyRect(popover)
+               ? NSZeroRect
+               : NSMakeRect(NSMaxX(popover) - 45.0, NSMinY(popover) + 13.0, 34.0, 22.0);
 }
 
 - (NSRange)selectionRange {
@@ -1349,17 +1356,22 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     NSString* prefix =
         [_text substringWithRange:NSMakeRange((NSUInteger)prefixStart,
                                               _caretIndex - (NSUInteger)prefixStart)];
-    if (prefix.length < minimum) {
+    NSString* fileName = _fileUrl.lastPathComponent ?: _documentTitle;
+    BOOL pluginProvider = [self.overlayRenderer hasPluginCompletionProviderForFileName:fileName];
+    BOOL memberAccess = prefix.length == 0 && _caretIndex > 0 &&
+                        ([_text characterAtIndex:_caretIndex - 1] == '.' ||
+                         (_caretIndex > 1 && (([_text characterAtIndex:_caretIndex - 2] == '-' &&
+                                               [_text characterAtIndex:_caretIndex - 1] == '>') ||
+                                              ([_text characterAtIndex:_caretIndex - 2] == ':' &&
+                                               [_text characterAtIndex:_caretIndex - 1] == ':'))));
+    if (prefix.length < minimum && !(pluginProvider && memberAccess)) {
         [self closeCompletions];
         return;
     }
     NSMutableArray<NSDictionary<NSString*, NSString*>*>* result = [NSMutableArray array];
     NSMutableSet<NSString*>* seen = [NSMutableSet set];
-    NSArray* provided = [self.overlayRenderer
-        pluginCompletionItemsForPrefix:prefix
-                              fileName:_fileUrl.lastPathComponent ?: _documentTitle];
-    BOOL pluginProvider = [self.overlayRenderer
-        hasPluginCompletionProviderForFileName:_fileUrl.lastPathComponent ?: _documentTitle];
+    NSArray* provided = [self.overlayRenderer pluginCompletionItemsForPrefix:prefix
+                                                                    fileName:fileName];
     for (NSDictionary<NSString*, NSString*>* item in provided) {
         NSString* insertText = item[@"insertText"];
         if (insertText.length == 0 || insertText.length > 95 ||
@@ -2126,34 +2138,6 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
             }
             [underline stroke];
         }
-        if (lineDiagnostics.count > 0) {
-            NSDictionary<NSString*, id>* diagnostic = lineDiagnostics.firstObject;
-            CGFloat messageX = textOriginX - _horizontalScroll +
-                               [line sizeWithAttributes:textAttributes].width + 16.0;
-            NSRect fixRect = [self fixRectForLine:line index:index diagnostic:diagnostic];
-            CGFloat messageRight =
-                NSIsEmptyRect(fixRect) ? NSMaxX(contentRect) - 8.0 : NSMinX(fixRect) - 7.0;
-            [diagnostic[@"message"]
-                    drawInRect:NSMakeRect(messageX, y + 1.0, MAX(0.0, messageRight - messageX),
-                                          _lineHeight - 2.0)
-                withAttributes:@{
-                    NSFontAttributeName : [NSFont systemFontOfSize:10.5],
-                    NSForegroundColorAttributeName :
-                                [diagnostic[@"severity"] unsignedIntegerValue] == 1
-                        ? editorColor(255, 132, 137)
-                        : editorColor(246, 194, 116),
-                }];
-            if (!NSIsEmptyRect(fixRect)) {
-                [editorColor(68, 106, 164, 0.72) setFill];
-                [[NSBezierPath bezierPathWithRoundedRect:fixRect xRadius:4.0 yRadius:4.0] fill];
-                [@"Fix" drawInRect:NSInsetRect(fixRect, 6.0, 2.0)
-                    withAttributes:@{
-                        NSFontAttributeName : [NSFont systemFontOfSize:10.0
-                                                                weight:NSFontWeightMedium],
-                        NSForegroundColorAttributeName : editorColor(226, 237, 252),
-                    }];
-            }
-        }
     }
 
     NSString* beforeCaret = [_text substringToIndex:_caretIndex];
@@ -2166,6 +2150,41 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     NSRectFill(NSMakeRect(floor(caretX), caretY + 1.0, 1.5, 16.0));
     [self.overlayRenderer drawPluginOverlaysInRect:contentRect];
     [NSGraphicsContext restoreGraphicsState];
+
+    if (_hoveredDiagnosticIndex < _diagnostics.count) {
+        NSDictionary<NSString*, id>* diagnostic = _diagnostics[_hoveredDiagnosticIndex];
+        NSUInteger lineIndex = [diagnostic[@"line"] unsignedIntegerValue] - 1;
+        NSRect popover = [self diagnosticPopoverRectForLine:lineIndex];
+        if (!NSIsEmptyRect(popover) && NSMaxY(popover) > 68.0) {
+            [editorColor(35, 44, 58, 0.98) setFill];
+            [[NSBezierPath bezierPathWithRoundedRect:popover xRadius:6.0 yRadius:6.0] fill];
+            [editorColor(87, 108, 139, 0.8) setStroke];
+            [[NSBezierPath bezierPathWithRoundedRect:popover xRadius:6.0 yRadius:6.0] stroke];
+            NSRect fixRect = [self fixRectForLine:lineIndex diagnostic:diagnostic];
+            CGFloat textRight =
+                NSIsEmptyRect(fixRect) ? NSMaxX(popover) - 12.0 : NSMinX(fixRect) - 8.0;
+            [diagnostic[@"message"]
+                    drawInRect:NSMakeRect(NSMinX(popover) + 12.0, NSMinY(popover) + 7.0,
+                                          textRight - NSMinX(popover) - 12.0, 36.0)
+                withAttributes:@{
+                    NSFontAttributeName : [NSFont systemFontOfSize:11.5],
+                    NSForegroundColorAttributeName :
+                                [diagnostic[@"severity"] unsignedIntegerValue] == 1
+                        ? editorColor(255, 149, 154)
+                        : editorColor(246, 194, 116),
+                }];
+            if (!NSIsEmptyRect(fixRect)) {
+                [editorColor(68, 106, 164, 0.72) setFill];
+                [[NSBezierPath bezierPathWithRoundedRect:fixRect xRadius:4.0 yRadius:4.0] fill];
+                [@"Fix" drawInRect:NSInsetRect(fixRect, 6.0, 3.0)
+                    withAttributes:@{
+                        NSFontAttributeName : [NSFont systemFontOfSize:10.0
+                                                                weight:NSFontWeightMedium],
+                        NSForegroundColorAttributeName : editorColor(226, 237, 252),
+                    }];
+            }
+        }
+    }
 
     CGFloat maximumVertical = [self maximumVerticalScroll];
     if (_showScrollIndicators && maximumVertical > 0.0) {
@@ -2296,19 +2315,10 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         return;
     }
 
-    NSArray<NSString*>* lines = [self documentLines];
-    NSUInteger hoveredLine =
-        point.y >= kFirstLineY
-            ? (NSUInteger)floor((point.y - kFirstLineY + _verticalScroll) / _lineHeight)
-            : NSNotFound;
-    if (hoveredLine < lines.count) {
-        for (NSDictionary<NSString*, id>* diagnostic in _diagnostics) {
-            if ([diagnostic[@"line"] unsignedIntegerValue] != hoveredLine + 1 ||
-                !NSPointInRect(point, [self fixRectForLine:lines[hoveredLine]
-                                                     index:hoveredLine
-                                                diagnostic:diagnostic])) {
-                continue;
-            }
+    if (_hoveredDiagnosticIndex < _diagnostics.count) {
+        NSDictionary<NSString*, id>* diagnostic = _diagnostics[_hoveredDiagnosticIndex];
+        NSUInteger hoveredLine = [diagnostic[@"line"] unsignedIntegerValue] - 1;
+        if (NSPointInRect(point, [self fixRectForLine:hoveredLine diagnostic:diagnostic])) {
             [self.overlayRenderer
                 applyPluginDiagnosticFixForPath:self.fileUrl.path
                                            line:hoveredLine + 1
@@ -2533,6 +2543,52 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 
 - (void)mouseMoved:(NSEvent*)event {
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+    NSUInteger hoveredDiagnostic = NSNotFound;
+    if (!_settingsVisible && !_pluginsVisible && !_workspacePlaceholder && point.y >= 68.0) {
+        NSArray<NSString*>* lines = [self documentLines];
+        NSUInteger lineIndex =
+            point.y >= kFirstLineY
+                ? (NSUInteger)floor((point.y - kFirstLineY + _verticalScroll) / _lineHeight)
+                : NSNotFound;
+        if (lineIndex < lines.count) {
+            NSString* line = lines[lineIndex];
+            NSDictionary* attributes = [self editorTextAttributes];
+            for (NSUInteger index = 0; index < _diagnostics.count; ++index) {
+                NSDictionary<NSString*, id>* diagnostic = _diagnostics[index];
+                if ([diagnostic[@"line"] unsignedIntegerValue] != lineIndex + 1) {
+                    continue;
+                }
+                NSUInteger column = MIN([diagnostic[@"column"] unsignedIntegerValue], line.length);
+                NSUInteger length =
+                    MIN(MAX(1, [diagnostic[@"length"] unsignedIntegerValue]), line.length - column);
+                CGFloat x = [self editorTextOriginX] - _horizontalScroll +
+                            [[line substringToIndex:column] sizeWithAttributes:attributes].width;
+                CGFloat width = length == 0 ? 7.0
+                                            : [[line substringWithRange:NSMakeRange(column, length)]
+                                                  sizeWithAttributes:attributes]
+                                                  .width;
+                if (point.x >= x - 2.0 && point.x <= x + MAX(7.0, width) + 2.0) {
+                    hoveredDiagnostic = index;
+                    break;
+                }
+            }
+        }
+        if (hoveredDiagnostic == NSNotFound && _hoveredDiagnosticIndex < _diagnostics.count) {
+            NSDictionary<NSString*, id>* current = _diagnostics[_hoveredDiagnosticIndex];
+            NSUInteger currentLine = [current[@"line"] unsignedIntegerValue] - 1;
+            CGFloat sourceY = kFirstLineY + currentLine * _lineHeight - _verticalScroll;
+            NSRect source = NSMakeRect([self editorContentX], sourceY,
+                                       NSWidth(self.bounds) - [self editorContentX], _lineHeight);
+            NSRect corridor = NSUnionRect(source, [self diagnosticPopoverRectForLine:currentLine]);
+            if (NSPointInRect(point, corridor)) {
+                hoveredDiagnostic = _hoveredDiagnosticIndex;
+            }
+        }
+    }
+    if (hoveredDiagnostic != _hoveredDiagnosticIndex) {
+        _hoveredDiagnosticIndex = hoveredDiagnostic;
+        self.needsDisplay = YES;
+    }
     NSInteger settingsControl = _settingsVisible ? [self settingsControlAtPoint:point] : -1;
     if (settingsControl != _settingsHoveredControl) {
         _settingsHoveredControl = settingsControl;
@@ -2567,6 +2623,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     (void)event;
     _hoveredTabIndex = -1;
     _hoveredTabCloseIndex = -1;
+    _hoveredDiagnosticIndex = NSNotFound;
     _settingsHoveredControl = -1;
     self.needsDisplay = YES;
 }
