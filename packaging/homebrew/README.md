@@ -1,8 +1,23 @@
 # Homebrew packaging
 
-Kinetic will ship through a cask after signed and notarized release artifacts exist. The cask should
-install `Kinetic.app` and expose `Contents/Resources/bin/kinetic` as the `kinetic` command. It must
-use the release checksum from `dist/SHA256SUMS` and must not rebuild the application during install.
+`kinetic.rb.in` defines the Apple Silicon macOS 15+ cask. `scripts/package` generates
+`dist/homebrew/Casks/kinetic.rb` from the exact release ZIP with its SHA-256 checksum. The generator
+checks the app version, bundle identifier, embedded CLI, and absence of bundled LLVM tools.
+
+The cask installs `Kinetic.app` and links its embedded CLI as `kinetic`; it does not build source or
+install language servers. Ordinary uninstall preserves `~/.kinetic/` settings and downloaded tools.
+Homebrew-managed app upgrades use `brew upgrade --cask Hexadecimall/Kinetic/kinetic`.
+
+Publication requires the matching ZIP at the versioned GitHub release URL and the generated cask
+in `Hexadecimall/homebrew-Kinetic`, under `Casks/kinetic.rb`. After publication:
+
+```sh
+brew install --cask Hexadecimall/Kinetic/kinetic
+```
+
+The current packaging script produces ad-hoc-signed previews and explicitly marks the cask as
+unnotarized. It does not remove quarantine attributes or change Gatekeeper settings. A generated
+cask is not a published tap; verify the public release URL and installation before announcing it.
 
 Formula metadata must match the repository `VERSION` file and the version reported by the embedded
 CLI. A feature release resets the patch component to zero.

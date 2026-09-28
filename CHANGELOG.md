@@ -2,7 +2,13 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.31.0 - Unreleased
+## 0.31.1 - 2026-09-28
+
+### Added
+
+- Generate an Apple Silicon Homebrew cask from the release archive with exact version and checksum validation, an embedded CLI link, and no bundled language tools.
+
+## 0.31.0
 
 ### Changed
 

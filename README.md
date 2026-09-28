@@ -7,7 +7,7 @@
 </p>
 
 > [!IMPORTANT]
-> Kinetic `0.31.0` is an early functional preview. Editing, retained multi-document tabs, persisted
+> Kinetic `0.31.1` is an early functional preview. Editing, retained multi-document tabs, persisted
 > recent projects, mouse selection, undo/redo, basic syntax highlighting, auto-indentation,
 > matching delimiters, custom context menus, in-file and project search, the activity bar, GitHub
 > account sign-in, native plugin host, hidden-file browsing, project file and folder creation,
@@ -38,6 +38,18 @@ GitHub sign-in and its current permission boundary are documented in
 
 The first platform is Apple Silicon macOS 15 or newer. Linux and Intel macOS support are planned
 after the macOS experience is mature.
+
+## Install
+
+Apple Silicon, macOS 15 or newer:
+
+```sh
+brew install --cask Hexadecimall/Kinetic/kinetic
+```
+
+The preview is not notarized. If macOS blocks launch, review the app in System Settings →
+Privacy & Security. The cask installs the app and `kinetic` CLI, without LLVM or language servers.
+Updates use `brew upgrade --cask Hexadecimall/Kinetic/kinetic`.
 
 ## Build
 
