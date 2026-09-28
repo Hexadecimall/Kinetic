@@ -206,10 +206,15 @@ int main(int argc, const char* argv[]) {
                 }),
                 @"clangd analyzed the changed C++ document");
         require([host executeCommand:@"kinetic.cpp.goToDefinition"], @"definition command");
-        require(waitUntil(^BOOL {
-                  return delegate.definitionLine == 1;
-                }),
-                @"clangd definition result");
+        BOOL definitionResolved = waitUntil(^BOOL {
+          return delegate.definitionLine == 1;
+        });
+        if (!definitionResolved) {
+            NSLog(@"Definition result: path=%@ line=%lu selection=%@ diagnostics=%@",
+                  delegate.definitionPath, (unsigned long)delegate.definitionLine,
+                  NSStringFromRange(delegate.selection), delegate.diagnostics);
+        }
+        require(definitionResolved, @"clangd definition result");
         require([delegate.definitionPath.stringByResolvingSymlinksInPath
                     isEqualToString:delegate.path.stringByResolvingSymlinksInPath],
                 @"definition path");
