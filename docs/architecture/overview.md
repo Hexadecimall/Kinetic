@@ -80,8 +80,8 @@ recent-project persistence behavior.
 
 ## Language tooling
 
-C/C++ Support uses bundled clangd and clang-format unless an explicit environment override is set.
-Outside the app bundle, it falls back to `PATH`. The plugin owns the clangd process and protocol
+C/C++ Support discovers clangd and clang-format through explicit overrides, private installations,
+`PATH`, and package-manager locations. The plugin owns the clangd process and protocol
 handling. See [language support](language-support.md) for implemented capabilities and packaging
 limits.
 

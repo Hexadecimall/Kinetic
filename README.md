@@ -7,7 +7,7 @@
 </p>
 
 > [!IMPORTANT]
-> Kinetic `0.30.1` is an early functional preview. Editing, retained multi-document tabs, persisted
+> Kinetic `0.31.0` is an early functional preview. Editing, retained multi-document tabs, persisted
 > recent projects, mouse selection, undo/redo, basic syntax highlighting, auto-indentation,
 > matching delimiters, custom context menus, in-file and project search, the activity bar, GitHub
 > account sign-in, native plugin host, hidden-file browsing, project file and folder creation,
@@ -16,7 +16,7 @@
 
 The bundled Official [C/C++ Support](plugins/official/cppSupport/README.md) plugin adds C/C++ syntax,
 clangd diagnostics, completion, Go to Definition, clang-format, and header/source switching. The
-0.3.0 bundled build is not yet published in the public catalog. It uses the
+0.4.0 bundled build is not yet published in the public catalog. It uses the
 same public plugin API available to third-party native plugins. Its first signed arm64 asset is
 published in the GitHub-backed catalog as Official. The Plugins page browses that catalog and
 manages third-party native plugins. C/C++ Support is included in the app; its source and public API
@@ -47,10 +47,10 @@ Requirements:
 - Xcode command-line tools with Metal support
 - CMake 3.28 or newer
 - A Rust toolchain with Cargo
-- Python 3 and a redistributable LLVM installation containing clangd and clang-format
+- Python 3
 
-Release builds require LLVM binaries compatible with macOS 15. Local debug builds can use newer
-tools; see [`lib/llvm/README.md`](lib/llvm/README.md).
+Language tools are not bundled. Opening a C-family file checks installed tools and offers a
+private download for missing tools; see [`lib/llvm/README.md`](lib/llvm/README.md).
 
 ```sh
 ./scripts/bootstrap

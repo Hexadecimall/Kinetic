@@ -4,11 +4,12 @@
 
 C/C++ Support also routes Objective-C and Objective-C++ documents through clangd. It provides
 syntax highlighting, completion, diagnostics, same-file quick fixes, definition navigation,
-formatting, and header/source switching. The app's LLVM tool bundle includes clangd,
-clang-format, their non-system runtime dependencies, resource headers, and licenses.
-
-Developer builds may use a local LLVM that targets newer macOS, with warnings. Such a bundle
-must not be published as macOS-15-compatible. Release packaging rejects that mismatch.
+formatting, and header/source switching. The app does not bundle language tools. Opening a
+C-family file probes for usable clangd and clang-format executables off the UI thread. Missing
+tools produce a custom Yes/No prompt once per window session. No leaves editing available.
+Yes installs only missing tools under `~/.kinetic/tools`, verifies pinned SHA-256 digests, preserves
+license notices, and checks that each binary runs before exposing it to the plugin. Failed
+downloads leave no partial installation. The prompt supports retry after an error.
 
 ## Additional languages
 

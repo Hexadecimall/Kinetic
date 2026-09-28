@@ -1,9 +1,9 @@
 # C/C++ Support
 
-The app bundle supplies clangd and clang-format, including runtime libraries and Clang headers.
+The app detects clangd and clang-format and offers private installation when either is missing.
 Objective-C (`.m`) and Objective-C++ (`.mm`) use the same server with their correct language IDs.
-The tools can be overridden with `KINETIC_CLANGD` and `KINETIC_CLANG_FORMAT`; non-bundled plugin
-hosts use PATH. A project still supplies its compiler, SDK, and build configuration.
+The tools can be overridden with `KINETIC_CLANGD` and `KINETIC_CLANG_FORMAT`. Private tools, PATH,
+Homebrew, and MacPorts locations are searched. A project still supplies its compiler, SDK, and build configuration.
 
 First-party native plugin `kinetic.cpp-support`, included in Kinetic.app and loaded through the
 same public API as third-party plugins.
@@ -16,7 +16,7 @@ Switch Header / Source is Command-Option-H. These actions are editor commands, n
 Format Document appears in File for matching extensions when clang-format is available. The
 formatter honors a nearby `.clang-format` file through clang-format's normal discovery.
 
-Kinetic prefers its bundled clangd and clang-format; neither is downloaded by this plugin.
+The app package manager installs tools only after confirmation; the plugin never downloads them.
 Explicit executable overrides take precedence. If clangd is unavailable, syntax highlighting remains
 active, while diagnostics and navigation are unavailable.
 Header/source switching searches sibling files with a matching stem. A project-local
@@ -30,7 +30,7 @@ The Official designation comes from the registry's project-owned publisher polic
 self-claim. Version 0.1.0 is published as an immutable
 [GitHub Release](https://github.com/Hexadecimall/Kinetic/releases/tag/cpp-support-v0.1.0).
 Version 0.2.0 added clangd completion, project build-directory discovery, and quick fixes.
-Version 0.3.0 adds bundled-tool resolution and Objective-C/C++ routing, and is
+Version 0.4.0 adds private and system tool discovery, retains Objective-C/C++ routing, and is
 prepared for the next immutable release; the catalog
 will list it only after that asset is published and its digest is verified. The bundled version is
 marked Included in the Plugins page and bundled CLI; it is not separately installed or removed.

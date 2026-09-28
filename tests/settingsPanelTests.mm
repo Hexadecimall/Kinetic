@@ -1,4 +1,5 @@
 #import "settingsPanel.h"
+#import "toolPrompt.h"
 #import "utilityPanel.h"
 
 @interface KineticSettingsPanel (Test)
@@ -24,6 +25,41 @@ int main() {
     @autoreleasepool {
         [NSApplication sharedApplication];
         BOOL passed = YES;
+        KineticToolPrompt* prompt =
+            [[KineticToolPrompt alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)];
+        __block NSInteger answer = -1;
+        prompt.answer = ^(BOOL install) {
+          answer = install ? 1 : 0;
+        };
+        NSEvent* enter = [NSEvent keyEventWithType:NSEventTypeKeyDown
+                                          location:NSZeroPoint
+                                     modifierFlags:0
+                                         timestamp:0
+                                      windowNumber:0
+                                           context:nil
+                                        characters:@"\r"
+                       charactersIgnoringModifiers:@"\r"
+                                         isARepeat:NO
+                                           keyCode:36];
+        NSEvent* tab = [NSEvent keyEventWithType:NSEventTypeKeyDown
+                                        location:NSZeroPoint
+                                   modifierFlags:0
+                                       timestamp:0
+                                    windowNumber:0
+                                         context:nil
+                                      characters:@"\t"
+                     charactersIgnoringModifiers:@"\t"
+                                       isARepeat:NO
+                                         keyCode:48];
+        [prompt keyDown:enter];
+        passed &= check(answer == 0, @"tool prompt defaults to No");
+        [prompt keyDown:tab];
+        [prompt keyDown:enter];
+        passed &= check(answer == 1, @"tool prompt keyboard Yes");
+        prompt.busy = YES;
+        answer = -1;
+        [prompt keyDown:enter];
+        passed &= check(answer == -1, @"tool prompt prevents duplicate installs");
         NSMutableSet* keys = [NSMutableSet set];
         for (NSDictionary* row in kineticSettingsRows()) {
             passed &= check(![keys containsObject:row[@"key"]], @"unique preference key");

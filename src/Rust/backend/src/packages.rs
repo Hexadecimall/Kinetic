@@ -756,6 +756,8 @@ fn appUninstall() -> Result<(), String> {
 pub fn run() -> i32 {
     let args: Vec<String> = env::args().skip(1).filter(|arg| arg != "--yes").collect();
     let result = match args.as_slice() {
+        [scope, command] if scope == "tools" && command == "status" => { toolStatus(); Ok(()) },
+        [scope, command, name] if scope == "tools" && command == "install" => installTool(name),
         [scope, command] if scope == "plugins" && command == "list" => pluginList(false),
         [scope, command, format] if scope == "plugins" && command == "list" && format == "--json" => pluginList(true),
         [scope, command, id] if scope == "plugins" && command == "install" => pluginInstall(id, false),
@@ -773,6 +775,95 @@ pub fn run() -> i32 {
     }
 }
 
+fn toolStatus() {
+    let mut result = serde_json::Map::new();
+    for name in ["clangd", "clang-format"] {
+        result.insert(name.into(), json!(crate::toolDiscovery::discover(name)));
+    }
+    println!("{}", Value::Object(result));
+}
+
+fn installTool(name: &str) -> Result<(), String> {
+    let (url, digest, maximum) = match name {
+        "clangd" => (
+            "https://github.com/clangd/clangd/releases/download/23.1.0/clangd-mac-23.1.0.zip",
+            "1082e6638223b785ca2daf0939f13afcd0bb95c84ee9a4bbaff4745365159253",
+            100_060_151,
+        ),
+        "clang-format" => (
+            "https://files.pythonhosted.org/packages/29/da/f354b637650ae04854d9096c252d08f03ccda7044b1f005861a4ddba28cf/clang_format-23.1.1-py2.py3-none-macosx_11_0_arm64.whl",
+            "d64a1788759c4cbc08a0aca21dd2bd38605c0758543aa15b8c0636508f0ebae7",
+            1_552_401,
+        ),
+        _ => return Err("unknown language tool".into()),
+    };
+    if !confirm(&format!("Install {name} privately in ~/.kinetic/tools"))? {
+        return Err("cancelled".into());
+    }
+    let root =
+        crate::toolDiscovery::privateRoot().ok_or("Tool installation directory is unavailable")?;
+    fs::create_dir_all(&root).map_err(|e| e.to_string())?;
+    let target = root.join(name);
+    if crate::toolDiscovery::usable(&target.join("bin").join(name)) {
+        println!("{name} is installed.");
+        return Ok(());
+    }
+    if target.symlink_metadata().is_ok() {
+        return Err(format!(
+            "Existing {name} installation is unusable; move it aside before retrying."
+        ));
+    }
+    let staging = root.join(format!(".{name}-{}", std::process::id()));
+    fs::create_dir(&staging).map_err(|e| e.to_string())?;
+    let result = (|| {
+        let archive = staging.join("archive.zip");
+        download(url, &archive, maximum)?;
+        checkDigest(&archive, digest, maximum)?;
+        let unpack = staging.join("unpack");
+        fs::create_dir(&unpack).map_err(|e| e.to_string())?;
+        let output = Command::new("/usr/bin/unzip")
+            .args(["-q"])
+            .arg(&archive)
+            .arg("-d")
+            .arg(&unpack)
+            .output()
+            .map_err(|e| e.to_string())?;
+        if !output.status.success() {
+            return Err("Cannot extract language tool.".into());
+        }
+        let payload = if name == "clangd" {
+            unpack.join("clangd_23.1.0")
+        } else {
+            let payload = staging.join("payload");
+            fs::create_dir_all(payload.join("bin")).map_err(|e| e.to_string())?;
+            fs::create_dir(payload.join("licenses")).map_err(|e| e.to_string())?;
+            fs::copy(
+                unpack.join("clang_format/data/bin/clang-format"),
+                payload.join("bin/clang-format"),
+            )
+            .map_err(|e| e.to_string())?;
+            for file in ["LICENSE.md", "COPYING.md"] {
+                fs::copy(
+                    unpack
+                        .join("clang_format-23.1.1.dist-info/licenses")
+                        .join(file),
+                    payload.join("licenses").join(file),
+                )
+                .map_err(|e| e.to_string())?;
+            }
+            payload
+        };
+        if !crate::toolDiscovery::usable(&payload.join("bin").join(name)) {
+            return Err("Downloaded tool cannot run on this Mac.".into());
+        }
+        fs::rename(&payload, &target).map_err(|e| e.to_string())?;
+        println!("{name} installed.");
+        Ok(())
+    })();
+    let _ = fs::remove_dir_all(&staging);
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -783,6 +874,17 @@ mod tests {
         assert!(!safeId("../outside"));
         assert!(!safeId("a./b"));
         assert!(!safeId("a..b"));
+    }
+
+    #[test]
+    fn languageToolsRejectUnknownPackagesAndBadDigests() {
+        assert!(installTool("../clang").is_err());
+        let file = TemporaryFile::new("digest-test").unwrap();
+        fs::write(&file.path, b"not a language tool").unwrap();
+        assert!(checkDigest(&file.path, &"0".repeat(64), 1024).is_err());
+        assert!(!crate::toolDiscovery::usable(Path::new(
+            "/nonexistent/kinetic-tool"
+        )));
     }
 
     #[test]

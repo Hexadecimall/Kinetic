@@ -15,6 +15,7 @@
 #include "kineticCommands.h"
 #include "pluginHost.h"
 #include "theme.h"
+#include "toolPrompt.h"
 #include "trafficBar.h"
 #include "tween.h"
 #include "windowState.h"
@@ -27,6 +28,11 @@
 
 - (void)sendEvent:(NSEvent*)event {
     NSWindow* window = self.keyWindow ?: self.mainWindow;
+    if (event.type == NSEventTypeKeyDown &&
+        [window.firstResponder isKindOfClass:KineticToolPrompt.class]) {
+        [super sendEvent:event];
+        return;
+    }
     if (kineticShortcutCommandForEvent(event) == KineticShortcutCommandCommandPalette) {
         [(id<KineticCommandHandler>)self.delegate showCommandPalette];
         return;
@@ -146,6 +152,8 @@
 @property(nonatomic, strong) KineticFileDialog* fileDialog;
 @property(nonatomic, strong) KineticCommandPalette* commandPalette;
 @property(nonatomic, strong) KineticCloneDialog* cloneDialog;
+@property(nonatomic) BOOL checkedCppTools;
+@property(nonatomic, strong) KineticToolPrompt* toolPrompt;
 @property(nonatomic, strong) NSTask* cloneTask;
 @property(nonatomic, copy) NSString* pendingCloneUrl;
 @property(nonatomic, strong) KineticPluginHost* pluginHost;
@@ -462,6 +470,89 @@
     }
     [self.editors addObject:editor];
     [self activateTabAtIndex:self.editors.count - 1];
+    [self checkToolsForFile:fileUrl];
+}
+
+- (void)installMissingTools:(NSArray<NSString*>*)names {
+    if (names.count == 0) {
+        [self.toolPrompt removeFromSuperview];
+        self.toolPrompt = nil;
+        [self.window makeFirstResponder:self.editor];
+        [self.pluginHost emitEvent:@"document.activated"];
+        return;
+    }
+    self.toolPrompt.busy = YES;
+    self.toolPrompt.message = [NSString stringWithFormat:@"Installing %@…", names.firstObject];
+    [self
+        runPackageCommand:@[ @"tools", @"install", names.firstObject, @"--yes" ]
+               completion:^(NSString* output, NSString* error) {
+                 (void)output;
+                 if (error != nil) {
+                     self.toolPrompt.busy = NO;
+                     self.toolPrompt.message = [NSString
+                         stringWithFormat:@"Installation failed.\n%@\n\nTry again?", error];
+                     return;
+                 }
+                 [self
+                     installMissingTools:[names subarrayWithRange:NSMakeRange(1, names.count - 1)]];
+               }];
+}
+
+- (void)checkToolsForFile:(NSURL*)url {
+    if (self.checkedCppTools ||
+        ![@[ @"c", @"h", @"cc", @"cpp", @"cxx", @"hpp", @"hh", @"hxx", @"m", @"mm" ]
+            containsObject:url.pathExtension.lowercaseString])
+        return;
+    self.checkedCppTools = YES;
+    [self runPackageCommand:@[ @"tools", @"status" ]
+                 completion:^(NSString* output, NSString* error) {
+                   if (error != nil) {
+                       self.checkedCppTools = NO;
+                       return;
+                   }
+                   NSDictionary* status = [NSJSONSerialization
+                       JSONObjectWithData:[output dataUsingEncoding:NSUTF8StringEncoding]
+                                  options:0
+                                    error:nil];
+                   if (![status isKindOfClass:NSDictionary.class]) {
+                       self.checkedCppTools = NO;
+                       return;
+                   }
+                   NSMutableArray* missing = [NSMutableArray array];
+                   NSMutableArray* descriptions = [NSMutableArray array];
+                   for (NSString* name in @[ @"clangd", @"clang-format" ]) {
+                       if (![status[name] isKindOfClass:NSString.class]) {
+                           [missing addObject:name];
+                           [descriptions
+                               addObject:[name isEqualToString:@"clangd"]
+                                             ? @"clangd 23.1.0 — LLVM/clangd (Official), 100 MB"
+                                             : @"clang-format 23.1.1 — PyPI clang-format "
+                                               @"(Unofficial packaging), 1.6 MB"];
+                       }
+                   }
+                   if (missing.count == 0)
+                       return;
+                   KineticToolPrompt* prompt =
+                       [[KineticToolPrompt alloc] initWithFrame:self.content.bounds];
+                   prompt.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+                   prompt.message = [NSString
+                       stringWithFormat:@"Install missing tools?\n\n%@\n\nInstalled privately in "
+                                        @"~/.kinetic/tools. No full LLVM toolchain.",
+                                        [descriptions componentsJoinedByString:@"\n"]];
+                   __weak __typeof__(self) weakSelf = self;
+                   prompt.answer = ^(BOOL install) {
+                     if (install)
+                         [weakSelf installMissingTools:missing];
+                     else {
+                         [weakSelf.toolPrompt removeFromSuperview];
+                         weakSelf.toolPrompt = nil;
+                         [weakSelf.window makeFirstResponder:weakSelf.editor];
+                     }
+                   };
+                   self.toolPrompt = prompt;
+                   [self.content addSubview:prompt];
+                   [self.window makeFirstResponder:prompt];
+                 }];
 }
 
 - (void)newTextFile {
@@ -1256,6 +1347,7 @@
     self.editor.fileUrl = fileUrl;
     [self.editor markSaved];
     [self updateTabMetadata];
+    [self checkToolsForFile:fileUrl];
     return YES;
 }
 

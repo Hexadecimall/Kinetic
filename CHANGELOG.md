@@ -2,7 +2,14 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.30.1 - Unreleased
+## 0.31.0 - Unreleased
+
+### Changed
+
+- Stop bundling LLVM language tools. Detect usable clangd and clang-format and offer missing tools through a custom Yes/No prompt.
+- Install checksum-pinned standalone packages privately, preserve license notices, and retry language services after installation.
+
+## 0.30.1
 
 ### Fixed
 

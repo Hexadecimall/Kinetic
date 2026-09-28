@@ -174,11 +174,14 @@ fn activeDocument() -> Option<(String, String)> {
     Some((path, text))
 }
 
-extern "C" fn documentEvent(_userData: *mut c_void, _eventName: *const c_char) {
+extern "C" fn documentEvent(_userData: *mut c_void, eventName: *const c_char) {
+    // SAFETY: Host events provide a terminated string valid for this callback.
+    let activated = !eventName.is_null()
+        && unsafe { CStr::from_ptr(eventName) }.to_bytes() == b"document.activated";
     if let Some(api) = api() {
         let workspace = copyHostString(api.copyWorkspacePath);
         if let Ok(mut current) = currentWorkspace().lock()
-            && *current != workspace
+            && (*current != workspace || (activated && STATUS.load(Ordering::Acquire) == 0))
         {
             if let Ok(mut guard) = server().lock() {
                 if let Some(previous) = guard.take() {
@@ -651,7 +654,7 @@ static DESCRIPTOR: PluginDescriptor = PluginDescriptor {
     structSize: std::mem::size_of::<PluginDescriptor>() as u32,
     pluginId: c"kinetic.cpp-support".as_ptr(),
     displayName: c"C/C++ Support".as_ptr(),
-    version: c"0.3.0".as_ptr(),
+    version: c"0.4.0".as_ptr(),
     start,
     stop,
 };
