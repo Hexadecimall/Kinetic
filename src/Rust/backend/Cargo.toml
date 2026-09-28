@@ -10,6 +10,9 @@ rust-version.workspace = true
 name = "kinetic_backend"
 crate-type = ["rlib", "staticlib"]
 
+[dependencies]
+serde_json = "1.0"
+
 [lints.rust]
 unsafe_code = "deny"
 

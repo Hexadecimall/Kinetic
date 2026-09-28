@@ -13,6 +13,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_OSX_ARCHITECTURES arm64 CACHE STRING "Supported architecture" FORCE)
 set(CMAKE_OSX_DEPLOYMENT_TARGET 15.0 CACHE STRING "Minimum macOS version" FORCE)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
 set(KINETIC_GITHUB_CLIENT_ID "Ov23li0CaegWQ9lfPBQl" CACHE STRING "Public GitHub OAuth client ID")
 if(NOT KINETIC_GITHUB_CLIENT_ID)
     set(KINETIC_GITHUB_CLIENT_ID "Ov23li0CaegWQ9lfPBQl")
@@ -35,26 +36,26 @@ set(KINETIC_RUST_LIBRARY
 set(KINETIC_CPP_PLUGIN_DIR "${CMAKE_BINARY_DIR}/cpp-support-cargo")
 set(KINETIC_CPP_PLUGIN
     "${KINETIC_CPP_PLUGIN_DIR}/${KINETIC_CARGO_PROFILE}/libkineticCppSupport.dylib")
-set_source_files_properties("${KINETIC_CPP_PLUGIN}" PROPERTIES
-    GENERATED TRUE MACOSX_PACKAGE_LOCATION "PlugIns")
 add_custom_command(
     OUTPUT "${KINETIC_CPP_PLUGIN}"
     COMMAND "${CMAKE_COMMAND}" -E env "CARGO_TARGET_DIR=${KINETIC_CPP_PLUGIN_DIR}"
             "RUSTFLAGS=${KINETIC_RUSTFLAGS}"
             cargo build --offline --manifest-path
-            "${CMAKE_SOURCE_DIR}/plugins/builtin/cppSupport/Cargo.toml" ${KINETIC_CARGO_ARGS}
+            "${CMAKE_SOURCE_DIR}/plugins/official/cppSupport/Cargo.toml" ${KINETIC_CARGO_ARGS}
     COMMAND xcrun install_name_tool -id @rpath/libkineticCppSupport.dylib
             "${KINETIC_CPP_PLUGIN}"
     COMMAND codesign --force --sign - "${KINETIC_CPP_PLUGIN}"
     DEPENDS
         "${CMAKE_SOURCE_DIR}/CMakeLists.txt"
-        "${CMAKE_SOURCE_DIR}/plugins/builtin/cppSupport/Cargo.toml"
-        "${CMAKE_SOURCE_DIR}/plugins/builtin/cppSupport/Cargo.lock"
-        "${CMAKE_SOURCE_DIR}/plugins/builtin/cppSupport/src/lib.rs"
-        "${CMAKE_SOURCE_DIR}/plugins/builtin/cppSupport/src/language.rs"
-        "${CMAKE_SOURCE_DIR}/plugins/builtin/cppSupport/src/lsp.rs"
+        "${CMAKE_SOURCE_DIR}/plugins/official/cppSupport/Cargo.toml"
+        "${CMAKE_SOURCE_DIR}/plugins/official/cppSupport/Cargo.lock"
+        "${CMAKE_SOURCE_DIR}/plugins/official/cppSupport/src/lib.rs"
+        "${CMAKE_SOURCE_DIR}/plugins/official/cppSupport/src/language.rs"
+        "${CMAKE_SOURCE_DIR}/plugins/official/cppSupport/src/lsp.rs"
+        "${CMAKE_SOURCE_DIR}/plugins/official/cppSupport/src/tools.rs"
+        "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/toolDiscovery.rs"
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-    COMMENT "Building the bundled C/C++ Support plugin"
+    COMMENT "Building the separate Official C/C++ Support plugin"
     VERBATIM)
 add_custom_target(kinetic_cpp_support DEPENDS "${KINETIC_CPP_PLUGIN}")
 
@@ -69,8 +70,12 @@ add_custom_command(
         "${CMAKE_SOURCE_DIR}/Cargo.toml"
         "${CMAKE_SOURCE_DIR}/src/Rust/backend/Cargo.toml"
         "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/lib.rs"
+        "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/completion.rs"
         "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/document.rs"
         "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/extensions.rs"
+        "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/packages.rs"
+        "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/preferences.rs"
+        "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/toolDiscovery.rs"
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     COMMENT "Building Kinetic's Rust backend"
     VERBATIM)
@@ -89,19 +94,25 @@ add_executable(
                               src/C++/app/keyboardShortcuts.mm
                               src/C++/app/pluginHost.mm src/C++/app/workspaceSearch.mm
                               src/C++/ui/activityBar.mm src/C++/ui/contextMenu.mm
+                              src/C++/ui/cloneDialog.mm src/C++/ui/commandPalette.mm src/C++/ui/toolPrompt.mm
                               src/C++/ui/editorView.mm
                               src/C++/ui/editorStructure.mm
                               src/C++/ui/fileDialog.mm
                               src/C++/ui/homeView.mm
+                              src/C++/ui/pluginBrowser.mm
+                              src/C++/ui/settingsPanel.mm
+                              src/C++/ui/utilityPanel.mm
                               src/C++/ui/searchPopover.mm
                               src/C++/ui/syntaxHighlight.mm
                               src/C++/ui/trafficBar.mm src/C++/ui/tween.mm
-                              "${KINETIC_APP_ICON}" "${KINETIC_CPP_PLUGIN}")
+                              src/C++/ui/theme.mm
+                              src/C++/ui/windowState.mm
+                              "${KINETIC_APP_ICON}")
 target_include_directories(Kinetic PRIVATE include src/C++/app src/C++/bridge src/C++/ui)
 target_compile_options(Kinetic PRIVATE "-fobjc-arc")
 target_link_libraries(
     Kinetic PRIVATE kinetic_backend "-framework AppKit" "-framework Metal" "-framework MetalKit"
-                           "-framework Security")
+                           "-framework Security" "-framework QuartzCore")
 set_target_properties(
     Kinetic
     PROPERTIES
@@ -118,14 +129,21 @@ add_custom_command(
     POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E make_directory
             "$<TARGET_BUNDLE_DIR:Kinetic>/Contents/Resources/bin"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "$<TARGET_BUNDLE_DIR:Kinetic>/Contents/PlugIns"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:kinetic_cli>"
             "$<TARGET_BUNDLE_DIR:Kinetic>/Contents/Resources/bin/kinetic"
-    COMMENT "Embedding the Kinetic CLI")
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${KINETIC_CPP_PLUGIN}"
+            "$<TARGET_BUNDLE_DIR:Kinetic>/Contents/PlugIns/libkineticCppSupport.dylib"
+    COMMENT "Embedding the Kinetic CLI and C/C++ Support")
 add_dependencies(Kinetic kinetic_cli kinetic_cpp_support)
 add_custom_target(
     kinetic_sign_bundle ALL
-    COMMAND codesign --force --sign -
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${KINETIC_CPP_PLUGIN}"
             "$<TARGET_BUNDLE_DIR:Kinetic>/Contents/PlugIns/libkineticCppSupport.dylib"
+    COMMAND "${CMAKE_COMMAND}" -E rm -rf "$<TARGET_BUNDLE_DIR:Kinetic>/Contents/Resources/tools/llvm"
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_SOURCE_DIR}/assets/themes"
+            "$<TARGET_BUNDLE_DIR:Kinetic>/Contents/Resources/themes"
     COMMAND codesign --force --sign -
             "$<TARGET_BUNDLE_DIR:Kinetic>/Contents/Resources/bin/kinetic"
     COMMAND codesign --force --sign - "$<TARGET_BUNDLE_DIR:Kinetic>"
@@ -134,6 +152,23 @@ add_custom_target(
     VERBATIM)
 
 enable_testing()
+add_executable(kineticSettingsPanelTests tests/settingsPanelTests.mm
+    src/C++/ui/settingsPanel.mm src/C++/ui/utilityPanel.mm src/C++/ui/toolPrompt.mm
+    src/C++/ui/theme.mm src/C++/ui/contextMenu.mm)
+target_include_directories(kineticSettingsPanelTests PRIVATE src/C++/ui)
+target_compile_options(kineticSettingsPanelTests PRIVATE "-fobjc-arc")
+target_link_libraries(kineticSettingsPanelTests PRIVATE "-framework AppKit" "-framework QuartzCore")
+add_test(NAME kineticSettingsPanel COMMAND kineticSettingsPanelTests)
+add_executable(kineticThemeTests tests/themeTests.mm src/C++/ui/theme.mm)
+target_include_directories(kineticThemeTests PRIVATE src/C++/ui)
+target_compile_options(kineticThemeTests PRIVATE "-fobjc-arc")
+target_link_libraries(kineticThemeTests PRIVATE "-framework AppKit")
+add_test(NAME kineticThemes COMMAND kineticThemeTests "${CMAKE_SOURCE_DIR}/assets/themes")
+add_executable(kineticWindowStateTests tests/windowStateTests.mm src/C++/ui/windowState.mm)
+target_include_directories(kineticWindowStateTests PRIVATE src/C++/ui)
+target_compile_options(kineticWindowStateTests PRIVATE "-fobjc-arc")
+target_link_libraries(kineticWindowStateTests PRIVATE "-framework AppKit")
+add_test(NAME kineticWindowState COMMAND kineticWindowStateTests)
 add_test(NAME kinetic_cli_version COMMAND kinetic_cli --version)
 set_tests_properties(kinetic_cli_version PROPERTIES PASS_REGULAR_EXPRESSION "kinetic ${PROJECT_VERSION}")
 
@@ -145,12 +180,14 @@ add_test(NAME kineticDocumentBackend COMMAND kineticDocumentBackendTests)
 add_executable(kineticEditorBackendIntegrationTests
     tests/editorBackendIntegrationTests.mm
     src/C++/ui/editorView.mm src/C++/ui/activityBar.mm src/C++/ui/contextMenu.mm
-    src/C++/ui/editorStructure.mm src/C++/ui/searchPopover.mm src/C++/ui/syntaxHighlight.mm
-    src/C++/ui/tween.mm src/C++/app/workspaceSearch.mm)
+    src/C++/ui/cloneDialog.mm src/C++/ui/commandPalette.mm
+    src/C++/ui/editorStructure.mm src/C++/ui/pluginBrowser.mm src/C++/ui/searchPopover.mm src/C++/ui/syntaxHighlight.mm
+    src/C++/ui/settingsPanel.mm src/C++/ui/utilityPanel.mm
+    src/C++/ui/tween.mm src/C++/ui/theme.mm src/C++/app/workspaceSearch.mm)
 target_include_directories(kineticEditorBackendIntegrationTests PRIVATE
     include src/C++/app src/C++/bridge src/C++/ui)
 target_compile_options(kineticEditorBackendIntegrationTests PRIVATE "-fobjc-arc")
-target_link_libraries(kineticEditorBackendIntegrationTests PRIVATE kinetic_backend "-framework AppKit")
+target_link_libraries(kineticEditorBackendIntegrationTests PRIVATE kinetic_backend "-framework AppKit" "-framework QuartzCore")
 add_test(NAME kineticEditorBackendIntegration COMMAND kineticEditorBackendIntegrationTests)
 
 add_executable(kineticWorkspaceSearchTests tests/workspaceSearchTests.mm
@@ -175,7 +212,7 @@ target_link_libraries(kineticEditorStructureTests PRIVATE "-framework Foundation
 add_test(NAME kineticEditorStructure COMMAND kineticEditorStructureTests)
 
 add_executable(kineticFileDialogTests tests/fileDialogTests.mm src/C++/ui/fileDialog.mm
-                                      src/C++/ui/contextMenu.mm)
+                                      src/C++/ui/contextMenu.mm src/C++/ui/theme.mm src/C++/ui/editorStructure.mm)
 target_include_directories(kineticFileDialogTests PRIVATE src/C++/ui)
 target_compile_options(kineticFileDialogTests PRIVATE "-fobjc-arc")
 target_link_libraries(kineticFileDialogTests PRIVATE "-framework AppKit")

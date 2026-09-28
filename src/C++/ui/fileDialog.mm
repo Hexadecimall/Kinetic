@@ -1,11 +1,13 @@
 #import "fileDialog.h"
 #import "contextMenu.h"
+#import "editorStructure.h"
+#import "theme.h"
 
 namespace {
 constexpr CGFloat kRowHeight = 30.0;
 
 NSColor* dialogColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
-    return [NSColor colorWithSRGBRed:red / 255.0 green:green / 255.0 blue:blue / 255.0 alpha:alpha];
+    return kineticThemeColor(red, green, blue, alpha);
 }
 
 BOOL dialogIsDirectory(NSURL* url) {
@@ -24,12 +26,13 @@ BOOL dialogIsDirectory(NSURL* url) {
 @implementation KineticFileEntry
 @end
 
-@interface KineticFileDialog () {
+@interface KineticFileDialog () <NSTextFieldDelegate> {
     KineticFileDialogMode _mode;
     id<KineticFileDialogDelegate> _dialogDelegate;
     NSURL* _directoryUrl;
     NSURL* _creationRootUrl;
     NSArray<KineticFileEntry*>* _entries;
+    NSTextField* _searchField;
     NSMutableString* _fileName;
     NSString* _errorMessage;
     NSRect _panelRect;
@@ -77,6 +80,16 @@ BOOL dialogIsDirectory(NSURL* url) {
             }
         }
         self.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+        _searchField = [[NSTextField alloc] initWithFrame:NSZeroRect];
+        _searchField.placeholderString = @"Search this folder";
+        _searchField.font = [NSFont systemFontOfSize:12.0];
+        _searchField.textColor = dialogColor(226, 233, 242);
+        _searchField.backgroundColor = NSColor.clearColor;
+        _searchField.drawsBackground = NO;
+        _searchField.bordered = NO;
+        _searchField.focusRingType = NSFocusRingTypeNone;
+        _searchField.delegate = self;
+        [self addSubview:_searchField];
         [self reloadEntries];
     }
     return self;
@@ -101,9 +114,11 @@ BOOL dialogIsDirectory(NSURL* url) {
     _panelRect = NSMakeRect(floor((NSWidth(self.bounds) - width) * 0.5),
                             floor((NSHeight(self.bounds) - height) * 0.46), width, height);
     _upRect = NSMakeRect(NSMinX(_panelRect) + 24.0, NSMinY(_panelRect) + 58.0, 30.0, 28.0);
-    CGFloat listHeight = [self requiresName] ? height - 194.0 : height - 158.0;
-    _listRect = NSMakeRect(NSMinX(_panelRect) + 24.0, NSMinY(_panelRect) + 98.0,
+    CGFloat listHeight = [self requiresName] ? height - 232.0 : height - 196.0;
+    _listRect = NSMakeRect(NSMinX(_panelRect) + 24.0, NSMinY(_panelRect) + 136.0,
                            NSWidth(_panelRect) - 48.0, listHeight);
+    _searchField.frame = NSMakeRect(NSMinX(_panelRect) + 35.0, NSMinY(_panelRect) + 103.0,
+                                    NSWidth(_panelRect) - 70.0, 21.0);
     _nameFieldRect = NSMakeRect(NSMinX(_panelRect) + 24.0, NSMaxY(_listRect) + 12.0,
                                 NSWidth(_panelRect) - 48.0, 32.0);
     _cancelRect = NSMakeRect(NSMaxX(_panelRect) - 190.0, NSMaxY(_panelRect) - 44.0, 72.0, 28.0);
@@ -124,7 +139,13 @@ BOOL dialogIsDirectory(NSURL* url) {
     }
 
     NSMutableArray<KineticFileEntry*>* entries = [[NSMutableArray alloc] init];
+    NSString* query = _searchField.stringValue;
     for (NSURL* url in urls) {
+        if (query.length > 0 &&
+            [url.lastPathComponent rangeOfString:query options:NSCaseInsensitiveSearch].location ==
+                NSNotFound) {
+            continue;
+        }
         KineticFileEntry* entry = [[KineticFileEntry alloc] init];
         entry.url = url;
         entry.name = url.lastPathComponent;
@@ -247,6 +268,13 @@ BOOL dialogIsDirectory(NSURL* url) {
                                               NSWidth(_panelRect) - 102.0, 18.0)
                     withAttributes:pathAttributes];
 
+    NSRect searchRect = NSMakeRect(NSMinX(_panelRect) + 24.0, NSMinY(_panelRect) + 97.0,
+                                   NSWidth(_panelRect) - 48.0, 32.0);
+    [dialogColor(30, 38, 50) setFill];
+    [[NSBezierPath bezierPathWithRoundedRect:searchRect xRadius:4.0 yRadius:4.0] fill];
+    [dialogColor(77, 96, 125, 0.65) setStroke];
+    [[NSBezierPath bezierPathWithRoundedRect:searchRect xRadius:4.0 yRadius:4.0] stroke];
+
     [dialogColor(30, 38, 50) setFill];
     [[NSBezierPath bezierPathWithRoundedRect:_listRect xRadius:4.0 yRadius:4.0] fill];
     [NSGraphicsContext saveGraphicsState];
@@ -277,6 +305,15 @@ BOOL dialogIsDirectory(NSURL* url) {
                  withAttributes:entryAttributes];
     }
     [NSGraphicsContext restoreGraphicsState];
+
+    if (_entries.count == 0 && _searchField.stringValue.length > 0) {
+        [@"No matching files"
+               drawAtPoint:NSMakePoint(NSMinX(_listRect) + 12.0, NSMinY(_listRect) + 12.0)
+            withAttributes:@{
+                NSFontAttributeName : [NSFont systemFontOfSize:12.0],
+                NSForegroundColorAttributeName : dialogColor(132, 146, 166),
+            }];
+    }
 
     CGFloat maximumScroll = [self maximumScrollOffset];
     if (maximumScroll > 0.0) {
@@ -352,6 +389,7 @@ BOOL dialogIsDirectory(NSURL* url) {
     KineticFileEntry* entry = _entries[(NSUInteger)_selectedIndex];
     if (entry.directory) {
         _directoryUrl = entry.url;
+        _searchField.stringValue = @"";
         [self reloadEntries];
     } else if (_mode == KineticFileDialogModeOpen) {
         [_dialogDelegate fileDialog:self didChoosePath:entry.url.path mode:_mode];
@@ -416,8 +454,33 @@ BOOL dialogIsDirectory(NSURL* url) {
     }
     if (parent != nil && ![parent.path isEqualToString:_directoryUrl.path]) {
         _directoryUrl = parent;
+        _searchField.stringValue = @"";
         [self reloadEntries];
     }
+}
+
+- (void)controlTextDidChange:(NSNotification*)notification {
+    if (notification.object == _searchField) {
+        [self reloadEntries];
+    }
+}
+
+- (BOOL)control:(NSControl*)control
+               textView:(NSTextView*)textView
+    doCommandBySelector:(SEL)commandSelector {
+    (void)textView;
+    if (control != _searchField) {
+        return NO;
+    }
+    if (commandSelector == @selector(cancelOperation:)) {
+        [_dialogDelegate fileDialogDidCancel:self];
+        return YES;
+    }
+    if (commandSelector == @selector(insertNewline:)) {
+        [self confirm];
+        return YES;
+    }
+    return NO;
 }
 
 - (void)keyDown:(NSEvent*)event {
@@ -425,12 +488,15 @@ BOOL dialogIsDirectory(NSURL* url) {
         [_dialogDelegate fileDialogDidCancel:self];
     } else if (event.keyCode == 36 || event.keyCode == 76) {
         [self confirm];
-    } else if ([self requiresName] && _editingFileName && event.keyCode == 51 &&
-               _fileName.length > 0) {
-        [_fileName
-            deleteCharactersInRange:[_fileName
-                                        rangeOfComposedCharacterSequenceAtIndex:_fileName.length -
-                                                                                1]];
+    } else if ([self requiresName] && _editingFileName && event.keyCode == 51) {
+        if (_fileName.length == 0) {
+            return;
+        }
+        NSRange deletion =
+            (event.modifierFlags & NSEventModifierFlagCommand) != 0
+                ? kineticDeleteToLineStartRange(_fileName, _fileName.length)
+                : [_fileName rangeOfComposedCharacterSequenceAtIndex:_fileName.length - 1];
+        [_fileName deleteCharactersInRange:deletion];
         _errorMessage = nil;
         self.needsDisplay = YES;
     } else if (!_editingFileName && event.keyCode == 126 && _selectedIndex > 0) {

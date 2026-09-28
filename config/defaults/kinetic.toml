@@ -16,12 +16,23 @@ easing = "easeOutCubic"
 editorEnterMilliseconds = 180
 editorExitMilliseconds = 140
 modalMilliseconds = 140
+settingsPanelMilliseconds = 180
 
 [editor]
 fontSize = 13.0
+fontPreset = 0
+letterSpacing = 0.0
+smoothCaret = false
+caretDuration = 120
+caretStretch = 0.6
+highlightCurrentLine = false
+showDiagnostics = true
 lineHeight = 20.0
 tabWidth = 4
+insertTabs = false
 autoIndent = true
+indentUnitNavigation = true
+showIndentGuides = true
 autoPairs = true
 verticalScrolling = true
 horizontalScrolling = true
@@ -38,6 +49,11 @@ shiftClickExtendsSelection = true
 contextMenu = true
 undoHistoryLimit = 256
 optionWordNavigation = true
+
+[autocomplete]
+enabled = true
+minPrefix = 1
+maxResults = 12
 
 [activityBar]
 visible = true

@@ -10,6 +10,13 @@
 - (NSArray<NSArray<NSDictionary<NSString*, id>*>*>*)pluginSyntaxTokensForLines:
                                                         (NSArray<NSString*>*)lines
                                                                       fileName:(NSString*)fileName;
+- (NSArray<NSDictionary<NSString*, NSString*>*>*)pluginCompletionItemsForPrefix:(NSString*)prefix
+                                                                       fileName:(NSString*)fileName;
+- (BOOL)hasPluginCompletionProviderForFileName:(NSString*)fileName;
+- (BOOL)applyPluginDiagnosticFixForPath:(NSString*)path
+                                   line:(NSUInteger)line
+                                 column:(NSUInteger)column
+                                 length:(NSUInteger)length;
 @end
 
 @interface KineticEditorView : NSView
@@ -22,6 +29,7 @@
 @property(nonatomic, strong) NSURL* fileUrl;
 @property(nonatomic, strong) NSURL* workspaceUrl;
 @property(nonatomic, copy) NSString* documentTitle;
+@property(nonatomic) BOOL workspacePlaceholder;
 @property(nonatomic, copy) NSArray<NSString*>* tabTitles;
 @property(nonatomic, copy) NSIndexSet* dirtyTabIndexes;
 @property(nonatomic) NSUInteger activeTabIndex;
@@ -45,6 +53,7 @@
 - (void)revealCreatedFolderAtUrl:(NSURL*)url;
 - (void)revealCreatedFileAtUrl:(NSURL*)url;
 - (void)setActivitySection:(KineticActivitySection)section animated:(BOOL)animated;
+- (BOOL)closeUtilityPanelIfOpen;
 - (void)markSaved;
 - (BOOL)setPluginNumber:(double)value property:(NSString*)property;
 - (BOOL)getPluginNumber:(double*)value property:(NSString*)property;
@@ -58,4 +67,6 @@
               commands:(NSArray<NSDictionary<NSString*, NSString*>*>*)commands
     configurationError:(NSString*)configurationError;
 - (void)setPluginPanels:(NSArray<NSDictionary<NSString*, id>*>*)panels;
+- (void)setCatalogPlugins:(NSArray<NSDictionary<NSString*, id>*>*)plugins status:(NSString*)status;
+- (void)setAppPackageStatus:(NSString*)status;
 @end

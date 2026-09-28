@@ -1,5 +1,6 @@
 #import "homeView.h"
 #import "contextMenu.h"
+#import "theme.h"
 
 namespace {
 
@@ -9,7 +10,7 @@ constexpr CGFloat kColumnWidth = (kContentWidth - kColumnGap) * 0.5;
 constexpr CGFloat kActionHeight = 34.0;
 
 NSColor* homeColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
-    return [NSColor colorWithSRGBRed:red / 255.0 green:green / 255.0 blue:blue / 255.0 alpha:alpha];
+    return kineticThemeColor(red, green, blue, alpha);
 }
 
 } // namespace
@@ -29,7 +30,7 @@ NSColor* homeColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0
 - (instancetype)initWithFrame:(NSRect)frameRect {
     self = [super initWithFrame:frameRect];
     if (self) {
-        _actionTitles = @[ @"New Text File", @"Open File…", @"Open Folder…" ];
+        _actionTitles = @[ @"New Text File", @"Open File…", @"Open Folder…", @"Clone Repository…" ];
         _actionRects = [[NSMutableArray alloc] init];
         _recentRects = [[NSMutableArray alloc] init];
         _recentProjects = @[];
@@ -103,7 +104,7 @@ NSColor* homeColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0
                                       yRadius:1.5];
         [icon moveToPoint:NSMakePoint(x + 4.0, y + 4.0)];
         [icon lineToPoint:NSMakePoint(x + 9.0, y + 4.0)];
-    } else {
+    } else if (index == 2) {
         [icon moveToPoint:NSMakePoint(x, y + 3.0)];
         [icon lineToPoint:NSMakePoint(x + 5.0, y + 3.0)];
         [icon lineToPoint:NSMakePoint(x + 7.0, y + 1.0)];
@@ -111,6 +112,13 @@ NSColor* homeColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0
         [icon lineToPoint:NSMakePoint(x + 13.0, y + 11.0)];
         [icon lineToPoint:NSMakePoint(x, y + 11.0)];
         [icon closePath];
+    } else {
+        [icon moveToPoint:NSMakePoint(x + 2.0, y + 3.0)];
+        [icon lineToPoint:NSMakePoint(x + 2.0, y + 9.0)];
+        [icon moveToPoint:NSMakePoint(x + 11.0, y + 3.0)];
+        [icon lineToPoint:NSMakePoint(x + 11.0, y + 9.0)];
+        [icon moveToPoint:NSMakePoint(x + 2.0, y + 6.0)];
+        [icon lineToPoint:NSMakePoint(x + 11.0, y + 6.0)];
     }
 
     [color setStroke];
@@ -300,6 +308,8 @@ NSColor* homeColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0
             [self.commandHandler openFile];
         } else if (index == 2) {
             [self.commandHandler openFolder];
+        } else if (index == 3) {
+            [self.commandHandler cloneRepository];
         }
         return;
     }

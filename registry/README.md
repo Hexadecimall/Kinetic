@@ -49,7 +49,7 @@ requires both the CI `validate` and `Plugin Registry` `registryValidate` checks.
 runs on every pull request, including ones without catalog changes. Human review can become a
 required rule once another maintainer is available to approve the owner's pull requests.
 
-The bundled first-party C/C++ Support plugin has a separate, manual
+The separately installed first-party C/C++ Support plugin has a manual
 `Publish C/C++ Support` workflow. It tests and builds the plugin on macOS, strips build-only
 symbols from a separate release copy, re-signs and audits that arm64 asset, then creates a draft,
 uploads `libkineticCppSupport.dylib`, and publishes the draft as an immutable release. It requires
@@ -64,9 +64,17 @@ The Official catalog entry pins its publisher account ID and the verified 552,28
 asset. GitHub reports the release itself as immutable.
 
 “Official” means Kinetic project approval, not a claim that native code is sandboxed or risk-free.
-The editor does not yet browse or install from this catalog. A future installer must verify the
-downloaded binary against the catalog checksum before placing it in `~/.kinetic/plugins/`, and
-must tell the user the publisher and trust status before installation.
+The Plugins page browses this catalog and shows the publisher and trust label before installation.
+The installer verifies the published size, SHA-256, and arm64 Mach-O header before placing a
+managed library in `~/.kinetic/plugins/`. Removal retains a recovery copy under `.removed`.
+Unmanaged local libraries are not removed by the package manager. C/C++ Support is managed like
+other Official catalog plugins and can be installed, updated, or removed separately.
+
+The bundled CLI supports `kinetic plugins list [--json]`, `install ID`, `update ID`, and
+`uninstall ID`. Install, update, and removal require confirmation unless `--yes` is supplied.
+Native plugins run with the editor's permissions and require an application restart to load or
+unload. Ratings remain unrated until an actual review source exists; no score is inferred from
+GitHub stars.
 
 ## Maintenance
 

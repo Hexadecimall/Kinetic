@@ -1,11 +1,14 @@
 # macOS packaging
 
+The app does not contain clangd, clang-format, or LLVM. Language tools are detected locally or
+downloaded with confirmation into `~/.kinetic/tools`. See [language tools](../../lib/llvm/README.md).
+They do not replace project compilers, SDKs, or build-system dependencies.
+
 `Kinetic.app` is the canonical product. It contains the GUI executable, the matching `kinetic`
-command-line client at `Contents/Resources/bin/kinetic`, and the first-party C/C++ Support plugin
-at `Contents/PlugIns/libkineticCppSupport.dylib`. The plugin, CLI, and app are signed in that
-order after the bundle is assembled; a changed plugin cannot leave a stale bundle signature.
-The plugin's Mach-O install name is `@rpath/libkineticCppSupport.dylib`, never an absolute build
-path. The separate public plugin release strips build-only symbols and is re-signed before upload.
+command-line client at `Contents/Resources/bin/kinetic`, and Official C/C++ Support at
+`Contents/PlugIns/libkineticCppSupport.dylib`. The CLI, plugin, and app are signed after
+bundle assembly. The plugin's Mach-O install name is `@rpath/libkineticCppSupport.dylib`, never
+an absolute build path. Its public release strips build-only symbols and is re-signed before upload.
 
 The installer creates a symlink to that embedded CLI rather than copying it, ensuring the app and
 CLI always share a version. The default user installation uses:
@@ -26,3 +29,13 @@ test suite and public-source audit, and names archives with the embedded CLI ver
 MacPorts installs the canonical bundle in its application directory and links `${prefix}/bin/kinetic`
 to `Kinetic.app/Contents/Resources/bin/kinetic`, preserving the app/CLI version lockstep. See
 [`packaging/macports/README.md`](../../packaging/macports/README.md) for generation and publication.
+
+The embedded CLI supports `kinetic app check`, `install`, `update`, and `uninstall`, also exposed
+in the dedicated Settings page. This user-scoped manager targets `$HOME/Applications/Kinetic.app`;
+it does not modify a Homebrew, MacPorts, or system-managed installation. Install and update use a
+stable, immutable GitHub release asset named `Kinetic-VERSION-macos-arm64.zip`, verify GitHub's
+SHA-256 digest and asset size, then verify the extracted bundle identifier, version, bundled CLI,
+and code signature before replacing the user installation. The previous app is retained in Trash
+or beside the replacement if Trash is unavailable. Uninstall moves the app to Trash and preserves
+`~/.kinetic/` settings and plugins. Until an application release with that asset exists,
+`kinetic app check` reports that no release is published.

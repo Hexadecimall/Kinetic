@@ -3,6 +3,6 @@ Copyright 2026 Kinetic contributors
 
 This product includes software developed by Kinetic contributors.
 
-The bundled C/C++ Support plugin includes vendored crates under lib/cargo. Their upstream
+The separately installable C/C++ Support plugin uses vendored crates under lib/cargo. Their upstream
 copyright and license terms are included with each source snapshot. See lib/cargo/README.md for
 the exact versions, license choices, and upstream project links.

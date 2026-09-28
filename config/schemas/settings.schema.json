@@ -10,6 +10,7 @@
     "window": { "$ref": "#/$defs/window" },
     "animations": { "$ref": "#/$defs/animations" },
     "editor": { "$ref": "#/$defs/editor" },
+    "autocomplete": { "$ref": "#/$defs/autocomplete" },
     "activityBar": { "$ref": "#/$defs/activityBar" },
     "search": { "$ref": "#/$defs/search" },
     "recent": { "$ref": "#/$defs/recent" },
@@ -48,7 +49,8 @@
         "easing": { "type": "string" },
         "editorEnterMilliseconds": { "type": "integer", "minimum": 0 },
         "editorExitMilliseconds": { "type": "integer", "minimum": 0 },
-        "modalMilliseconds": { "type": "integer", "minimum": 0 }
+        "modalMilliseconds": { "type": "integer", "minimum": 0 },
+        "settingsPanelMilliseconds": { "type": "integer", "minimum": 80, "maximum": 400 }
       }
     },
     "editor": {
@@ -56,9 +58,16 @@
       "additionalProperties": false,
       "properties": {
         "fontSize": { "type": "number", "minimum": 6.0 },
+        "fontPreset": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "letterSpacing": { "type": "number", "minimum": -2.0, "maximum": 8.0 },
+        "highlightCurrentLine": { "type": "boolean" },
+        "showDiagnostics": { "type": "boolean" },
         "lineHeight": { "type": "number", "minimum": 8.0 },
         "tabWidth": { "type": "integer", "minimum": 1, "maximum": 16 },
+        "insertTabs": { "type": "boolean" },
         "autoIndent": { "type": "boolean" },
+        "indentUnitNavigation": { "type": "boolean" },
+        "showIndentGuides": { "type": "boolean" },
         "autoPairs": { "type": "boolean" },
         "verticalScrolling": { "type": "boolean" },
         "horizontalScrolling": { "type": "boolean" },
@@ -75,6 +84,15 @@
         "contextMenu": { "type": "boolean" },
         "undoHistoryLimit": { "type": "integer", "minimum": 0 },
         "optionWordNavigation": { "type": "boolean" }
+      }
+    },
+    "autocomplete": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minPrefix": { "type": "integer", "minimum": 1, "maximum": 8 },
+        "maxResults": { "type": "integer", "minimum": 1, "maximum": 32 }
       }
     },
     "activityBar": {

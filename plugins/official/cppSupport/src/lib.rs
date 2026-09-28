@@ -2,11 +2,12 @@
 
 mod language;
 mod lsp;
+mod tools;
 
-use std::ffi::{CString, c_char, c_void};
+use std::ffi::{CStr, CString, c_char, c_void};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::sync::atomic::{AtomicPtr, AtomicU8, Ordering};
 use std::sync::{Mutex, OnceLock};
 
@@ -25,6 +26,7 @@ pub struct Diagnostic {
     columnUtf16: u32,
     lengthUtf16: u32,
     severity: u32,
+    flags: u32,
     message: [c_char; 256],
 }
 
@@ -33,6 +35,13 @@ pub struct PanelRow {
     kind: u32,
     title: [c_char; 96],
     commandId: [c_char; 128],
+}
+
+#[repr(C)]
+pub struct CompletionRow {
+    label: [c_char; 96],
+    insertText: [c_char; 96],
+    detail: [c_char; 96],
 }
 
 #[repr(C)]
@@ -61,7 +70,7 @@ pub struct PluginApi {
     copyString: usize,
     getSelection: unsafe extern "C" fn(*mut c_void, *mut u64, *mut u64) -> i32,
     setSelection: usize,
-    replaceRangeUtf8: usize,
+    replaceRangeUtf8: unsafe extern "C" fn(*mut c_void, u64, u64, *const c_char, u64) -> i32,
     registerShortcut: unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char, u32) -> i32,
     registerFileMenuItem: usize,
     registerPanel: unsafe extern "C" fn(
@@ -86,9 +95,22 @@ pub struct PluginApi {
     ) -> i32,
     copyActiveFilePath: unsafe extern "C" fn(*mut c_void, *mut c_char, u64) -> u64,
     copyWorkspacePath: unsafe extern "C" fn(*mut c_void, *mut c_char, u64) -> u64,
-    publishDiagnostics:
-        unsafe extern "C" fn(*mut c_void, *const c_char, *const Diagnostic, u32) -> i32,
+    publishDiagnostics: usize,
     openLocation: unsafe extern "C" fn(*mut c_void, *const c_char, u32, u32) -> i32,
+    registerCompletionProvider: unsafe extern "C" fn(
+        *mut c_void,
+        *const c_char,
+        extern "C" fn(*mut c_void, *const c_char, u64, *mut CompletionRow, u32) -> u32,
+        *mut c_void,
+    ) -> i32,
+    publishDiagnosticsV2:
+        unsafe extern "C" fn(*mut c_void, *const c_char, *const Diagnostic, u32) -> i32,
+    registerDiagnosticFixProvider: unsafe extern "C" fn(
+        *mut c_void,
+        *const c_char,
+        extern "C" fn(*mut c_void, *const c_char, u32, u32, u32) -> i32,
+        *mut c_void,
+    ) -> i32,
 }
 
 #[repr(C)]
@@ -107,6 +129,7 @@ unsafe impl Sync for PluginDescriptor {}
 static API: AtomicPtr<PluginApi> = AtomicPtr::new(std::ptr::null_mut());
 static STATUS: AtomicU8 = AtomicU8::new(0);
 static SERVER: OnceLock<Mutex<Option<LanguageServer>>> = OnceLock::new();
+static WORKSPACE: OnceLock<Mutex<Option<String>>> = OnceLock::new();
 static FORMAT_CACHE: OnceLock<Mutex<Option<Vec<u8>>>> = OnceLock::new();
 
 fn formatCache() -> &'static Mutex<Option<Vec<u8>>> {
@@ -115,6 +138,10 @@ fn formatCache() -> &'static Mutex<Option<Vec<u8>>> {
 
 fn server() -> &'static Mutex<Option<LanguageServer>> {
     SERVER.get_or_init(|| Mutex::new(None))
+}
+
+fn currentWorkspace() -> &'static Mutex<Option<String>> {
+    WORKSPACE.get_or_init(|| Mutex::new(None))
 }
 
 fn api() -> Option<&'static PluginApi> {
@@ -147,7 +174,25 @@ fn activeDocument() -> Option<(String, String)> {
     Some((path, text))
 }
 
-extern "C" fn documentEvent(_userData: *mut c_void, _eventName: *const c_char) {
+extern "C" fn documentEvent(_userData: *mut c_void, eventName: *const c_char) {
+    // SAFETY: Host events provide a terminated string valid for this callback.
+    let activated = !eventName.is_null()
+        && unsafe { CStr::from_ptr(eventName) }.to_bytes() == b"document.activated";
+    if let Some(api) = api() {
+        let workspace = copyHostString(api.copyWorkspacePath);
+        if let Ok(mut current) = currentWorkspace().lock()
+            && (*current != workspace || (activated && STATUS.load(Ordering::Acquire) == 0))
+        {
+            if let Ok(mut guard) = server().lock() {
+                if let Some(previous) = guard.take() {
+                    previous.stop();
+                }
+                *guard = LanguageServer::start(workspace.clone()).ok();
+                STATUS.store(u8::from(guard.is_some()), Ordering::Release);
+            }
+            *current = workspace;
+        }
+    }
     if let Some((path, text)) = activeDocument()
         && let Ok(guard) = server().lock()
         && let Some(server) = guard.as_ref()
@@ -156,20 +201,10 @@ extern "C" fn documentEvent(_userData: *mut c_void, _eventName: *const c_char) {
     }
 }
 
-extern "C" fn goToDefinition(_userData: *mut c_void) {
-    let Some((path, text)) = activeDocument() else {
-        return;
-    };
-    let Some(api) = api() else { return };
-    let mut caret = 0_u64;
-    let mut length = 0_u64;
-    // SAFETY: The host writes two u64 values.
-    if unsafe { (api.getSelection)(api.context, &mut caret, &mut length) } != 0 {
-        return;
-    }
+fn positionAtCaret(text: &str, caret: u64) -> (u32, u32) {
+    let mut remaining = caret;
     let mut line = 0_u32;
     let mut column = 0_u32;
-    let mut remaining = caret;
     for character in text.chars() {
         if remaining == 0 {
             break;
@@ -186,6 +221,77 @@ extern "C" fn goToDefinition(_userData: *mut c_void) {
             column += units as u32;
         }
     }
+    (line, column)
+}
+
+extern "C" fn completeDocument(
+    _userData: *mut c_void,
+    prefix: *const c_char,
+    prefixLength: u64,
+    rows: *mut CompletionRow,
+    capacity: u32,
+) -> u32 {
+    if prefix.is_null() || rows.is_null() || prefixLength > 95 || capacity > 32 {
+        return 0;
+    }
+    // SAFETY: The host supplies prefixLength readable bytes and capacity writable rows.
+    let bytes = unsafe { std::slice::from_raw_parts(prefix.cast::<u8>(), prefixLength as usize) };
+    let Ok(prefix) = std::str::from_utf8(bytes) else {
+        return 0;
+    };
+    let Some((path, text)) = activeDocument() else {
+        return 0;
+    };
+    let Some(api) = api() else { return 0 };
+    let mut caret = 0_u64;
+    let mut selectionLength = 0_u64;
+    // SAFETY: The host writes two u64 values.
+    if unsafe { (api.getSelection)(api.context, &mut caret, &mut selectionLength) } != 0 {
+        return 0;
+    }
+    let (line, column) = positionAtCaret(&text, caret);
+    let Ok(guard) = server().lock() else { return 0 };
+    let Some(server) = guard.as_ref() else {
+        return 0;
+    };
+    let suggestions = server.requestCompletions(path, text, line, column, prefix.into());
+    // SAFETY: The host allocates capacity rows for this callback.
+    let output = unsafe { std::slice::from_raw_parts_mut(rows, capacity as usize) };
+    let mut count = 0;
+    for item in suggestions.iter().filter(|item| {
+        item.label
+            .to_lowercase()
+            .starts_with(&prefix.to_lowercase())
+            && item.insertText != prefix
+    }) {
+        if count >= output.len() {
+            break;
+        }
+        output[count] = CompletionRow {
+            label: [0; 96],
+            insertText: [0; 96],
+            detail: [0; 96],
+        };
+        writeField(&mut output[count].label, &item.label);
+        writeField(&mut output[count].insertText, &item.insertText);
+        writeField(&mut output[count].detail, &item.detail);
+        count += 1;
+    }
+    count as u32
+}
+
+extern "C" fn goToDefinition(_userData: *mut c_void) {
+    let Some((path, text)) = activeDocument() else {
+        return;
+    };
+    let Some(api) = api() else { return };
+    let mut caret = 0_u64;
+    let mut length = 0_u64;
+    // SAFETY: The host writes two u64 values.
+    if unsafe { (api.getSelection)(api.context, &mut caret, &mut length) } != 0 {
+        return;
+    }
+    let (line, column) = positionAtCaret(&text, caret);
     if let Ok(guard) = server().lock()
         && let Some(server) = guard.as_ref()
     {
@@ -194,12 +300,70 @@ extern "C" fn goToDefinition(_userData: *mut c_void) {
     }
 }
 
+extern "C" fn applyDiagnosticFix(
+    _userData: *mut c_void,
+    filePath: *const c_char,
+    line: u32,
+    column: u32,
+    length: u32,
+) -> i32 {
+    if filePath.is_null() || line == 0 {
+        return -1;
+    }
+    // SAFETY: The host supplies a NUL-terminated path for the duration of this call.
+    let Ok(requestedPath) = (unsafe { CStr::from_ptr(filePath) }).to_str() else {
+        return -1;
+    };
+    let Some((path, text)) = activeDocument() else {
+        return -1;
+    };
+    if path != requestedPath {
+        return -1;
+    }
+    let response = {
+        let Ok(guard) = server().lock() else {
+            return -1;
+        };
+        let Some(server) = guard.as_ref() else {
+            return -1;
+        };
+        server.updateDocument(path.clone(), text.clone());
+        server.quickFix(&path, line - 1, column, length)
+    };
+    let Some(edits) = response
+        .as_ref()
+        .and_then(|value| lsp::quickFixEdits(value, &path, &text))
+    else {
+        return -1;
+    };
+    if activeDocument().as_ref() != Some(&(path, text)) {
+        return -1;
+    }
+    let Some(api) = api() else { return -1 };
+    for edit in edits {
+        // SAFETY: The host receives valid UTF-8 bytes and validated UTF-16 ranges.
+        if unsafe {
+            (api.replaceRangeUtf8)(
+                api.context,
+                edit.startUtf16,
+                edit.lengthUtf16,
+                edit.text.as_ptr().cast(),
+                edit.text.len() as u64,
+            )
+        } != 0
+        {
+            return -1;
+        }
+    }
+    0
+}
+
 fn counterpart(path: &Path) -> Option<PathBuf> {
     let extension = path.extension()?.to_str()?;
     let candidates: &[&str] = match extension {
         "c" => &["h"],
-        "cc" | "cpp" | "cxx" => &["hpp", "h", "hh", "hxx"],
-        "h" | "hpp" | "hh" | "hxx" => &["cpp", "cc", "cxx", "c"],
+        "cc" | "cpp" | "cxx" | "m" | "mm" => &["hpp", "h", "hh", "hxx"],
+        "h" | "hpp" | "hh" | "hxx" => &["cpp", "cc", "cxx", "c", "m", "mm"],
         _ => return None,
     };
     candidates
@@ -224,8 +388,7 @@ extern "C" fn switchHeaderSource(_userData: *mut c_void) {
 fn formatText(input: &[u8]) -> Option<Vec<u8>> {
     let api = api()?;
     let path = copyHostString(api.copyActiveFilePath)?;
-    let mut child = Command::new("xcrun")
-        .arg("clang-format")
+    let mut child = tools::command("clang-format")
         .arg(format!("--assume-filename={path}"))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -292,7 +455,7 @@ extern "C" fn panelRows(_userData: *mut c_void, rows: *mut PanelRow, capacity: u
     let status = match STATUS.load(Ordering::Acquire) {
         2 => "clangd connected",
         1 => "clangd starting...",
-        _ => "clangd unavailable; install Xcode Command Line Tools",
+        _ => "clangd unavailable; check the configured executable",
     };
     writeField(&mut rows[0].title, status);
     rows[1].kind = 2;
@@ -334,13 +497,45 @@ extern "C" fn start(apiPointer: *const PluginApi) -> i32 {
     }
     API.store(apiPointer.cast_mut(), Ordering::Release);
     let context = api.context;
-    for extension in [c"c", c"h", c"cc", c"cpp", c"cxx", c"hpp", c"hh", c"hxx"] {
+    for extension in [
+        c"c", c"h", c"cc", c"cpp", c"cxx", c"hpp", c"hh", c"hxx", c"m", c"mm",
+    ] {
         // SAFETY: All pointers and callbacks remain valid until stop.
         if unsafe {
             (api.registerSyntaxProvider)(
                 context,
                 extension.as_ptr(),
                 syntaxTokens,
+                std::ptr::null_mut(),
+            )
+        } != 0
+        {
+            return -1;
+        }
+    }
+    for extension in [
+        c"c", c"h", c"cc", c"cpp", c"cxx", c"hpp", c"hh", c"hxx", c"m", c"mm",
+    ] {
+        if unsafe {
+            (api.registerDiagnosticFixProvider)(
+                context,
+                extension.as_ptr(),
+                applyDiagnosticFix,
+                std::ptr::null_mut(),
+            )
+        } != 0
+        {
+            return -1;
+        }
+    }
+    for extension in [
+        c"c", c"h", c"cc", c"cpp", c"cxx", c"hpp", c"hh", c"hxx", c"m", c"mm",
+    ] {
+        if unsafe {
+            (api.registerCompletionProvider)(
+                context,
+                extension.as_ptr(),
+                completeDocument,
                 std::ptr::null_mut(),
             )
         } != 0
@@ -403,12 +598,14 @@ extern "C" fn start(apiPointer: *const PluginApi) -> i32 {
     {
         return -1;
     }
-    if Command::new("xcrun")
-        .args(["--find", "clang-format"])
+    if tools::command("clang-format")
+        .arg("--version")
         .output()
         .is_ok_and(|output| output.status.success())
     {
-        for extension in [c"c", c"h", c"cc", c"cpp", c"cxx", c"hpp", c"hh", c"hxx"] {
+        for extension in [
+            c"c", c"h", c"cc", c"cpp", c"cxx", c"hpp", c"hh", c"hxx", c"m", c"mm",
+        ] {
             if unsafe {
                 (api.registerFormatter)(
                     context,
@@ -423,6 +620,9 @@ extern "C" fn start(apiPointer: *const PluginApi) -> i32 {
         }
     }
     let workspace = copyHostString(api.copyWorkspacePath);
+    if let Ok(mut current) = currentWorkspace().lock() {
+        *current = workspace.clone();
+    }
     match LanguageServer::start(workspace) {
         Ok(instance) => {
             STATUS.store(1, Ordering::Release);
@@ -443,6 +643,9 @@ extern "C" fn stop() {
         instance.stop();
     }
     API.store(std::ptr::null_mut(), Ordering::Release);
+    if let Ok(mut current) = currentWorkspace().lock() {
+        *current = None;
+    }
     STATUS.store(0, Ordering::Release);
 }
 
@@ -451,7 +654,7 @@ static DESCRIPTOR: PluginDescriptor = PluginDescriptor {
     structSize: std::mem::size_of::<PluginDescriptor>() as u32,
     pluginId: c"kinetic.cpp-support".as_ptr(),
     displayName: c"C/C++ Support".as_ptr(),
-    version: c"0.1.0".as_ptr(),
+    version: c"0.4.0".as_ptr(),
     start,
     stop,
 };
@@ -466,7 +669,7 @@ fn publish(path: &str, diagnostics: &[Diagnostic]) {
     let Ok(path) = CString::new(path) else { return };
     // SAFETY: The host copies the diagnostics before returning.
     unsafe {
-        (api.publishDiagnostics)(
+        (api.publishDiagnosticsV2)(
             api.context,
             path.as_ptr(),
             diagnostics.as_ptr(),

@@ -14,7 +14,7 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 
-releaseTag = "cpp-support-v0.1.0"
+releaseTag = "cpp-support-v0.2.0"
 assetName = "libkineticCppSupport.dylib"
 maximumAssetBytes = 32 * 1024 * 1024
 
@@ -69,10 +69,10 @@ def main():
         release = requestJson(apiBase, token, "POST", {
             "tag_name": releaseTag,
             "target_commitish": commit,
-            "name": "C/C++ Support 0.1.0",
+            "name": "C/C++ Support 0.2.0",
             "body": (
-                "First-party C/C++ Support for Kinetic 0.22.0. Adds C/C++ syntax tokens, "
-                "clangd diagnostics and Go to Definition, explicit clang-format formatting, "
+                "First-party C/C++ Support for Kinetic 0.25.0. Adds C/C++ syntax tokens, "
+                "clangd diagnostics, completion and Go to Definition, explicit clang-format formatting, "
                 "and header/source switching. The plugin uses installed toolchains and does "
                 "not download tools automatically."
             ),

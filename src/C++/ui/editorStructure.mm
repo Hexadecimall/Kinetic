@@ -1,5 +1,17 @@
 #import "editorStructure.h"
 
+NSRange kineticDeleteToLineStartRange(NSString* text, NSUInteger caretIndex) {
+    NSUInteger end = MIN(caretIndex, text.length);
+    NSUInteger start = end;
+    while (start > 0 && [text characterAtIndex:start - 1] != '\n') {
+        --start;
+    }
+    if (start == end && start > 0) {
+        --start;
+    }
+    return NSMakeRange(start, end - start);
+}
+
 @implementation KineticStructureEdit
 
 - (instancetype)initWithRange:(NSRange)range
@@ -50,12 +62,11 @@ NSString* indentationOfLine(NSString* line) {
     return [line substringToIndex:length];
 }
 
-NSString* indentationUnit(NSString* existing, NSUInteger tabWidth) {
-    return [existing containsString:@"\t"]
-               ? @"\t"
-               : [@"" stringByPaddingToLength:MAX((NSUInteger)1, tabWidth)
-                                   withString:@" "
-                              startingAtIndex:0];
+NSString* indentationUnit(BOOL insertTabs, NSUInteger tabWidth) {
+    return insertTabs ? @"\t"
+                      : [@"" stringByPaddingToLength:MAX((NSUInteger)1, tabWidth)
+                                          withString:@" "
+                                     startingAtIndex:0];
 }
 
 NSString* firstLineOfText(NSString* text) {
@@ -134,6 +145,16 @@ bool isWordCharacter(unichar character) {
 
 KineticStructureEdit* kineticNewlineEdit(NSString* text, NSRange selection, NSString* fileName,
                                          NSUInteger tabWidth, BOOL autoIndent) {
+    NSUInteger lineStart = lineStartForIndex(text, selection.location);
+    NSString* prefix =
+        [text substringWithRange:NSMakeRange(lineStart, selection.location - lineStart)];
+    return kineticNewlineEditWithTabs(text, selection, fileName, tabWidth, autoIndent,
+                                      [indentationOfLine(prefix) containsString:@"\t"]);
+}
+
+KineticStructureEdit* kineticNewlineEditWithTabs(NSString* text, NSRange selection,
+                                                 NSString* fileName, NSUInteger tabWidth,
+                                                 BOOL autoIndent, BOOL insertTabs) {
     if (!autoIndent) {
         return makeEdit(selection, @"\n", 1, 1);
     }
@@ -145,7 +166,7 @@ KineticStructureEdit* kineticNewlineEdit(NSString* text, NSRange selection, NSSt
         [prefix stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
     BOOL increase = shouldIncreaseIndent(trimmedPrefix, fileName, text);
     NSString* indent =
-        increase ? [baseIndent stringByAppendingString:indentationUnit(baseIndent, tabWidth)]
+        increase ? [baseIndent stringByAppendingString:indentationUnit(insertTabs, tabWidth)]
                  : baseIndent;
     NSString* replacement = [@"\n" stringByAppendingString:indent];
     NSUInteger caretOffset = replacement.length;
@@ -163,6 +184,11 @@ KineticStructureEdit* kineticNewlineEdit(NSString* text, NSRange selection, NSSt
 
 KineticStructureEdit* kineticTabEdit(NSString* text, NSRange selection, NSUInteger tabWidth,
                                      BOOL outdent) {
+    return kineticTabEditWithTabs(text, selection, tabWidth, outdent, NO);
+}
+
+KineticStructureEdit* kineticTabEditWithTabs(NSString* text, NSRange selection, NSUInteger tabWidth,
+                                             BOOL outdent, BOOL insertTabs) {
     NSUInteger width = MAX((NSUInteger)1, tabWidth);
     NSUInteger lineStart = lineStartForIndex(text, selection.location);
     NSString* prefix =
@@ -176,6 +202,9 @@ KineticStructureEdit* kineticTabEdit(NSString* text, NSRange selection, NSUInteg
         NSRange range = NSMakeRange(selection.location - removeLength, removeLength);
         return makeEdit(range, @"", 0, 0);
     }
+    if (insertTabs) {
+        return makeEdit(selection, @"\t", 1, 1);
+    }
     NSUInteger column = 0;
     for (NSUInteger index = 0; index < prefix.length; ++index) {
         column += [prefix characterAtIndex:index] == '\t' ? width - column % width : 1;
@@ -183,6 +212,105 @@ KineticStructureEdit* kineticTabEdit(NSString* text, NSRange selection, NSUInteg
     NSUInteger count = width - column % width;
     NSString* spaces = [@"" stringByPaddingToLength:count withString:@" " startingAtIndex:0];
     return makeEdit(selection, spaces, spaces.length, spaces.length);
+}
+
+KineticStructureEdit* kineticIndentBackspaceEdit(NSString* text, NSUInteger caretIndex,
+                                                 NSUInteger tabWidth) {
+    if (caretIndex == 0 || caretIndex > text.length) {
+        return nil;
+    }
+    NSUInteger lineStart = lineStartForIndex(text, caretIndex);
+    NSString* prefix = [text substringWithRange:NSMakeRange(lineStart, caretIndex - lineStart)];
+    if (prefix.length == 0 || indentationOfLine(prefix).length != prefix.length) {
+        return nil;
+    }
+    if ([prefix hasSuffix:@"\t"]) {
+        return makeEdit(NSMakeRange(caretIndex - 1, 1), @"", 0, 0);
+    }
+    NSUInteger width = MAX((NSUInteger)1, tabWidth);
+    NSUInteger column = 0;
+    for (NSUInteger index = 0; index < prefix.length; ++index) {
+        column += [prefix characterAtIndex:index] == '\t' ? width - column % width : 1;
+    }
+    NSUInteger target = column % width == 0 ? width : column % width;
+    NSUInteger count = 0;
+    while (count < target && count < prefix.length &&
+           [prefix characterAtIndex:prefix.length - count - 1] == ' ') {
+        ++count;
+    }
+    return count == 0 ? nil : makeEdit(NSMakeRange(caretIndex - count, count), @"", 0, 0);
+}
+
+static NSArray<NSNumber*>* indentationStops(NSString* text, NSUInteger caretIndex,
+                                            NSUInteger tabWidth) {
+    if (caretIndex > text.length) {
+        return nil;
+    }
+    NSRange newline = [text rangeOfString:@"\n"
+                                  options:NSBackwardsSearch
+                                    range:NSMakeRange(0, caretIndex)];
+    NSUInteger start = newline.location == NSNotFound ? 0 : NSMaxRange(newline);
+    NSUInteger end = start;
+    while (end < text.length &&
+           ([text characterAtIndex:end] == ' ' || [text characterAtIndex:end] == '\t')) {
+        ++end;
+    }
+    if (caretIndex > end || end == start) {
+        return nil;
+    }
+    NSMutableArray<NSNumber*>* stops = [NSMutableArray arrayWithObject:@(start)];
+    NSUInteger column = 0;
+    for (NSUInteger index = start; index < end; ++index) {
+        if ([text characterAtIndex:index] == '\t') {
+            column += tabWidth - column % tabWidth;
+        } else {
+            ++column;
+        }
+        if (column % tabWidth == 0 || index + 1 == end) {
+            [stops addObject:@(index + 1)];
+        }
+    }
+    return stops;
+}
+
+NSUInteger kineticIndentNavigationIndex(NSString* text, NSUInteger caretIndex, NSUInteger tabWidth,
+                                        BOOL forward) {
+    NSArray<NSNumber*>* stops = indentationStops(text, caretIndex, MAX(1, tabWidth));
+    if (stops == nil) {
+        return NSNotFound;
+    }
+    if (forward) {
+        for (NSNumber* stop in stops) {
+            if (stop.unsignedIntegerValue > caretIndex) {
+                return stop.unsignedIntegerValue;
+            }
+        }
+    } else {
+        for (NSNumber* stop in stops.reverseObjectEnumerator) {
+            if (stop.unsignedIntegerValue < caretIndex) {
+                return stop.unsignedIntegerValue;
+            }
+        }
+    }
+    return NSNotFound;
+}
+
+NSUInteger kineticIndentSnapIndex(NSString* text, NSUInteger caretIndex, NSUInteger tabWidth) {
+    NSArray<NSNumber*>* stops = indentationStops(text, caretIndex, MAX(1, tabWidth));
+    if (stops == nil) {
+        return caretIndex;
+    }
+    NSUInteger nearest = caretIndex;
+    NSUInteger distance = NSUIntegerMax;
+    for (NSNumber* stop in stops) {
+        NSUInteger candidate = stop.unsignedIntegerValue;
+        NSUInteger delta = candidate > caretIndex ? candidate - caretIndex : caretIndex - candidate;
+        if (delta < distance) {
+            nearest = candidate;
+            distance = delta;
+        }
+    }
+    return nearest;
 }
 
 KineticStructureEdit* kineticTypedStructureEdit(NSString* text, NSRange selection,

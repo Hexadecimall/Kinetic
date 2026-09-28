@@ -3,6 +3,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#include "cloneDialog.h"
+#include "commandPalette.h"
 #include "editorView.h"
 #include "fileDialog.h"
 #include "githubAccount.h"
@@ -12,8 +14,11 @@
 #include "kineticBackend.h"
 #include "kineticCommands.h"
 #include "pluginHost.h"
+#include "theme.h"
+#include "toolPrompt.h"
 #include "trafficBar.h"
 #include "tween.h"
+#include "windowState.h"
 #include "workspaceSearch.h"
 
 @interface KineticApplication : NSApplication
@@ -23,6 +28,15 @@
 
 - (void)sendEvent:(NSEvent*)event {
     NSWindow* window = self.keyWindow ?: self.mainWindow;
+    if (event.type == NSEventTypeKeyDown &&
+        [window.firstResponder isKindOfClass:KineticToolPrompt.class]) {
+        [super sendEvent:event];
+        return;
+    }
+    if (kineticShortcutCommandForEvent(event) == KineticShortcutCommandCommandPalette) {
+        [(id<KineticCommandHandler>)self.delegate showCommandPalette];
+        return;
+    }
     if (event.type == NSEventTypeKeyDown && !event.isARepeat &&
         [(id<KineticCommandHandler>)self.delegate executePluginShortcutForEvent:event]) {
         return;
@@ -42,6 +56,11 @@
         return;
     case KineticShortcutCommandSearchFile:
         [(id<KineticCommandHandler>)self.delegate focusFileSearch];
+        return;
+    case KineticShortcutCommandSettings:
+        [(id<KineticCommandHandler>)self.delegate showSettings];
+        return;
+    case KineticShortcutCommandCommandPalette:
         return;
     case KineticShortcutCommandPreviousTab:
         [(id<KineticCommandHandler>)self.delegate selectPreviousTab];
@@ -121,15 +140,28 @@
 @interface KineticApplicationDelegate
     : NSObject <NSApplicationDelegate, KineticCommandHandler, KineticFileDialogDelegate,
                 KineticPluginHostDelegate, KineticGitHubAccountDelegate,
-                KineticEditorOverlayRenderer>
+                KineticEditorOverlayRenderer, KineticCommandPaletteDelegate,
+                KineticCloneDialogDelegate>
 @property(nonatomic, strong) NSWindow* window;
+@property(nonatomic, strong) KineticWindowState* windowState;
 @property(nonatomic, strong) NSView* content;
 @property(nonatomic, strong) KineticHomeView* home;
 @property(nonatomic, strong) KineticTrafficBar* trafficBar;
 @property(nonatomic, strong) KineticEditorView* editor;
 @property(nonatomic, strong) NSMutableArray<KineticEditorView*>* editors;
 @property(nonatomic, strong) KineticFileDialog* fileDialog;
+@property(nonatomic, strong) KineticCommandPalette* commandPalette;
+@property(nonatomic, strong) KineticCloneDialog* cloneDialog;
+@property(nonatomic) BOOL checkedCppTools;
+@property(nonatomic, strong) KineticToolPrompt* toolPrompt;
+@property(nonatomic, strong) NSTask* cloneTask;
+@property(nonatomic, copy) NSString* pendingCloneUrl;
 @property(nonatomic, strong) KineticPluginHost* pluginHost;
+@property(nonatomic, copy) NSArray<NSDictionary<NSString*, id>*>* catalogPlugins;
+@property(nonatomic, copy) NSString* pluginCatalogStatus;
+@property(nonatomic) BOOL pluginManagerBusy;
+@property(nonatomic, copy) NSString* appPackageStatus;
+@property(nonatomic) BOOL appManagerBusy;
 @property(nonatomic, strong) KineticGitHubAccount* githubAccount;
 @property(nonatomic, strong) NSMutableDictionary<NSString*, NSNumber*>* pluginNumberOverrides;
 @property(nonatomic, strong) NSMutableDictionary<NSString*, NSString*>* pluginStringOverrides;
@@ -155,6 +187,9 @@
     self.workspaceUiState = @{};
     self.searchUiState = @{};
     self.activitySection = KineticActivitySectionNone;
+    self.catalogPlugins = @[];
+    self.pluginCatalogStatus = @"Open Plugins to load the catalog.";
+    self.appPackageStatus = @"Application updates are manual.";
     self.untitledCounter = 0;
 
     id<MTLDevice> device = MTLCreateSystemDefaultDevice();
@@ -210,7 +245,10 @@
     [self.content addSubview:self.home];
     [self.content addSubview:self.trafficBar];
     self.window.contentView = self.content;
-    [self.window center];
+    self.windowState = [[KineticWindowState alloc] initWithWindow:self.window];
+    if (![self.windowState restore]) {
+        [self.window center];
+    }
     [self.window makeKeyAndOrderFront:nil];
     [NSApp activateIgnoringOtherApps:YES];
     [self.githubAccount restoreSession];
@@ -254,6 +292,9 @@
     NSMutableIndexSet* dirtyIndexes = [NSMutableIndexSet indexSet];
     for (NSUInteger index = 0; index < self.editors.count; ++index) {
         KineticEditorView* editor = self.editors[index];
+        if (editor.workspacePlaceholder) {
+            continue;
+        }
         [titles addObject:editor.documentTitle];
         if (editor.dirty) {
             [dirtyIndexes addIndex:index];
@@ -282,6 +323,11 @@
     [nextEditor applyWorkspaceUiState:self.workspaceUiState];
     [nextEditor applySearchUiState:self.searchUiState];
     [nextEditor setActivitySection:self.activitySection animated:NO];
+    [nextEditor setCatalogPlugins:self.catalogPlugins status:self.pluginCatalogStatus];
+    [nextEditor setAppPackageStatus:self.appPackageStatus];
+    if (self.activitySection == KineticActivitySectionPlugins && self.catalogPlugins.count == 0) {
+        [self refreshPluginCatalog];
+    }
     self.editor = nextEditor;
     nextEditor.diagnostics =
         nextEditor.fileUrl.path == nil
@@ -294,8 +340,8 @@
         NSURL* pluginRootUrl = [KineticPluginHost userPluginRootUrl];
         NSURL* pluginsUrl = [pluginRootUrl URLByAppendingPathComponent:@"plugins" isDirectory:YES];
         NSURL* configurationUrl = [pluginRootUrl URLByAppendingPathComponent:@"config.toml"];
-        [self.pluginHost loadPluginsAtUrl:NSBundle.mainBundle.builtInPlugInsURL
-                         configurationUrl:configurationUrl];
+        NSURL* bundledPluginsUrl = [NSBundle.mainBundle.builtInPlugInsURL URLByStandardizingPath];
+        [self.pluginHost loadPluginsAtUrl:bundledPluginsUrl configurationUrl:configurationUrl];
         [self.pluginHost loadPluginsAtUrl:pluginsUrl configurationUrl:configurationUrl];
         for (KineticEditorView* editor in self.editors) {
             [editor setPluginNames:self.pluginHost.loadedPluginNames
@@ -366,6 +412,24 @@
 }
 
 - (void)openEditorWithContents:(NSString*)contents fileUrl:(NSURL*)fileUrl {
+    [self openEditorWithContents:contents fileUrl:fileUrl workspacePlaceholder:NO];
+}
+
+- (void)openWorkspacePlaceholder {
+    [self openEditorWithContents:@"" fileUrl:nil workspacePlaceholder:YES];
+}
+
+- (void)openEditorWithContents:(NSString*)contents
+                       fileUrl:(NSURL*)fileUrl
+          workspacePlaceholder:(BOOL)workspacePlaceholder {
+    if (!workspacePlaceholder && self.editor.workspacePlaceholder) {
+        self.workspaceUiState = self.editor.workspaceUiState;
+        self.searchUiState = self.editor.searchUiState;
+        self.activitySection = self.editor.activeActivitySection;
+        [self.editor removeFromSuperview];
+        [self.editors removeObject:self.editor];
+        self.editor = nil;
+    }
     if (fileUrl != nil) {
         for (NSUInteger index = 0; index < self.editors.count; ++index) {
             if ([self.editors[index].fileUrl.path isEqualToString:fileUrl.path]) {
@@ -378,12 +442,15 @@
     KineticEditorView* editor = [[KineticEditorView alloc] initWithFrame:self.content.bounds
                                                                 contents:contents
                                                                  fileUrl:fileUrl];
+    editor.workspacePlaceholder = workspacePlaceholder;
     editor.commandHandler = self;
     editor.overlayRenderer = self;
     [editor setPluginNames:self.pluginHost.loadedPluginNames
                   commands:self.pluginHost.commands
         configurationError:self.pluginHost.configurationError];
     [editor setPluginPanels:self.pluginHost.panels];
+    [editor setCatalogPlugins:self.catalogPlugins status:self.pluginCatalogStatus];
+    [editor setAppPackageStatus:self.appPackageStatus];
     for (NSString* property in self.pluginNumberOverrides) {
         [editor setPluginNumber:self.pluginNumberOverrides[property].doubleValue property:property];
     }
@@ -394,13 +461,98 @@
     [editor applyWorkspaceUiState:self.workspaceUiState];
     [editor applySearchUiState:self.searchUiState];
     [editor setActivitySection:self.activitySection animated:NO];
-    if (fileUrl == nil) {
+    if (workspacePlaceholder) {
+        editor.documentTitle = @"";
+    } else if (fileUrl == nil) {
         self.untitledCounter += 1;
         editor.documentTitle =
             [NSString stringWithFormat:@"Untitled-%lu", (unsigned long)self.untitledCounter];
     }
     [self.editors addObject:editor];
     [self activateTabAtIndex:self.editors.count - 1];
+    [self checkToolsForFile:fileUrl];
+}
+
+- (void)installMissingTools:(NSArray<NSString*>*)names {
+    if (names.count == 0) {
+        [self.toolPrompt removeFromSuperview];
+        self.toolPrompt = nil;
+        [self.window makeFirstResponder:self.editor];
+        [self.pluginHost emitEvent:@"document.activated"];
+        return;
+    }
+    self.toolPrompt.busy = YES;
+    self.toolPrompt.message = [NSString stringWithFormat:@"Installing %@…", names.firstObject];
+    [self
+        runPackageCommand:@[ @"tools", @"install", names.firstObject, @"--yes" ]
+               completion:^(NSString* output, NSString* error) {
+                 (void)output;
+                 if (error != nil) {
+                     self.toolPrompt.busy = NO;
+                     self.toolPrompt.message = [NSString
+                         stringWithFormat:@"Installation failed.\n%@\n\nTry again?", error];
+                     return;
+                 }
+                 [self
+                     installMissingTools:[names subarrayWithRange:NSMakeRange(1, names.count - 1)]];
+               }];
+}
+
+- (void)checkToolsForFile:(NSURL*)url {
+    if (self.checkedCppTools ||
+        ![@[ @"c", @"h", @"cc", @"cpp", @"cxx", @"hpp", @"hh", @"hxx", @"m", @"mm" ]
+            containsObject:url.pathExtension.lowercaseString])
+        return;
+    self.checkedCppTools = YES;
+    [self runPackageCommand:@[ @"tools", @"status" ]
+                 completion:^(NSString* output, NSString* error) {
+                   if (error != nil) {
+                       self.checkedCppTools = NO;
+                       return;
+                   }
+                   NSDictionary* status = [NSJSONSerialization
+                       JSONObjectWithData:[output dataUsingEncoding:NSUTF8StringEncoding]
+                                  options:0
+                                    error:nil];
+                   if (![status isKindOfClass:NSDictionary.class]) {
+                       self.checkedCppTools = NO;
+                       return;
+                   }
+                   NSMutableArray* missing = [NSMutableArray array];
+                   NSMutableArray* descriptions = [NSMutableArray array];
+                   for (NSString* name in @[ @"clangd", @"clang-format" ]) {
+                       if (![status[name] isKindOfClass:NSString.class]) {
+                           [missing addObject:name];
+                           [descriptions
+                               addObject:[name isEqualToString:@"clangd"]
+                                             ? @"clangd 23.1.0 — LLVM/clangd (Official), 100 MB"
+                                             : @"clang-format 23.1.1 — PyPI clang-format "
+                                               @"(Unofficial packaging), 1.6 MB"];
+                       }
+                   }
+                   if (missing.count == 0)
+                       return;
+                   KineticToolPrompt* prompt =
+                       [[KineticToolPrompt alloc] initWithFrame:self.content.bounds];
+                   prompt.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+                   prompt.message = [NSString
+                       stringWithFormat:@"Install missing tools?\n\n%@\n\nInstalled privately in "
+                                        @"~/.kinetic/tools. No full LLVM toolchain.",
+                                        [descriptions componentsJoinedByString:@"\n"]];
+                   __weak __typeof__(self) weakSelf = self;
+                   prompt.answer = ^(BOOL install) {
+                     if (install)
+                         [weakSelf installMissingTools:missing];
+                     else {
+                         [weakSelf.toolPrompt removeFromSuperview];
+                         weakSelf.toolPrompt = nil;
+                         [weakSelf.window makeFirstResponder:weakSelf.editor];
+                     }
+                   };
+                   self.toolPrompt = prompt;
+                   [self.content addSubview:prompt];
+                   [self.window makeFirstResponder:prompt];
+                 }];
 }
 
 - (void)newTextFile {
@@ -413,12 +565,173 @@
     [self.editor setPluginPanels:self.pluginHost.panels];
 }
 
+- (void)editorSettingDidChange:(NSString*)property value:(double)value {
+    self.pluginNumberOverrides[property] = @(value);
+    for (KineticEditorView* editor in self.editors) {
+        [editor setPluginNumber:value property:property];
+    }
+}
+
 - (void)executePluginCommand:(NSString*)commandId {
     if ([commandId isEqualToString:@"kinetic.formatDocument"]) {
         [self formatActiveDocument];
         return;
     }
     [self.pluginHost executeCommand:commandId];
+}
+
+- (void)showPluginCatalog:(NSArray<NSDictionary<NSString*, id>*>*)plugins status:(NSString*)status {
+    NSMutableArray<NSDictionary<NSString*, id>*>* displayed = [NSMutableArray array];
+    for (NSDictionary<NSString*, id>* plugin in plugins ?: @[]) {
+        if ([plugin[@"id"] isEqualToString:@"kinetic.cpp-support"] &&
+            self.pluginHost.loadedPluginVersions[@"kinetic.cpp-support"] != nil) {
+            NSMutableDictionary<NSString*, id>* included = [plugin mutableCopy];
+            included[@"state"] = @"included";
+            included[@"version"] = self.pluginHost.loadedPluginVersions[@"kinetic.cpp-support"];
+            [displayed addObject:included];
+        } else {
+            [displayed addObject:plugin];
+        }
+    }
+    self.catalogPlugins = displayed;
+    self.pluginCatalogStatus = status;
+    for (KineticEditorView* editor in self.editors) {
+        [editor setCatalogPlugins:self.catalogPlugins status:status];
+    }
+}
+
+- (NSURL*)packageClientUrl {
+    return [[NSBundle.mainBundle.resourceURL URLByAppendingPathComponent:@"bin" isDirectory:YES]
+        URLByAppendingPathComponent:@"kinetic"];
+}
+
+- (void)runPackageCommand:(NSArray<NSString*>*)arguments
+               completion:(void (^)(NSString* output, NSString* errorMessage))completion {
+    NSURL* executable = [self packageClientUrl];
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+      NSTask* task = [[NSTask alloc] init];
+      task.executableURL = executable;
+      task.arguments = arguments;
+      NSPipe* outputPipe = [NSPipe pipe];
+      task.standardOutput = outputPipe;
+      task.standardError = outputPipe;
+      NSError* launchError = nil;
+      if (![task launchAndReturnError:&launchError]) {
+          dispatch_async(dispatch_get_main_queue(), ^{
+            completion(nil, launchError.localizedDescription ?: @"Could not start package client.");
+          });
+          return;
+      }
+      NSData* data = [outputPipe.fileHandleForReading readDataToEndOfFile];
+      [task waitUntilExit];
+      NSString* output = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] ?: @"";
+      dispatch_async(dispatch_get_main_queue(), ^{
+        completion(task.terminationStatus == 0 ? output : nil,
+                   task.terminationStatus == 0 ? nil : output);
+      });
+    });
+}
+
+- (void)refreshPluginCatalog {
+    if (self.pluginManagerBusy) {
+        return;
+    }
+    [self showPluginCatalog:self.catalogPlugins status:@"Checking the public catalog…"];
+    [self runPackageCommand:@[ @"plugins", @"list", @"--json" ]
+                 completion:^(NSString* output, NSString* errorMessage) {
+                   if (errorMessage != nil) {
+                       [self
+                           showPluginCatalog:self.catalogPlugins
+                                      status:[NSString stringWithFormat:@"Catalog unavailable: %@",
+                                                                        errorMessage]];
+                       return;
+                   }
+                   NSData* data = [output dataUsingEncoding:NSUTF8StringEncoding];
+                   id parsed = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+                   if (![parsed isKindOfClass:NSArray.class]) {
+                       [self showPluginCatalog:self.catalogPlugins
+                                        status:@"Catalog response was invalid."];
+                       return;
+                   }
+                   [self showPluginCatalog:parsed
+                                    status:[NSString
+                                               stringWithFormat:@"%lu plugin%@ in catalog",
+                                                                (unsigned long)[parsed count],
+                                                                [parsed count] == 1 ? @"" : @"s"]];
+                 }];
+}
+
+- (void)managePlugin:(NSDictionary<NSString*, id>*)plugin action:(NSString*)action {
+    NSString* pluginId = plugin[@"id"];
+    if (self.pluginManagerBusy || pluginId.length == 0 ||
+        [plugin[@"state"] isEqualToString:@"included"] ||
+        ![self.catalogPlugins containsObject:plugin] ||
+        ![@[ @"install", @"update", @"uninstall" ] containsObject:action]) {
+        return;
+    }
+    self.pluginManagerBusy = YES;
+    [self showPluginCatalog:self.catalogPlugins
+                     status:[NSString stringWithFormat:@"%@ %@…", action.capitalizedString,
+                                                       plugin[@"name"] ?: pluginId]];
+    [self runPackageCommand:@[ @"plugins", action, pluginId, @"--yes" ]
+                 completion:^(NSString* output, NSString* errorMessage) {
+                   self.pluginManagerBusy = NO;
+                   if (errorMessage != nil) {
+                       [self showPluginCatalog:self.catalogPlugins
+                                        status:[NSString stringWithFormat:@"%@ failed: %@",
+                                                                          action.capitalizedString,
+                                                                          errorMessage]];
+                       return;
+                   }
+                   [self
+                       showPluginCatalog:self.catalogPlugins
+                                  status:[output
+                                             stringByTrimmingCharactersInSet:
+                                                 NSCharacterSet.whitespaceAndNewlineCharacterSet]];
+                   [self refreshPluginCatalog];
+                 }];
+}
+
+- (void)showAppPackageStatus:(NSString*)status {
+    self.appPackageStatus = status;
+    for (KineticEditorView* editor in self.editors) {
+        [editor setAppPackageStatus:status];
+    }
+}
+
+- (void)manageApplication:(NSString*)action {
+    if (self.appManagerBusy || ![@[ @"check", @"update", @"uninstall" ] containsObject:action]) {
+        return;
+    }
+    if ([action isEqualToString:@"uninstall"]) {
+        for (KineticEditorView* editor in self.editors) {
+            if (editor.dirty) {
+                [self showAppPackageStatus:@"Save or close unsaved tabs before uninstalling."];
+                return;
+            }
+        }
+    }
+    NSString* command = action;
+    if ([action isEqualToString:@"update"]) {
+        NSString* target =
+            [NSHomeDirectory() stringByAppendingPathComponent:@"Applications/Kinetic.app"];
+        if (![NSFileManager.defaultManager fileExistsAtPath:target]) {
+            command = @"install";
+        }
+    }
+    self.appManagerBusy = YES;
+    [self showAppPackageStatus:[NSString
+                                   stringWithFormat:@"%@ application…", action.capitalizedString]];
+    [self
+        runPackageCommand:@[ @"app", command, @"--yes" ]
+               completion:^(NSString* output, NSString* errorMessage) {
+                 self.appManagerBusy = NO;
+                 NSString* message = errorMessage ?: output;
+                 [self
+                     showAppPackageStatus:[message
+                                              stringByTrimmingCharactersInSet:
+                                                  NSCharacterSet.whitespaceAndNewlineCharacterSet]];
+               }];
 }
 
 - (void)refreshPluginFileMenu {
@@ -452,6 +765,23 @@
                                                         (NSArray<NSString*>*)lines
                                                                       fileName:(NSString*)fileName {
     return [self.pluginHost syntaxTokensForLines:lines fileName:fileName];
+}
+
+- (NSArray<NSDictionary<NSString*, NSString*>*>*)pluginCompletionItemsForPrefix:(NSString*)prefix
+                                                                       fileName:
+                                                                           (NSString*)fileName {
+    return [self.pluginHost completionItemsForPrefix:prefix fileName:fileName];
+}
+
+- (BOOL)hasPluginCompletionProviderForFileName:(NSString*)fileName {
+    return [self.pluginHost hasCompletionProviderForFileName:fileName];
+}
+
+- (BOOL)applyPluginDiagnosticFixForPath:(NSString*)path
+                                   line:(NSUInteger)line
+                                 column:(NSUInteger)column
+                                 length:(NSUInteger)length {
+    return [self.pluginHost applyDiagnosticFixForPath:path line:line column:column length:length];
 }
 
 - (void)pluginHostContributionsDidChange:(KineticPluginHost*)host {
@@ -661,6 +991,168 @@
     self.searchUiState = self.editor.searchUiState;
 }
 
+- (void)showSettings {
+    if (self.editor == nil) {
+        return;
+    }
+    self.activitySection = KineticActivitySectionSettings;
+    [self.editor setActivitySection:KineticActivitySectionSettings animated:YES];
+}
+
+- (void)showCommandPalette {
+    if (self.commandPalette != nil) {
+        [self commandPaletteDidClose:self.commandPalette];
+        return;
+    }
+    NSMutableArray<NSDictionary<NSString*, NSString*>*>* commands =
+        [NSMutableArray arrayWithArray:@[
+            @{
+                @"id" : @"newFile",
+                @"title" : @"New Text File",
+                @"shortcut" : @"⌘N",
+                @"category" : @"File"
+            },
+            @{
+                @"id" : @"openFile",
+                @"title" : @"Open File…",
+                @"shortcut" : @"⌘O",
+                @"category" : @"File"
+            },
+            @{
+                @"id" : @"openFolder",
+                @"title" : @"Open Folder…",
+                @"shortcut" : @"",
+                @"category" : @"File"
+            },
+            @{
+                @"id" : @"clone",
+                @"title" : @"Clone Repository…",
+                @"shortcut" : @"",
+                @"category" : @"Git"
+            },
+            @{@"id" : @"themeDark", @"title" : @"Theme: Kinetic Dark", @"category" : @"Appearance"},
+            @{@"id" : @"themeMidnight", @"title" : @"Theme: Midnight", @"category" : @"Appearance"},
+            @{@"id" : @"themeGraphite", @"title" : @"Theme: Graphite", @"category" : @"Appearance"},
+        ]];
+    if (self.editor != nil) {
+        [commands addObjectsFromArray:@[
+            @{@"id" : @"save", @"title" : @"Save File", @"shortcut" : @"⌘S", @"category" : @"File"},
+            @{
+                @"id" : @"closeTab",
+                @"title" : @"Close Tab",
+                @"shortcut" : @"⌘W",
+                @"category" : @"File"
+            },
+            @{
+                @"id" : @"findFile",
+                @"title" : @"Find in File",
+                @"shortcut" : @"⌘F",
+                @"category" : @"Search"
+            },
+            @{
+                @"id" : @"findProject",
+                @"title" : @"Find in Project",
+                @"shortcut" : @"⇧⌘F",
+                @"category" : @"Search"
+            },
+            @{
+                @"id" : @"plugins",
+                @"title" : @"Show Plugins",
+                @"shortcut" : @"",
+                @"category" : @"View"
+            },
+            @{
+                @"id" : @"settings",
+                @"title" : @"Show Settings",
+                @"shortcut" : @"⌘,",
+                @"category" : @"View"
+            },
+        ]];
+        for (NSDictionary<NSString*, NSString*>* pluginCommand in self.pluginHost.commands) {
+            NSString* identifier = pluginCommand[@"id"];
+            NSString* title = pluginCommand[@"title"];
+            if (identifier.length > 0 && title.length > 0) {
+                [commands addObject:@{
+                    @"id" : [@"plugin:" stringByAppendingString:identifier],
+                    @"title" : title,
+                    @"shortcut" : @"",
+                    @"category" : @"Extension"
+                }];
+            }
+        }
+    }
+    KineticCommandPalette* palette =
+        [[KineticCommandPalette alloc] initWithFrame:self.content.bounds];
+    palette.delegate = self;
+    palette.commands = commands;
+    palette.alphaValue = 0.0;
+    self.commandPalette = palette;
+    [self.content addSubview:palette positioned:NSWindowAbove relativeTo:nil];
+    [KineticTween animateView:palette
+                      toFrame:palette.frame
+                      toAlpha:1.0
+                     duration:0.12
+                   completion:nil];
+    [palette focusQuery];
+}
+
+- (void)commandPaletteDidClose:(KineticCommandPalette*)palette {
+    if (palette != self.commandPalette) {
+        return;
+    }
+    self.commandPalette = nil;
+    [KineticTween animateView:palette
+                      toFrame:palette.frame
+                      toAlpha:0.0
+                     duration:0.1
+                   completion:^{
+                     [palette removeFromSuperview];
+                   }];
+    [self.window makeFirstResponder:self.editor ?: self.home];
+}
+
+- (void)commandPalette:(KineticCommandPalette*)palette didChooseCommand:(NSString*)commandId {
+    [self commandPaletteDidClose:palette];
+    if ([commandId isEqualToString:@"newFile"]) {
+        [self newTextFile];
+    } else if ([commandId isEqualToString:@"openFile"]) {
+        [self openFile];
+    } else if ([commandId isEqualToString:@"openFolder"]) {
+        [self openFolder];
+    } else if ([commandId isEqualToString:@"clone"]) {
+        [self cloneRepository];
+    } else if ([commandId hasPrefix:@"theme"]) {
+        NSString* name = [commandId isEqualToString:@"themeMidnight"]   ? @"midnight"
+                         : [commandId isEqualToString:@"themeGraphite"] ? @"graphite"
+                                                                        : @"kinetic-dark";
+        kineticSetThemeName(name);
+        self.pluginNumberOverrides[@"interface.theme"] =
+            @([name isEqualToString:@"midnight"]   ? 1
+              : [name isEqualToString:@"graphite"] ? 2
+                                                   : 0);
+        kineticRefreshThemeInView(self.content);
+        for (KineticEditorView* editor in self.editors) {
+            kineticRefreshThemeInView(editor);
+        }
+    } else if ([commandId isEqualToString:@"save"]) {
+        [self saveFile];
+    } else if ([commandId isEqualToString:@"closeTab"]) {
+        [self closeActiveTab];
+    } else if ([commandId isEqualToString:@"findFile"]) {
+        [self focusFileSearch];
+    } else if ([commandId isEqualToString:@"findProject"]) {
+        [self focusWorkspaceSearch];
+    } else if ([commandId isEqualToString:@"plugins"]) {
+        self.activitySection = KineticActivitySectionPlugins;
+        [self.editor setActivitySection:KineticActivitySectionPlugins animated:YES];
+        [self refreshPluginCatalog];
+    } else if ([commandId isEqualToString:@"settings"]) {
+        [self showSettings];
+    } else if ([commandId hasPrefix:@"plugin:"]) {
+        [self executePluginCommand:[commandId substringFromIndex:7]];
+    }
+}
+
 - (void)toggleFileSearch {
     if (self.editor == nil) {
         return;
@@ -686,6 +1178,139 @@
 
 - (void)openFolder {
     [self presentFileDialogWithMode:KineticFileDialogModeOpenFolder initialPath:@"~/"];
+}
+
+- (void)cloneRepository {
+    if (self.cloneDialog != nil) {
+        [self.cloneDialog focusUrl];
+        return;
+    }
+    KineticCloneDialog* dialog = [[KineticCloneDialog alloc] initWithFrame:self.content.bounds];
+    dialog.delegate = self;
+    dialog.alphaValue = 0.0;
+    self.cloneDialog = dialog;
+    [self.content addSubview:dialog positioned:NSWindowAbove relativeTo:nil];
+    [KineticTween animateView:dialog toFrame:dialog.frame toAlpha:1.0 duration:0.14 completion:nil];
+    [dialog focusUrl];
+}
+
+- (void)cloneDialogDidCancel:(KineticCloneDialog*)dialog {
+    if (dialog != self.cloneDialog) {
+        return;
+    }
+    if (self.cloneTask.isRunning) {
+        [self.cloneTask terminate];
+    }
+    self.pendingCloneUrl = nil;
+    self.cloneDialog = nil;
+    [KineticTween animateView:dialog
+                      toFrame:dialog.frame
+                      toAlpha:0.0
+                     duration:0.1
+                   completion:^{
+                     [dialog removeFromSuperview];
+                   }];
+    [self.window makeFirstResponder:self.editor ?: self.home];
+}
+
+- (void)cloneDialog:(KineticCloneDialog*)dialog didRequestDestinationForUrl:(NSString*)url {
+    NSString* trimmed =
+        [url stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    NSURLComponents* components = [NSURLComponents componentsWithString:trimmed];
+    NSString* repositoryName = components.path.lastPathComponent;
+    if ([repositoryName hasSuffix:@".git"]) {
+        repositoryName = [repositoryName substringToIndex:repositoryName.length - 4];
+    }
+    NSCharacterSet* invalidName = [[NSCharacterSet
+        characterSetWithCharactersInString:
+            @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"] invertedSet];
+    if (![components.scheme.lowercaseString isEqualToString:@"https"] ||
+        components.host.length == 0 || components.user != nil || components.password != nil ||
+        components.query != nil || components.fragment != nil ||
+        [trimmed rangeOfCharacterFromSet:NSCharacterSet.whitespaceAndNewlineCharacterSet]
+                .location != NSNotFound ||
+        repositoryName.length == 0 || [repositoryName isEqualToString:@"."] ||
+        [repositoryName isEqualToString:@".."] ||
+        [repositoryName rangeOfCharacterFromSet:invalidName].location != NSNotFound) {
+        dialog.status = @"Enter an HTTPS repository URL without credentials or query text.";
+        return;
+    }
+    self.pendingCloneUrl = trimmed;
+    dialog.status = @"Choose the parent folder for the new repository.";
+    [self presentFileDialogWithMode:KineticFileDialogModeOpenFolder initialPath:@"~/"];
+}
+
+- (void)startCloneIntoDirectory:(NSURL*)parentUrl {
+    NSString* repositoryUrl = self.pendingCloneUrl;
+    self.pendingCloneUrl = nil;
+    NSString* repositoryName =
+        [NSURLComponents componentsWithString:repositoryUrl].path.lastPathComponent;
+    if ([repositoryName hasSuffix:@".git"]) {
+        repositoryName = [repositoryName substringToIndex:repositoryName.length - 4];
+    }
+    NSURL* targetUrl = [parentUrl URLByAppendingPathComponent:repositoryName isDirectory:YES];
+    if ([NSFileManager.defaultManager fileExistsAtPath:targetUrl.path]) {
+        self.cloneDialog.status =
+            @"A file or folder with that repository name already exists here.";
+        [self.cloneDialog focusUrl];
+        return;
+    }
+    KineticCloneDialog* dialog = self.cloneDialog;
+    dialog.busy = YES;
+    dialog.status = [NSString stringWithFormat:@"Cloning %@…", repositoryName];
+    NSTask* task = [[NSTask alloc] init];
+    task.executableURL = [NSURL fileURLWithPath:@"/usr/bin/git"];
+    task.arguments = @[ @"clone", @"--", repositoryUrl, targetUrl.path ];
+    NSMutableDictionary<NSString*, NSString*>* environment =
+        [NSProcessInfo.processInfo.environment mutableCopy];
+    environment[@"GIT_TERMINAL_PROMPT"] = @"0";
+    environment[@"GIT_ASKPASS"] = @"/usr/bin/false";
+    task.environment = environment;
+    task.standardInput = NSFileHandle.fileHandleWithNullDevice;
+    NSPipe* output = [NSPipe pipe];
+    task.standardError = output;
+    task.standardOutput = output;
+    self.cloneTask = task;
+    NSError* launchError = nil;
+    BOOL launched = [task launchAndReturnError:&launchError];
+    if (!launched) {
+        self.cloneTask = nil;
+        dialog.busy = NO;
+        dialog.status =
+            [NSString stringWithFormat:@"Clone could not start: %@",
+                                       launchError.localizedDescription ?: @"Git is unavailable."];
+        return;
+    }
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+      NSData* data = [output.fileHandleForReading readDataToEndOfFile];
+      [task waitUntilExit];
+      NSString* message = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] ?: @"";
+      dispatch_async(dispatch_get_main_queue(), ^{
+        if (self.cloneTask == task) {
+            self.cloneTask = nil;
+        }
+        if (self.cloneDialog != dialog) {
+            return;
+        }
+        dialog.busy = NO;
+        if (task.terminationStatus == 0) {
+            [self cloneDialogDidCancel:dialog];
+            [self openRecentProjectAtUrl:targetUrl];
+        } else {
+            NSString* detail = message;
+            detail = [detail
+                stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+            dialog.status =
+                detail.length > 0
+                    ? [NSString
+                          stringWithFormat:@"Clone failed: %@",
+                                           [detail substringFromIndex:detail.length > 180
+                                                                          ? detail.length - 180
+                                                                          : 0]]
+                    : @"Clone failed. Check the URL, connection, and Git credentials.";
+        }
+      });
+    });
 }
 
 - (void)createFolder {
@@ -722,6 +1347,7 @@
     self.editor.fileUrl = fileUrl;
     [self.editor markSaved];
     [self updateTabMetadata];
+    [self checkToolsForFile:fileUrl];
     return YES;
 }
 
@@ -763,7 +1389,11 @@
                    completion:^{
                      [closingDialog removeFromSuperview];
                    }];
-    [self.window makeFirstResponder:self.editor ?: self.home];
+    if (self.cloneDialog != nil) {
+        [self.cloneDialog focusUrl];
+    } else {
+        [self.window makeFirstResponder:self.editor ?: self.home];
+    }
 }
 
 - (void)fileDialog:(KineticFileDialog*)dialog
@@ -820,18 +1450,25 @@
             [dialog showError:@"That folder does not exist."];
             return;
         }
+        if (self.pendingCloneUrl != nil) {
+            [self dismissFileDialog];
+            [self startCloneIntoDirectory:fileUrl];
+            return;
+        }
         ++self.searchGeneration;
         self.workspaceUrl = fileUrl;
         self.searchUiState = @{};
+        self.activitySection = KineticActivitySectionExplorer;
         [self recordRecentProject:fileUrl];
         [self dismissFileDialog];
         if (self.editor == nil) {
             self.workspaceUiState = @{};
-            [self openEditorWithContents:@"" fileUrl:nil];
+            [self openWorkspacePlaceholder];
         } else {
             for (KineticEditorView* editor in self.editors) {
                 editor.workspaceUrl = fileUrl;
                 [editor applySearchUiState:@{}];
+                [editor setActivitySection:self.activitySection animated:YES];
             }
             self.workspaceUiState = self.editor.workspaceUiState;
         }
@@ -873,11 +1510,14 @@
 
 - (void)fileDialogDidCancel:(KineticFileDialog*)dialog {
     if (dialog == self.fileDialog) {
+        self.pendingCloneUrl = nil;
         [self dismissFileDialog];
     }
 }
 
 - (BOOL)closeActiveTab {
+    if ([self.editor closeUtilityPanelIfOpen])
+        return YES;
     if (self.editor == nil) {
         return NO;
     }
@@ -891,6 +1531,9 @@
     }
 
     KineticEditorView* closingEditor = self.editors[index];
+    if (closingEditor.workspacePlaceholder) {
+        return NO;
+    }
     KineticEditorView* stateOwner = self.editor ?: closingEditor;
     self.workspaceUiState = stateOwner.workspaceUiState;
     self.searchUiState = stateOwner.searchUiState;
@@ -907,6 +1550,12 @@
         NSUInteger nextIndex = MIN(index, self.editors.count - 1);
         [closingEditor removeFromSuperview];
         [self activateTabAtIndex:nextIndex];
+        return YES;
+    }
+
+    if (self.workspaceUrl != nil) {
+        [closingEditor removeFromSuperview];
+        [self openWorkspacePlaceholder];
         return YES;
     }
 
@@ -939,10 +1588,12 @@
     ++self.searchGeneration;
     self.workspaceUrl = projectUrl;
     self.searchUiState = @{};
+    self.activitySection = KineticActivitySectionExplorer;
     [self recordRecentProject:projectUrl];
     for (KineticEditorView* editor in self.editors) {
         editor.workspaceUrl = projectUrl;
         [editor applySearchUiState:@{}];
+        [editor setActivitySection:self.activitySection animated:YES];
     }
     if (self.editor != nil) {
         self.workspaceUiState = self.editor.workspaceUiState;
@@ -950,7 +1601,7 @@
         self.workspaceUiState = @{};
     }
     if (self.editor == nil) {
-        [self openEditorWithContents:@"" fileUrl:nil];
+        [self openWorkspacePlaceholder];
     }
 }
 

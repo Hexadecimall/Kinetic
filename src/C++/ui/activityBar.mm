@@ -1,19 +1,22 @@
 #import "activityBar.h"
 #import "contextMenu.h"
+#import "theme.h"
 
 #import "tween.h"
 
 namespace {
 
 constexpr CGFloat kRailWidth = 38.0;
-constexpr CGFloat kPanelWidth = 224.0;
+CGFloat kPanelWidth = 224.0;
+constexpr CGFloat kMinimumPanelWidth = 176.0;
+constexpr CGFloat kMaximumPanelWidth = 520.0;
 constexpr CGFloat kButtonSize = 30.0;
 constexpr CGFloat kButtonGap = 5.0;
 constexpr CGFloat kTreeRowHeight = 23.0;
-constexpr CGFloat kTreeStartY = 218.0;
+constexpr CGFloat kTreeStartY = 255.0;
 
 NSColor* activityColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
-    return [NSColor colorWithSRGBRed:red / 255.0 green:green / 255.0 blue:blue / 255.0 alpha:alpha];
+    return kineticThemeColor(red, green, blue, alpha);
 }
 
 BOOL activityIsDirectory(NSURL* url) {
@@ -26,6 +29,7 @@ BOOL activityIsDirectory(NSURL* url) {
 
 @interface KineticActivityTreeEntry : NSObject
 @property(nonatomic, strong) NSURL* url;
+@property(nonatomic, copy) NSString* displayName;
 @property(nonatomic) NSUInteger depth;
 @property(nonatomic) BOOL directory;
 @end
@@ -33,17 +37,19 @@ BOOL activityIsDirectory(NSURL* url) {
 @implementation KineticActivityTreeEntry
 @end
 
-@interface KineticActivityBar () {
+@interface KineticActivityBar () <NSTextFieldDelegate> {
     KineticActivitySection _activeSection;
     KineticActivitySection _displayedSection;
     KineticActivitySection _hoveredSection;
     NSTrackingArea* _trackingArea;
     NSMutableSet<NSString*>* _expandedPaths;
     NSArray<KineticActivityTreeEntry*>* _treeEntries;
+    NSTextField* _searchField;
     NSInteger _hoveredPanelAction;
     CGFloat _treeScrollOffset;
     CGFloat _pluginScrollOffset;
     BOOL _animating;
+    BOOL _resizingPanel;
 }
 @end
 
@@ -56,6 +62,25 @@ BOOL activityIsDirectory(NSURL* url) {
 - (instancetype)initWithFrame:(NSRect)frameRect {
     self = [super initWithFrame:frameRect];
     if (self) {
+        static dispatch_once_t loadLayout;
+        dispatch_once(&loadLayout, ^{
+          NSString* path =
+              [NSHomeDirectory() stringByAppendingPathComponent:@".kinetic/layout.toml"];
+          NSString* saved = [NSString stringWithContentsOfFile:path
+                                                      encoding:NSUTF8StringEncoding
+                                                         error:nil];
+          NSRegularExpression* widthLine = [NSRegularExpression
+              regularExpressionWithPattern:@"(?m)^panelWidth\\s*=\\s*([0-9]+(?:\\.[0-9]+)?)\\s*$"
+                                   options:0
+                                     error:nil];
+          NSTextCheckingResult* match = [widthLine firstMatchInString:saved ?: @""
+                                                              options:0
+                                                                range:NSMakeRange(0, saved.length)];
+          if (match != nil) {
+              CGFloat width = [[saved substringWithRange:[match rangeAtIndex:1]] doubleValue];
+              kPanelWidth = MIN(kMaximumPanelWidth, MAX(kMinimumPanelWidth, width));
+          }
+        });
         _activeSection = KineticActivitySectionNone;
         _displayedSection = KineticActivitySectionNone;
         _hoveredSection = KineticActivitySectionNone;
@@ -69,6 +94,18 @@ BOOL activityIsDirectory(NSURL* url) {
         _treeScrollOffset = 0.0;
         _pluginScrollOffset = 0.0;
         _animating = NO;
+        _searchField = [[NSTextField alloc]
+            initWithFrame:NSMakeRect(kRailWidth + 22.0, 221.0, kPanelWidth - 42.0, 21.0)];
+        _searchField.placeholderString = @"Find files";
+        _searchField.font = [NSFont systemFontOfSize:11.5];
+        _searchField.textColor = activityColor(215, 224, 237);
+        _searchField.backgroundColor = NSColor.clearColor;
+        _searchField.drawsBackground = NO;
+        _searchField.bordered = NO;
+        _searchField.focusRingType = NSFocusRingTypeNone;
+        _searchField.delegate = self;
+        _searchField.hidden = YES;
+        [self addSubview:_searchField];
         self.autoresizingMask = NSViewHeightSizable;
     }
     return self;
@@ -156,6 +193,7 @@ BOOL activityIsDirectory(NSURL* url) {
     return @{
         @"expandedPaths" : _expandedPaths.allObjects,
         @"treeScrollOffset" : @(_treeScrollOffset),
+        @"fileQuery" : _searchField.stringValue ?: @"",
     };
 }
 
@@ -166,6 +204,8 @@ BOOL activityIsDirectory(NSURL* url) {
     if ([expandedPaths isKindOfClass:NSArray.class]) {
         [_expandedPaths addObjectsFromArray:expandedPaths];
     }
+    _searchField.stringValue =
+        [state[@"fileQuery"] isKindOfClass:NSString.class] ? state[@"fileQuery"] : @"";
     [self reloadTreeEntries];
     if ([treeScrollOffset isKindOfClass:NSNumber.class]) {
         _treeScrollOffset = MIN(treeScrollOffset.doubleValue, [self maximumTreeScroll]);
@@ -274,6 +314,7 @@ BOOL activityIsDirectory(NSURL* url) {
 - (void)setWorkspaceUrl:(NSURL*)workspaceUrl {
     _workspaceUrl = workspaceUrl;
     [_expandedPaths removeAllObjects];
+    _searchField.stringValue = @"";
     _treeScrollOffset = 0.0;
     [self reloadTreeEntries];
 }
@@ -300,6 +341,7 @@ BOOL activityIsDirectory(NSURL* url) {
     for (NSURL* url in urls) {
         KineticActivityTreeEntry* entry = [[KineticActivityTreeEntry alloc] init];
         entry.url = url;
+        entry.displayName = url.lastPathComponent;
         entry.depth = depth;
         entry.directory = activityIsDirectory(url);
         [entries addObject:entry];
@@ -312,16 +354,62 @@ BOOL activityIsDirectory(NSURL* url) {
     }
 }
 
+- (void)appendMatchingEntries:(NSMutableArray<KineticActivityTreeEntry*>*)entries {
+    NSString* query = _searchField.stringValue;
+    NSDirectoryEnumerator<NSURL*>* enumerator =
+        [NSFileManager.defaultManager enumeratorAtURL:_workspaceUrl
+                           includingPropertiesForKeys:@[ NSURLIsDirectoryKey ]
+                                              options:0
+                                         errorHandler:nil];
+    NSUInteger visited = 0;
+    for (NSURL* url in enumerator) {
+        if (++visited > 10000 || entries.count >= 500) {
+            break;
+        }
+        if ([url.lastPathComponent rangeOfString:query options:NSCaseInsensitiveSearch].location ==
+            NSNotFound) {
+            continue;
+        }
+        KineticActivityTreeEntry* entry = [[KineticActivityTreeEntry alloc] init];
+        entry.url = url;
+        entry.directory = activityIsDirectory(url);
+        NSString* rootPath = [_workspaceUrl.path stringByStandardizingPath];
+        NSString* entryPath = [url.path stringByStandardizingPath];
+        NSUInteger start = MIN(rootPath.length, entryPath.length);
+        if (start < entryPath.length && [entryPath characterAtIndex:start] == '/') {
+            ++start;
+        }
+        entry.displayName = [entryPath substringFromIndex:start];
+        entry.depth = 0;
+        [entries addObject:entry];
+    }
+    [entries sortUsingComparator:^NSComparisonResult(KineticActivityTreeEntry* left,
+                                                     KineticActivityTreeEntry* right) {
+      return [left.displayName localizedCaseInsensitiveCompare:right.displayName];
+    }];
+}
+
 - (void)reloadTreeEntries {
     if (_workspaceUrl == nil) {
         _treeEntries = @[];
     } else {
         NSMutableArray<KineticActivityTreeEntry*>* entries = [NSMutableArray array];
-        [self appendDirectory:_workspaceUrl depth:0 toEntries:entries];
+        if (_searchField.stringValue.length > 0) {
+            [self appendMatchingEntries:entries];
+        } else {
+            [self appendDirectory:_workspaceUrl depth:0 toEntries:entries];
+        }
         _treeEntries = entries;
     }
     _treeScrollOffset = MIN(_treeScrollOffset, [self maximumTreeScroll]);
     self.needsDisplay = YES;
+}
+
+- (void)controlTextDidChange:(NSNotification*)notification {
+    if (notification.object == _searchField) {
+        _treeScrollOffset = 0.0;
+        [self reloadTreeEntries];
+    }
 }
 
 - (CGFloat)maximumTreeScroll {
@@ -563,10 +651,15 @@ BOOL activityIsDirectory(NSURL* url) {
     truncatingStyle.lineBreakMode = NSLineBreakByTruncatingTail;
     NSMutableDictionary* documentAttributes = [bodyAttributes mutableCopy];
     documentAttributes[NSParagraphStyleAttributeName] = truncatingStyle;
-    [activityColor(103, 158, 255, 0.68) setFill];
-    NSRectFill(NSMakeRect(kRailWidth + 10.0, 78.0, 1.5, 15.0));
-    [_documentTitle drawInRect:NSMakeRect(kRailWidth + 18.0, 77.0, kPanelWidth - 32.0, 18.0)
-                withAttributes:documentAttributes];
+    if (_documentTitle.length > 0) {
+        [activityColor(103, 158, 255, 0.68) setFill];
+        NSRectFill(NSMakeRect(kRailWidth + 10.0, 78.0, 1.5, 15.0));
+        [_documentTitle drawInRect:NSMakeRect(kRailWidth + 18.0, 77.0, kPanelWidth - 32.0, 18.0)
+                    withAttributes:documentAttributes];
+    } else {
+        [@"No file open" drawInRect:NSMakeRect(kRailWidth + 18.0, 77.0, kPanelWidth - 32.0, 18.0)
+                     withAttributes:mutedAttributes];
+    }
 
     [self drawPanelButtonInRect:[self panelButtonRectAtY:110.0]
                           title:@"Open File…"
@@ -590,6 +683,12 @@ BOOL activityIsDirectory(NSURL* url) {
     [self drawNewFileButton];
     [self drawNewFolderButton];
 
+    NSRect searchRect = NSMakeRect(kRailWidth + 10.0, 214.0, kPanelWidth - 20.0, 32.0);
+    [activityColor(35, 44, 57, 0.84) setFill];
+    [[NSBezierPath bezierPathWithRoundedRect:searchRect xRadius:4.0 yRadius:4.0] fill];
+    [activityColor(75, 92, 118, 0.65) setStroke];
+    [[NSBezierPath bezierPathWithRoundedRect:searchRect xRadius:4.0 yRadius:4.0] stroke];
+
     NSRect treeClip = NSMakeRect(kRailWidth + 1.0, kTreeStartY, kPanelWidth - 1.0,
                                  MAX(0.0, NSHeight(self.bounds) - kTreeStartY));
     [NSGraphicsContext saveGraphicsState];
@@ -612,11 +711,15 @@ BOOL activityIsDirectory(NSURL* url) {
             NSMakeRect(NSMinX(rowRect) + 7.0 + indentation, NSMidY(rowRect) - 5.5, 13.0, 11.0);
         [self drawTreeIconForEntry:entry inRect:iconRect];
         CGFloat textX = NSMaxX(iconRect) + 7.0;
-        [entry.url.lastPathComponent drawInRect:NSMakeRect(textX, NSMinY(rowRect) + 4.0,
-                                                           NSMaxX(rowRect) - textX - 6.0, 17.0)
-                                 withAttributes:documentAttributes];
+        [entry.displayName drawInRect:NSMakeRect(textX, NSMinY(rowRect) + 4.0,
+                                                 NSMaxX(rowRect) - textX - 6.0, 17.0)
+                       withAttributes:documentAttributes];
     }
     [NSGraphicsContext restoreGraphicsState];
+    if (_treeEntries.count == 0 && _searchField.stringValue.length > 0) {
+        [@"No matching files" drawAtPoint:NSMakePoint(kRailWidth + 15.0, kTreeStartY + 8.0)
+                           withAttributes:mutedAttributes];
+    }
 }
 
 - (void)drawPanel {
@@ -675,72 +778,11 @@ BOOL activityIsDirectory(NSURL* url) {
         break;
     case KineticActivitySectionSourceControl:
         [self drawSectionHeader:@"REPOSITORY" atY:45.0 attributes:headingAttributes];
-        [@"No repository detected"
+        [@"Source control is unavailable."
                 drawInRect:NSMakeRect(kRailWidth + 14.0, 82.0, kPanelWidth - 28.0, 18.0)
             withAttributes:bodyAttributes];
-        [@"GitHub accounts and repositories will appear here."
-                drawInRect:NSMakeRect(kRailWidth + 14.0, 108.0, kPanelWidth - 28.0, 34.0)
-            withAttributes:mutedAttributes];
         break;
     case KineticActivitySectionPlugins:
-        [self drawSectionHeader:@"INSTALLED" atY:45.0 attributes:headingAttributes];
-        [@"Kinetic Core" drawInRect:NSMakeRect(kRailWidth + 14.0, 82.0, kPanelWidth - 28.0, 18.0)
-                     withAttributes:bodyAttributes];
-        if (_pluginNames.count == 0) {
-            [(_pluginConfigurationError ?: @"No native plugins installed.")
-                    drawInRect:NSMakeRect(kRailWidth + 14.0, 112.0, kPanelWidth - 28.0, 34.0)
-                withAttributes:mutedAttributes];
-        }
-        for (NSUInteger index = 0; index < _pluginNames.count; ++index) {
-            CGFloat y = 112.0 + index * 25.0;
-            [_pluginNames[index]
-                    drawInRect:NSMakeRect(kRailWidth + 14.0, y, kPanelWidth - 28.0, 20.0)
-                withAttributes:bodyAttributes];
-        }
-        if (_pluginCommands.count > 0) {
-            CGFloat headerY = 126.0 + _pluginNames.count * 25.0;
-            [self drawSectionHeader:@"COMMANDS" atY:headerY attributes:headingAttributes];
-            for (NSUInteger index = 0; index < _pluginCommands.count; ++index) {
-                CGFloat y = headerY + 36.0 + index * 29.0;
-                NSRect buttonRect = NSMakeRect(kRailWidth + 10.0, y, kPanelWidth - 20.0, 25.0);
-                [activityColor(58, 69, 84,
-                               _hoveredPanelAction == (NSInteger)index + 200 ? 0.92 : 0.72)
-                    setFill];
-                [[NSBezierPath bezierPathWithRoundedRect:buttonRect xRadius:4.0 yRadius:4.0] fill];
-                [_pluginCommands[index][@"title"] drawInRect:NSInsetRect(buttonRect, 9.0, 3.0)
-                                              withAttributes:bodyAttributes];
-            }
-        }
-        if (_pluginPanels.count > 0) {
-            CGFloat y = [self pluginPanelsStartY];
-            [self drawSectionHeader:@"VIEWS" atY:y attributes:headingAttributes];
-            y += 36.0;
-            NSUInteger buttonIndex = 0;
-            for (NSDictionary<NSString*, id>* panel in _pluginPanels) {
-                [panel[@"title"]
-                        drawInRect:NSMakeRect(kRailWidth + 14.0, y, kPanelWidth - 28.0, 20.0)
-                    withAttributes:bodyAttributes];
-                y += 27.0;
-                for (NSDictionary<NSString*, NSString*>* row in panel[@"rows"]) {
-                    NSRect rect = NSMakeRect(kRailWidth + 10.0, y, kPanelWidth - 20.0, 25.0);
-                    if ([row[@"kind"] isEqualToString:@"button"]) {
-                        [activityColor(58, 69, 84,
-                                       _hoveredPanelAction == (NSInteger)buttonIndex + 300 ? 0.92
-                                                                                           : 0.72)
-                            setFill];
-                        [[NSBezierPath bezierPathWithRoundedRect:rect xRadius:4.0
-                                                         yRadius:4.0] fill];
-                        ++buttonIndex;
-                    }
-                    [row[@"title"]
-                            drawInRect:NSInsetRect(rect, 9.0, 3.0)
-                        withAttributes:[row[@"kind"] isEqualToString:@"button"] ? bodyAttributes
-                                                                                : mutedAttributes];
-                    y += 29.0;
-                }
-                y += 9.0;
-            }
-        }
         break;
     case KineticActivitySectionSettings:
     case KineticActivitySectionNone:
@@ -754,6 +796,8 @@ BOOL activityIsDirectory(NSURL* url) {
 
 - (void)drawRect:(NSRect)dirtyRect {
     (void)dirtyRect;
+    _searchField.hidden = _displayedSection != KineticActivitySectionExplorer ||
+                          _workspaceUrl == nil || NSWidth(self.bounds) <= kRailWidth;
     [activityColor(44, 53, 66, 0.92) setFill];
     NSRectFill(NSMakeRect(0.0, 0.0, kRailWidth, NSHeight(self.bounds)));
     [self drawPanel];
@@ -781,7 +825,15 @@ BOOL activityIsDirectory(NSURL* url) {
     }
 
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+    if (NSWidth(self.bounds) > kRailWidth + 1.0 && point.x >= NSWidth(self.bounds) - 7.0) {
+        _resizingPanel = YES;
+        return;
+    }
     KineticActivitySection section = [self sectionAtPoint:point];
+    if (section == KineticActivitySectionSettings || section == KineticActivitySectionPlugins) {
+        [self.delegate activityBar:self didActivateSection:section];
+        return;
+    }
     if (section != KineticActivitySectionNone) {
         if (section == _activeSection) {
             [self.delegate activityBar:self didActivateSection:KineticActivitySectionNone];
@@ -791,7 +843,8 @@ BOOL activityIsDirectory(NSURL* url) {
 
         _activeSection = section;
         [self.delegate activityBar:self didActivateSection:section];
-        BOOL opensPanel = section != KineticActivitySectionSettings;
+        BOOL opensPanel =
+            section != KineticActivitySectionSettings && section != KineticActivitySectionPlugins;
         if (opensPanel) {
             _displayedSection = section;
             if (NSWidth(self.frame) < kRailWidth + kPanelWidth - 0.5) {
@@ -850,6 +903,12 @@ BOOL activityIsDirectory(NSURL* url) {
             }
             KineticActivityTreeEntry* entry = _treeEntries[index];
             if (entry.directory) {
+                if (_searchField.stringValue.length > 0) {
+                    _searchField.stringValue = @"";
+                    [_expandedPaths addObject:entry.url.path];
+                    [self revealCreatedFolderAtUrl:entry.url];
+                    return;
+                }
                 if ([_expandedPaths containsObject:entry.url.path]) {
                     [_expandedPaths removeObject:entry.url.path];
                 } else {
@@ -862,27 +921,43 @@ BOOL activityIsDirectory(NSURL* url) {
             return;
         }
     } else if (_activeSection == KineticActivitySectionPlugins) {
-        if (point.y < 45.0) {
-            return;
-        }
-        point.y += _pluginScrollOffset;
-        CGFloat headerY = 126.0 + _pluginNames.count * 25.0;
-        for (NSUInteger index = 0; index < _pluginCommands.count; ++index) {
-            NSRect buttonRect = NSMakeRect(kRailWidth + 10.0, headerY + 36.0 + index * 29.0,
-                                           kPanelWidth - 20.0, 25.0);
-            if (NSPointInRect(point, buttonRect)) {
-                [self.delegate activityBar:self
-                    didRequestPluginCommand:_pluginCommands[index][@"id"]];
-                return;
-            }
-        }
-        for (NSDictionary<NSString*, id>* button in [self pluginPanelButtons]) {
-            if (NSPointInRect(point, [button[@"rect"] rectValue])) {
-                [self.delegate activityBar:self didRequestPluginCommand:button[@"id"]];
-                return;
-            }
-        }
+        return;
     }
+}
+
+- (void)mouseDragged:(NSEvent*)event {
+    if (!_resizingPanel) {
+        return;
+    }
+    NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+    CGFloat availableWidth = MAX(kMinimumPanelWidth, NSWidth(self.superview.bounds) - 260.0);
+    kPanelWidth =
+        MIN(MIN(kMaximumPanelWidth, availableWidth), MAX(kMinimumPanelWidth, point.x - kRailWidth));
+    NSRect frame = self.frame;
+    frame.size.width = kRailWidth + kPanelWidth;
+    self.frame = frame;
+    _searchField.frame = NSMakeRect(kRailWidth + 22.0, 221.0, kPanelWidth - 42.0, 21.0);
+    self.needsDisplay = YES;
+    self.superview.needsDisplay = YES;
+    [self.superview.window invalidateCursorRectsForView:self];
+}
+
+- (void)mouseUp:(NSEvent*)event {
+    (void)event;
+    if (!_resizingPanel) {
+        return;
+    }
+    _resizingPanel = NO;
+    NSString* directory = [NSHomeDirectory() stringByAppendingPathComponent:@".kinetic"];
+    [NSFileManager.defaultManager createDirectoryAtPath:directory
+                            withIntermediateDirectories:YES
+                                             attributes:nil
+                                                  error:nil];
+    NSString* path = [directory stringByAppendingPathComponent:@"layout.toml"];
+    NSString* layout = [NSString
+        stringWithFormat:@"# Kinetic workspace layout\n[activityBar]\npanelWidth = %.1f\n",
+                         kPanelWidth];
+    [layout writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:nil];
 }
 
 - (void)rightMouseDown:(NSEvent*)event {
@@ -958,6 +1033,10 @@ BOOL activityIsDirectory(NSURL* url) {
 - (void)resetCursorRects {
     [super resetCursorRects];
     [self addCursorRect:self.bounds cursor:NSCursor.arrowCursor];
+    if (NSWidth(self.bounds) > kRailWidth + 1.0) {
+        [self addCursorRect:NSMakeRect(NSWidth(self.bounds) - 7.0, 0.0, 7.0, NSHeight(self.bounds))
+                     cursor:NSCursor.resizeLeftRightCursor];
+    }
 }
 
 - (void)scrollWheel:(NSEvent*)event {

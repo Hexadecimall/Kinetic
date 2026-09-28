@@ -25,6 +25,7 @@ hdiutil create -quiet -volname Kinetic -srcfolder "$STAGING" -ov -format UDZO \
     "$DIST/Kinetic-$VERSION-macos-arm64.dmg"
 
 "$SCRIPT_DIR/generate-macports"
+python3 "$SCRIPT_DIR/generateHomebrew.py" --unnotarized
 
 (
     cd "$DIST"

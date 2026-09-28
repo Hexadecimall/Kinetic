@@ -67,6 +67,17 @@ uint64_t formatSample(void*, const char* input, uint64_t length, char* output, u
     return length;
 }
 
+uint32_t completeSample(void*, const char* prefix, uint64_t prefixLength,
+                        KineticPluginCompletionItem* items, uint32_t capacity) {
+    if (capacity == 0 || prefixLength != 2 || std::strncmp(prefix, "sa", 2) != 0) {
+        return 0;
+    }
+    std::strcpy(items[0].label, "sampleToken");
+    std::strcpy(items[0].insertText, "sampleToken");
+    std::strcpy(items[0].detail, "Sample plugin");
+    return 1;
+}
+
 int32_t startPlugin(const KineticPluginApi* api) {
     if (api == nullptr || api->abiVersion != kineticPluginAbiVersion ||
         api->structSize < sizeof(KineticPluginApi)) {
@@ -96,6 +107,7 @@ int32_t startPlugin(const KineticPluginApi* api) {
         api->registerPanel(api->context, "sample.panel", "Sample Tools", panelRows, nullptr) != 0 ||
         api->registerOverlay(api->context, "sample.overlay", overlay, nullptr) != 0 ||
         api->registerFormatter(api->context, "kineticdemo", formatSample, nullptr) != 0 ||
+        api->registerCompletionProvider(api->context, "kineticdemo", completeSample, nullptr) != 0 ||
         api->subscribeEvent(api->context, "document.activated", onDocumentActivated, nullptr) !=
             0) {
         return -1;

@@ -14,6 +14,11 @@ void printHelp() {
               << "Options:\n"
               << "  --help       Show this help\n"
               << "  --version    Show the version\n";
+    std::cout << "\n"
+              << "Package management:\n"
+              << "  plugins list [--json]|install ID|update ID|uninstall ID\n"
+              << "  app check|install|update|uninstall\n"
+              << "  tools status|install clangd|install clang-format\n";
 }
 
 } // namespace
@@ -28,6 +33,11 @@ int main(int argc, char** argv) {
         std::cout << "kinetic " << kineticBackendVersion() << " (ABI " << kineticBackendAbiVersion()
                   << ")\n";
         return 0;
+    }
+
+    if (std::string_view(argv[1]) == "plugins" || std::string_view(argv[1]) == "app" ||
+        std::string_view(argv[1]) == "tools") {
+        return kineticPackageMain();
     }
 
     std::cerr << "kinetic: opening paths is not implemented yet\n";

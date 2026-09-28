@@ -137,6 +137,11 @@ int main(int argc, const char* argv[]) {
         require([[host formatDocument:@"hello"
                              fileName:@"notes.kineticdemo"] isEqualToString:@"HELLO"],
                 @"formatter transformed document");
+        NSArray* completions = [host completionItemsForPrefix:@"sa" fileName:@"notes.kineticdemo"];
+        require(completions.count == 1 && [completions[0][@"insertText"] isEqualToString:@"sampleToken"],
+                @"plugin completion provided to native editor");
+        require([host completionItemsForPrefix:@"sa" fileName:@"notes.txt"].count == 0,
+                @"completion provider scoped by extension");
         require([host executeShortcutKey:@"p"
                                modifiers:kineticPluginModifierCommand | kineticPluginModifierShift],
                 @"plugin shortcut executed");

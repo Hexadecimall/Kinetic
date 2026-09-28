@@ -137,39 +137,47 @@ NSNumber* numberValue(id value) {
     NSMutableDictionary* query = [self keychainQuery];
     query[(__bridge id)kSecReturnData] = @YES;
     query[(__bridge id)kSecMatchLimit] = (__bridge id)kSecMatchLimitOne;
-    CFTypeRef result = nullptr;
-    OSStatus status = SecItemCopyMatching((__bridge CFDictionaryRef)query, &result);
-    if (status == errSecItemNotFound) {
-        return;
-    }
-    if (status != errSecSuccess || result == nullptr) {
-        [self showError:@"Could not read the saved GitHub session from Keychain."];
-        return;
-    }
-    NSData* data = CFBridgingRelease(result);
-    NSDictionary* stored = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
-    if (![stored isKindOfClass:NSDictionary.class] ||
-        textValue(stored[@"accessToken"]).length == 0) {
-        [self clearSession];
-        return;
-    }
-    self.accessToken = textValue(stored[@"accessToken"]);
-    self.refreshToken = textValue(stored[@"refreshToken"]);
-    self.login = textValue(stored[@"login"]);
-    self.displayName = textValue(stored[@"displayName"]);
-    self.accessExpiresAt =
-        [NSDate dateWithTimeIntervalSince1970:numberValue(stored[@"accessExpiresAt"]).doubleValue];
-    self.refreshExpiresAt =
-        [NSDate dateWithTimeIntervalSince1970:numberValue(stored[@"refreshExpiresAt"]).doubleValue];
-    self.phase = KineticGitHubAccountPhaseLoadingProfile;
-    self.statusText = @"Checking GitHub session…";
-    [self notifyChange];
-    if (self.accessExpiresAt.timeIntervalSince1970 > 0 &&
-        [self.accessExpiresAt timeIntervalSinceNow] < 60.0) {
-        [self refreshSession];
-    } else {
-        [self loadProfileAllowingRefresh:YES];
-    }
+    NSUInteger generation = self.flowGeneration;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+      CFTypeRef result = nullptr;
+      OSStatus status = SecItemCopyMatching((__bridge CFDictionaryRef)query, &result);
+      NSData* data = result == nullptr ? nil : CFBridgingRelease(result);
+      dispatch_async(dispatch_get_main_queue(), ^{
+        if (self.flowGeneration != generation || self.phase != KineticGitHubAccountPhaseSignedOut) {
+            return;
+        }
+        if (status == errSecItemNotFound) {
+            return;
+        }
+        if (status != errSecSuccess || data == nil) {
+            [self showError:@"Could not read the saved GitHub session from Keychain."];
+            return;
+        }
+        NSDictionary* stored = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+        if (![stored isKindOfClass:NSDictionary.class] ||
+            textValue(stored[@"accessToken"]).length == 0) {
+            [self clearSession];
+            return;
+        }
+        self.accessToken = textValue(stored[@"accessToken"]);
+        self.refreshToken = textValue(stored[@"refreshToken"]);
+        self.login = textValue(stored[@"login"]);
+        self.displayName = textValue(stored[@"displayName"]);
+        self.accessExpiresAt = [NSDate
+            dateWithTimeIntervalSince1970:numberValue(stored[@"accessExpiresAt"]).doubleValue];
+        self.refreshExpiresAt = [NSDate
+            dateWithTimeIntervalSince1970:numberValue(stored[@"refreshExpiresAt"]).doubleValue];
+        self.phase = KineticGitHubAccountPhaseLoadingProfile;
+        self.statusText = @"Checking GitHub session…";
+        [self notifyChange];
+        if (self.accessExpiresAt.timeIntervalSince1970 > 0 &&
+            [self.accessExpiresAt timeIntervalSinceNow] < 60.0) {
+            [self refreshSession];
+        } else {
+            [self loadProfileAllowingRefresh:YES];
+        }
+      });
+    });
 }
 
 - (void)sendRequest:(NSURLRequest*)request

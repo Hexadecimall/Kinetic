@@ -7,8 +7,37 @@
 extern "C" {
 #endif
 
+bool kineticPreferenceRead(const char* key, double* value);
+bool kineticPreferenceWrite(const char* key, double value);
+
 uint32_t kineticBackendAbiVersion(void);
 const char* kineticBackendVersion(void);
+int32_t kineticPackageMain(void);
+
+typedef struct KineticCompletionItem {
+    uint8_t label[96];
+    uint8_t insertText[96];
+    uint32_t kind;
+} KineticCompletionItem;
+typedef struct KineticCompletionConfig {
+    bool enabled;
+    uint32_t minPrefix;
+    uint32_t maxResults;
+} KineticCompletionConfig;
+uint32_t kineticCompletionCollect(const uint8_t* bytes, uint64_t length, uint64_t caretUtf16,
+                                  uint32_t minPrefix, KineticCompletionItem* items,
+                                  uint32_t capacity, uint64_t* prefixStartUtf16);
+int32_t kineticCompletionReadConfig(KineticCompletionConfig* output);
+int32_t kineticCompletionWriteConfig(const KineticCompletionConfig* input);
+typedef struct KineticIndentationConfig {
+    uint32_t tabWidth;
+    bool insertTabs;
+    bool autoIndent;
+    bool indentUnitNavigation;
+    bool showIndentGuides;
+} KineticIndentationConfig;
+int32_t kineticIndentationReadConfig(KineticIndentationConfig* output);
+int32_t kineticIndentationWriteConfig(const KineticIndentationConfig* input);
 
 typedef struct KineticDocument KineticDocument;
 typedef struct KineticExtensionRegistry KineticExtensionRegistry;
@@ -21,6 +50,7 @@ enum {
     kineticExtensionOverlay = 5,
     kineticExtensionFormatter = 6,
     kineticExtensionSyntax = 7,
+    kineticExtensionCompletion = 8,
 };
 
 KineticExtensionRegistry* kineticExtensionRegistryCreate(void);

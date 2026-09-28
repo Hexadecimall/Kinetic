@@ -1,4 +1,5 @@
 #import "contextMenu.h"
+#import "theme.h"
 
 namespace {
 constexpr CGFloat kMenuWidth = 196.0;
@@ -6,7 +7,7 @@ constexpr CGFloat kRowHeight = 27.0;
 constexpr CGFloat kPadding = 7.0;
 
 NSColor* menuColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
-    return [NSColor colorWithSRGBRed:red / 255.0 green:green / 255.0 blue:blue / 255.0 alpha:alpha];
+    return kineticThemeColor(red, green, blue, alpha);
 }
 } // namespace
 

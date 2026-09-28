@@ -1,0 +1,16 @@
+cask "kinetic" do
+  version "@VERSION@"
+  sha256 "@SHA256@"
+
+  url "https://github.com/Hexadecimall/Kinetic/releases/download/v#{version}/Kinetic-#{version}-macos-arm64.zip"
+  name "Kinetic"
+  desc "Code editor with Rust and C++ plugin support"
+  homepage "https://github.com/Hexadecimall/Kinetic"
+
+  depends_on arch: :arm64
+  depends_on macos: :sequoia
+
+  app "Kinetic.app"
+  binary "#{appdir}/Kinetic.app/Contents/Resources/bin/kinetic"
+@CAVEATS@
+end

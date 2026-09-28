@@ -30,6 +30,7 @@
 @interface KineticPluginHost : NSObject
 @property(nonatomic, assign) id<KineticPluginHostDelegate> delegate;
 @property(nonatomic, readonly, copy) NSArray<NSString*>* loadedPluginNames;
+@property(nonatomic, readonly, copy) NSDictionary<NSString*, NSString*>* loadedPluginVersions;
 @property(nonatomic, readonly, copy) NSArray<NSDictionary<NSString*, NSString*>*>* commands;
 @property(nonatomic, readonly, copy) NSArray<NSDictionary<NSString*, NSString*>*>* fileMenuItems;
 @property(nonatomic, readonly, copy) NSArray<NSDictionary<NSString*, id>*>* panels;
@@ -43,5 +44,12 @@
 - (void)drawOverlaysInRect:(NSRect)rect;
 - (NSArray<NSArray<NSDictionary<NSString*, id>*>*>*)syntaxTokensForLines:(NSArray<NSString*>*)lines
                                                                 fileName:(NSString*)fileName;
+- (NSArray<NSDictionary<NSString*, NSString*>*>*)completionItemsForPrefix:(NSString*)prefix
+                                                                 fileName:(NSString*)fileName;
+- (BOOL)hasCompletionProviderForFileName:(NSString*)fileName;
+- (BOOL)applyDiagnosticFixForPath:(NSString*)path
+                             line:(NSUInteger)line
+                           column:(NSUInteger)column
+                           length:(NSUInteger)length;
 - (void)emitEvent:(NSString*)eventName;
 @end

@@ -2,7 +2,158 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.22.0 - Unreleased
+## 0.31.1
+
+### Added
+
+- Generate an Apple Silicon Homebrew cask from the release archive with exact version and checksum validation, an embedded CLI link, and no bundled language tools.
+
+## 0.31.0
+
+### Changed
+
+- Stop bundling LLVM language tools. Detect usable clangd and clang-format and offer missing tools through a custom Yes/No prompt.
+- Install checksum-pinned standalone packages privately, preserve license notices, and retry language services after installation.
+
+## 0.30.1
+
+### Fixed
+
+- Command-Delete clears the name field in Save As, New File, and New Folder using the editor's shared line-deletion helper. Backspace still deletes one grapheme.
+
+## 0.30.0
+
+### Added
+
+- Optional smooth caret movement with adjustable duration and stretch, exposed in Settings and the plugin API. Reduced Motion disables the effect.
+
+## 0.29.1
+
+### Changed
+
+- Removed promotional wording and request narration from documentation; corrected configuration, plugin, and language-tooling descriptions.
+- Replaced the Source Control placeholder's repository claim with an unavailable status.
+
+## 0.29.0
+
+### Added
+
+- Bundle clangd, clang-format, resource headers, runtime libraries, and redistribution notices; prefer those tools over system installations.
+- Handle Objective-C and Objective-C++ documents through clangd with the correct language IDs, completion, diagnostics, formatting, and header/source navigation.
+- Reject incompatible LLVM binaries when preparing a macOS release; development bundles explicitly warn about newer toolchain requirements.
+
+## 0.28.0
+
+### Improved
+
+- Replaced Settings and Plugins editor pages with rounded, animated overlays that preserve the workspace and Explorer.
+- Organized 23 settings into searchable categories, with centered compact steppers, animated switches, and silent successful saves.
+- Added Settings controls for themes, font presets, letter spacing, current-line highlighting, diagnostics, tab sizing, and panel motion.
+- Persisted numeric editor preferences through Rust with validated loading and atomic writes; retained TOML indentation/completion and theme configuration.
+
+## 0.27.3
+
+### Fixed
+
+- Collapse the empty tab strip and move the Explorer beneath the titlebar when no tabs are open, preserving the strip for documents, Settings, and Plugins.
+
+## 0.27.2
+
+### Fixed
+
+- Keep the Command Palette opaque beneath its search divider, preventing background content from leaking through the separator.
+
+## 0.27.1
+
+### Improved
+
+- Redesigned Midnight and Graphite with complete surface, text, selection, diagnostic, and syntax palettes loaded from bundled TOML files.
+- Fixed immediate theme switching for existing editor canvases and input fields, while preserving explicit plugin canvas colors.
+- Added user palette overrides in `~/.kinetic/themes/` and contrast validation for both alternate themes.
+
+## 0.27.0
+
+### Added
+
+- Remember window position and size across launches, keeping restored windows visible on the current monitors.
+- Bundled Official C/C++ Support 0.2.0 inside Kinetic.app and marked it Included in the plugin browser and bundled CLI.
+- Added a searchable Command Palette with Command-Shift-P, a custom Clone Repository flow, and an Explorer panel edge that resizes and persists in `~/.kinetic/layout.toml`.
+- Added Kinetic Dark, Midnight, and Graphite color presets selectable from the Command Palette; the choice persists in `~/.kinetic/theme.toml`.
+
+### Fixed
+
+- Gave the Plugins search field enough inset so its text no longer overlaps the search icon.
+
+## 0.26.0
+
+### Added
+
+- Added clangd member completion after `.`, `->`, and `::` without requiring a typed prefix;
+  new configurations default to 12 suggestions after one character.
+- Added small inline Fix buttons for clangd diagnostics with quick fixes, backed by actual
+  `textDocument/codeAction` requests and same-file edit validation.
+- Added indentation-unit cursor movement and faint indentation markers/guides, with Settings and
+  dotfile controls.
+
+### Fixed
+
+- Diagnostic messages no longer occupy the code line; hovering an underline reveals a compact
+  message popover with the Fix action when available.
+- C/C++ Support discovers CMake compilation databases in common build directories and restarts
+  clangd when the active project changes, avoiding fallback-parser error cascades.
+
+## 0.25.0
+
+### Added
+
+- Added a compact, animated Settings page with Command-Comma access, shared live controls,
+  dotfile-backed autocomplete and indentation preferences, and spaces-or-tabs selection.
+- Added file-name search in Explorer and custom Open File/Open Folder pickers.
+- Connected installable C/C++ Support 0.2.0 to clangd completion, including an actual clangd
+  integration test. Its registry update follows publication of the immutable 0.2.0 asset.
+
+### Fixed
+
+- Opening a project no longer creates an Untitled document; closing the last real document keeps
+  an empty workspace when a project remains open.
+- Backspace removes one indentation unit from leading whitespace.
+- Plugin install/update/remove use a dedicated confirmation panel rather than a context menu.
+- Suggestion popups fit their contents and omit redundant headings and generic word labels.
+
+## 0.24.0
+
+### Added
+
+- Added Rust-owned document-word autocomplete with a Kinetic-drawn suggestion popup, keyboard
+  navigation, and `[autocomplete]` settings in the user dotfile.
+- Added an append-only native plugin API for extension-scoped completion providers and live
+  autocomplete controls for installed plugins.
+
+### Changed
+
+- C/C++ Support is now built and published as a separate Official plugin, not copied into
+  Kinetic.app. It can be installed, updated, and removed through the Plugins page or CLI.
+
+## 0.23.0
+
+### Added
+
+- Added a searchable Discover/Installed plugin page with publisher, Official status, description,
+  version, technical details, and unrated state. Bundled C/C++ Support is marked Included,
+  not presented as a removable core plugin.
+- Added Rust-owned CLI and in-app plugin install, update, and removal against the public catalog.
+  Downloads are size- and SHA-256-checked; native plugins require a restart after changes.
+- Added CLI and Settings controls to check, install, update, or uninstall a user-installed app.
+  App updates require an immutable GitHub release asset, a matching signed bundle, and a SHA-256
+  digest. Existing installations are retained for recovery.
+
+### Fixed
+
+- Restored GitHub account sessions off the main UI thread so Keychain lookup cannot block launch.
+- Moved plugin commands out of the Plugins navigation pane; they remain available through their
+  registered command actions.
+
+## 0.22.0
 
 ### Added
 
