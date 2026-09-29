@@ -44,12 +44,16 @@ after the macOS experience is mature.
 Apple Silicon, macOS 15 or newer:
 
 ```sh
-brew install --cask Hexadecimall/Kinetic/kinetic
+brew install --formula Hexadecimall/Kinetic/kinetic
 ```
 
-The preview is not notarized. If macOS blocks launch, review the app in System Settings →
-Privacy & Security. The cask installs the app and `kinetic` CLI, without LLVM or language servers.
-Updates use `brew upgrade --cask Hexadecimall/Kinetic/kinetic`.
+Homebrew builds the app locally using Command Line Tools, CMake, and an existing Rust toolchain.
+Install Rust with rustup first if Cargo is unavailable. LLVM and language servers are not bundled
+or added as formula dependencies. Updates use `brew upgrade --formula Hexadecimall/Kinetic/kinetic`.
+Launch with `open "$(brew --prefix kinetic)/Kinetic.app"`.
+
+For an existing cask installation, run `brew uninstall --cask kinetic` before installing the
+formula. Settings and privately downloaded tools remain in `~/.kinetic/`.
 
 The source installer (`./scripts/install`) signs the installed copy locally and verifies its
 signature before linking the CLI. To install an already extracted release without building:
