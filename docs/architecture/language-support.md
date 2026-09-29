@@ -19,6 +19,8 @@ Superseded completion requests are cancelled. Definition replies are accepted on
 requesting document version, and older diagnostic versions cannot replace current analysis.
 The C/C++ plugin notifies the active editor as soon as clangd returns completions. A timer remains
 for older completion providers that do not send readiness notifications.
+Member access and C-family include/import paths continue requesting suggestions while the prefix
+is shorter than the general autocomplete minimum.
 
 ## Additional languages
 

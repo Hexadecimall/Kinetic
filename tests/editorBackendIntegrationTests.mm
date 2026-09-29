@@ -10,7 +10,41 @@
 - (void)drawCaretAtRect:(NSRect)target;
 - (NSRect)completionPopupRect;
 - (void)acceptCompletionAtIndex:(NSUInteger)index;
+- (void)refreshCompletionsWithMinimum:(NSUInteger)minimum;
 - (NSRect)fixRectForLine:(NSUInteger)index diagnostic:(NSDictionary<NSString*, id>*)diagnostic;
+@end
+
+@interface CompletionRenderer : NSObject <KineticEditorOverlayRenderer>
+@property(nonatomic, copy) NSString* requestedPrefix;
+@end
+
+@implementation CompletionRenderer
+- (void)drawPluginOverlaysInRect:(NSRect)rect { (void)rect; }
+- (NSArray*)pluginSyntaxTokensForLines:(NSArray*)lines fileName:(NSString*)fileName {
+    (void)lines;
+    (void)fileName;
+    return @[];
+}
+- (NSArray*)pluginCompletionItemsForPrefix:(NSString*)prefix fileName:(NSString*)fileName {
+    (void)fileName;
+    self.requestedPrefix = prefix;
+    return @[ @{ @"label" : @"xyz", @"insertText" : @"xyz", @"filterText" : @"xyz" },
+              @{ @"label" : @"vector", @"insertText" : @"vector", @"filterText" : @"vector" } ];
+}
+- (BOOL)hasPluginCompletionProviderForFileName:(NSString*)fileName {
+    (void)fileName;
+    return YES;
+}
+- (BOOL)applyPluginDiagnosticFixForPath:(NSString*)path
+                                   line:(NSUInteger)line
+                                 column:(NSUInteger)column
+                                 length:(NSUInteger)length {
+    (void)path;
+    (void)line;
+    (void)column;
+    (void)length;
+    return NO;
+}
 @end
 
 @interface KineticActivityBar (SearchTest)
@@ -140,6 +174,42 @@ int main() {
         [editor keyDown:acceptKey];
         passed = check([editor.documentText isEqualToString:@"helper helper"],
                        @"native completion accepted") &&
+                 passed;
+        CompletionRenderer* completionRenderer = [[CompletionRenderer alloc] init];
+        KineticEditorView* memberEditor =
+            [[KineticEditorView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)
+                                            contents:@"object.x"
+                                             fileUrl:[NSURL fileURLWithPath:@"/tmp/main.cpp"]];
+        memberEditor.overlayRenderer = completionRenderer;
+        [memberEditor setPluginSelection:NSMakeRange(memberEditor.documentText.length, 0)];
+        [memberEditor refreshCompletionsWithMinimum:2];
+        passed = check([completionRenderer.requestedPrefix isEqualToString:@"x"] &&
+                           [[memberEditor valueForKey:@"completionItems"] count] > 0,
+                       @"member completion continues below minimum prefix") &&
+                 passed;
+        for (NSString* source in @[ @"std::x", @"pointer->x" ]) {
+            KineticEditorView* scopedEditor =
+                [[KineticEditorView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)
+                                                contents:source
+                                                 fileUrl:[NSURL fileURLWithPath:@"/tmp/main.cpp"]];
+            scopedEditor.overlayRenderer = completionRenderer;
+            [scopedEditor setPluginSelection:NSMakeRange(source.length, 0)];
+            [scopedEditor refreshCompletionsWithMinimum:2];
+            passed = check([completionRenderer.requestedPrefix isEqualToString:@"x"] &&
+                               [[scopedEditor valueForKey:@"completionItems"] count] > 0,
+                           @"scope and pointer completion continue below minimum prefix") &&
+                     passed;
+        }
+        KineticEditorView* includeEditor =
+            [[KineticEditorView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)
+                                            contents:@"#include <v"
+                                             fileUrl:[NSURL fileURLWithPath:@"/tmp/main.cpp"]];
+        includeEditor.overlayRenderer = completionRenderer;
+        [includeEditor setPluginSelection:NSMakeRange(includeEditor.documentText.length, 0)];
+        [includeEditor refreshCompletionsWithMinimum:2];
+        passed = check([completionRenderer.requestedPrefix isEqualToString:@"v"] &&
+                           [[includeEditor valueForKey:@"completionItems"] count] > 0,
+                       @"include completion continues below minimum prefix") &&
                  passed;
         [editor setValue:@[ @{@"label" : @"using", @"insertText" : @"using", @"detail" : @"Word"} ]
                   forKey:@"_completionItems"];

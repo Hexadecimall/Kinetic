@@ -2,7 +2,13 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.34.0 - Unreleased
+## 0.34.1 - Unreleased
+
+### Fixed
+
+- Keep language-server suggestions open below the global minimum prefix length after member access (`.`, `->`, `::`) and within C-family include/import paths.
+
+## 0.34.0
 
 ### Added
 
