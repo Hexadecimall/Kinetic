@@ -1,7 +1,15 @@
 class KineticRustRequirement < Requirement
   fatal true
 
-  satisfy(build_env: false) { which("cargo") }
+  satisfy(build_env: false) do
+    cargo = which("cargo")
+    if cargo && cargo.realpath.basename.to_s == "rustup"
+      rustupHome = ENV.fetch("RUSTUP_HOME", "#{Etc.getpwuid.dir}/.rustup")
+      resolved = Utils.popen_read({ "RUSTUP_HOME" => rustupHome }, cargo.realpath, "which", "cargo").strip
+      cargo = Pathname.new(resolved) if resolved.start_with?("/")
+    end
+    cargo if cargo&.executable? && cargo.realpath.basename.to_s != "rustup"
+  end
 
   def message
     "An existing Rust toolchain is required. Install Rust with rustup before installing Kinetic."
