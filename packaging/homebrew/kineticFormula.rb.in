@@ -30,17 +30,6 @@ class Kinetic < Formula
   depends_on macos: :sequoia
   uses_from_macos "python" => :build
 
-  post_install_steps do
-    run "/usr/bin/codesign",
-        args: ["--force", "--sign", "-", "{{prefix}}/Kinetic.app/Contents/PlugIns/libkineticCppSupport.dylib"]
-    run "/usr/bin/codesign",
-        args: ["--force", "--sign", "-", "{{prefix}}/Kinetic.app/Contents/Resources/bin/kinetic"]
-    run "/usr/bin/codesign",
-        args: ["--force", "--sign", "-", "{{prefix}}/Kinetic.app"]
-    run "/usr/bin/codesign",
-        args: ["--verify", "--deep", "--strict", "{{prefix}}/Kinetic.app"]
-  end
-
   def install
     ENV["CARGO_HOME"] = buildpath/"cargo-home"
     ENV["CARGO_NET_OFFLINE"] = "true"
@@ -52,6 +41,17 @@ class Kinetic < Formula
     prefix.install app
     system "/usr/bin/codesign", "--verify", "--deep", "--strict", prefix/"Kinetic.app"
     bin.install_symlink prefix/"Kinetic.app/Contents/Resources/bin/kinetic"
+  end
+
+  post_install_steps do
+    run "/usr/bin/codesign",
+        args: ["--force", "--sign", "-", "{{prefix}}/Kinetic.app/Contents/PlugIns/libkineticCppSupport.dylib"]
+    run "/usr/bin/codesign",
+        args: ["--force", "--sign", "-", "{{prefix}}/Kinetic.app/Contents/Resources/bin/kinetic"]
+    run "/usr/bin/codesign",
+        args: ["--force", "--sign", "-", "{{prefix}}/Kinetic.app"]
+    run "/usr/bin/codesign",
+        args: ["--verify", "--deep", "--strict", "{{prefix}}/Kinetic.app"]
   end
 
   def caveats
