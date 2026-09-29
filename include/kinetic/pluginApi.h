@@ -161,6 +161,8 @@ typedef struct KineticPluginApi {
     // Optional trailing field. Do not reorder existing ABI-1 fields.
     int32_t (*registerCompletionProviderV2)(void* context, const char* extension,
                                             KineticPluginCompletionsV2 callback, void* userData);
+    // May be called from a worker thread. The host refreshes the active document on its UI thread.
+    int32_t (*notifyCompletionsReady)(void* context, const char* filePath);
 } KineticPluginApi;
 
 typedef struct KineticPluginDescriptor {

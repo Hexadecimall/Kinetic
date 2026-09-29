@@ -794,6 +794,11 @@
     }
 }
 
+- (void)pluginHost:(KineticPluginHost*)host completionsReadyForPath:(NSString*)path {
+    (void)host;
+    [self.editor pluginCompletionsDidChangeForPath:path];
+}
+
 - (BOOL)executePluginShortcutForEvent:(NSEvent*)event {
     NSEventModifierFlags flags = event.modifierFlags;
     uint32_t modifiers = 0;

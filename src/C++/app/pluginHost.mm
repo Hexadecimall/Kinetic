@@ -70,6 +70,7 @@ static int32_t registerCompletionProvider(void* context, const char* extension,
                                           KineticPluginCompletions callback, void* userData);
 static int32_t registerCompletionProviderV2(void* context, const char* extension,
                                             KineticPluginCompletionsV2 callback, void* userData);
+static int32_t notifyCompletionsReady(void* context, const char* filePath);
 static uint64_t copyActiveFilePath(void* context, char* buffer, uint64_t capacity);
 static uint64_t copyWorkspacePath(void* context, char* buffer, uint64_t capacity);
 static int32_t publishDiagnostics(void* context, const char* filePath,
@@ -267,6 +268,7 @@ static BOOL readPluginConfiguration(NSURL* configurationUrl, BOOL* enabled,
             publishDiagnosticsV2,
             registerDiagnosticFixProvider,
             registerCompletionProviderV2,
+            notifyCompletionsReady,
         };
     }
     return self;
@@ -738,6 +740,20 @@ static int32_t openLocation(void* context, const char* filePath, uint32_t line,
       if ([host.delegate respondsToSelector:@selector(pluginHost:
                                                 openLocationAtPath:line:column:)]) {
           [host.delegate pluginHost:host openLocationAtPath:path line:line column:columnUtf16];
+      }
+    });
+    return 0;
+}
+
+static int32_t notifyCompletionsReady(void* context, const char* filePath) {
+    NSString* path = stringForUtf8(filePath);
+    if (path.length == 0 || !path.isAbsolutePath) {
+        return -1;
+    }
+    KineticPluginHost* host = hostForContext(context);
+    dispatch_async(dispatch_get_main_queue(), ^{
+      if ([host.delegate respondsToSelector:@selector(pluginHost:completionsReadyForPath:)]) {
+          [host.delegate pluginHost:host completionsReadyForPath:path];
       }
     });
     return 0;

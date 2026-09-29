@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use serde_json::{Value, json};
 
-use crate::{Diagnostic, STATUS, diagnosticMessage, navigate, publish};
+use crate::{Diagnostic, STATUS, diagnosticMessage, navigate, notifyCompletionsReady, publish};
 use std::sync::atomic::Ordering;
 
 struct State {
@@ -532,6 +532,7 @@ impl LanguageServer {
                         .ok()
                         .and_then(|mut state| state.pendingCompletions.remove(&id));
                     if let Some(query) = completion {
+                        let mut ready = false;
                         if let Ok(mut state) = readerState.lock()
                             && state.lastCompletionQuery.as_ref() == Some(&query)
                         {
@@ -540,6 +541,10 @@ impl LanguageServer {
                                 .as_deref()
                                 .map(|text| completionItems(&message, &query, text))
                                 .unwrap_or_default();
+                            ready = true;
+                        }
+                        if ready {
+                            notifyCompletionsReady(&query.path);
                         }
                     } else {
                         let current = readerState.lock().ok().and_then(|mut state| {
@@ -607,7 +612,9 @@ impl LanguageServer {
             if requestedPath != &path {
                 return true;
             }
-            let _ = self.sender.send(json!({"jsonrpc":"2.0","method":"$/cancelRequest",
+            let _ = self
+                .sender
+                .send(json!({"jsonrpc":"2.0","method":"$/cancelRequest",
                 "params":{"id":id}}));
             false
         });

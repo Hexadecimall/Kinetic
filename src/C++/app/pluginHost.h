@@ -25,6 +25,7 @@
                   line:(NSUInteger)line
                 column:(NSUInteger)column;
 - (void)pluginHostContributionsDidChange:(KineticPluginHost*)host;
+- (void)pluginHost:(KineticPluginHost*)host completionsReadyForPath:(NSString*)path;
 @end
 
 @interface KineticPluginHost : NSObject

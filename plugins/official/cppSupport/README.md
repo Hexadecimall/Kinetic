@@ -31,8 +31,9 @@ self-claim. Version 0.1.0 is published as an immutable
 [GitHub Release](https://github.com/Hexadecimall/Kinetic/releases/tag/cpp-support-v0.1.0).
 Version 0.2.0 added clangd completion, project build-directory discovery, and quick fixes.
 Version 0.4.0 added private and system tool discovery and retained Objective-C/C++ routing.
-Version 0.5.0 preserves clangd replacement ranges, snippets, filtering text, sort text, and
-documentation through the richer completion callback. It is prepared for the next immutable
+Version 0.6.0 preserves clangd replacement ranges, snippets, filtering text, sort text, and
+documentation through the richer completion callback, and notifies the editor when asynchronous
+results arrive. It is prepared for the next immutable
 release; the catalog
 will list it only after that asset is published and its digest is verified. The bundled version is
 marked Included in the Plugins page and bundled CLI; it is not separately installed or removed.

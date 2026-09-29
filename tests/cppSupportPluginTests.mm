@@ -10,6 +10,8 @@
 @property(nonatomic, copy) NSArray<NSDictionary<NSString*, id>*>* diagnostics;
 @property(nonatomic, copy) NSString* definitionPath;
 @property(nonatomic) NSUInteger definitionLine;
+@property(nonatomic, copy) NSString* completionReadyPath;
+@property(nonatomic) BOOL completionReadyOnMainThread;
 @end
 
 @implementation CppSupportDelegate
@@ -90,6 +92,11 @@
     (void)column;
     self.definitionPath = path;
     self.definitionLine = line;
+}
+- (void)pluginHost:(KineticPluginHost*)host completionsReadyForPath:(NSString*)path {
+    (void)host;
+    self.completionReadyPath = path;
+    self.completionReadyOnMainThread = [NSThread isMainThread];
 }
 @end
 
@@ -226,6 +233,13 @@ int main(int argc, const char* argv[]) {
         [host emitEvent:@"document.changed"];
         require([host hasCompletionProviderForFileName:@"main.cpp"],
                 @"clangd completion provider registered");
+        (void)[host completionItemsForPrefix:@"ans" fileName:@"main.cpp"];
+        require(waitUntil(^BOOL {
+                  return [delegate.completionReadyPath.stringByResolvingSymlinksInPath
+                      isEqualToString:delegate.path.stringByResolvingSymlinksInPath];
+                }),
+                @"clangd delivered completion-ready event");
+        require(delegate.completionReadyOnMainThread, @"completion event runs on main thread");
         require(waitUntil(^BOOL {
                   NSArray* items = [host completionItemsForPrefix:@"ans" fileName:@"main.cpp"];
                   for (NSDictionary* item in items) {

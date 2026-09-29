@@ -2,7 +2,13 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.33.1 - Unreleased
+## 0.34.0 - Unreleased
+
+### Added
+
+- Let native plugins notify the active editor when asynchronous completion results are ready. C/C++ Support now refreshes suggestions on clangd's reply instead of waiting for the next timer tick. Older completion providers retain the timer fallback.
+
+## 0.33.1
 
 ### Fixed
 

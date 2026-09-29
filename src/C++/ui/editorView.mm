@@ -117,6 +117,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     NSUInteger _completionScrollIndex;
     NSTimer* _completionPollTimer;
     NSUInteger _completionPollCount;
+    BOOL _completionPending;
     KineticSettingsPanel* _settingsPanel;
     KineticUtilityPanel* _utilityPanel;
     BOOL _motionEnabled;
@@ -1481,6 +1482,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 - (void)closeCompletions {
     [_completionPollTimer invalidate];
     _completionPollTimer = nil;
+    _completionPending = NO;
     _completionItems = @[];
     _completionSelectedIndex = 0;
     _completionScrollIndex = 0;
@@ -1576,6 +1578,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
       return NSOrderedSame;
     }];
     if (pluginProvider && provided.count == 0 && _completionPollTimer == nil) {
+        _completionPending = YES;
         _completionPollCount = 0;
         _completionPollTimer = [NSTimer scheduledTimerWithTimeInterval:0.1
                                                                 target:self
@@ -1583,8 +1586,11 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
                                                               userInfo:nil
                                                                repeats:YES];
     } else if (provided.count > 0 && _completionPollTimer != nil) {
+        _completionPending = NO;
         [_completionPollTimer invalidate];
         _completionPollTimer = nil;
+    } else if (provided.count > 0) {
+        _completionPending = NO;
     }
     _completionPrefixStart = (NSUInteger)prefixStart;
     _completionItems =
@@ -1592,6 +1598,14 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     _completionSelectedIndex = 0;
     _completionScrollIndex = 0;
     self.needsDisplay = YES;
+}
+
+- (void)pluginCompletionsDidChangeForPath:(NSString*)path {
+    if (!_completionPending || _fileUrl == nil ||
+        ![_fileUrl.path.stringByStandardizingPath isEqualToString:path.stringByStandardizingPath]) {
+        return;
+    }
+    [self refreshCompletionsWithMinimum:_autocompleteMinPrefix];
 }
 
 - (void)pollCompletions:(NSTimer*)timer {

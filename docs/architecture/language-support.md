@@ -17,6 +17,8 @@ shows a bounded, scrollable list. Full snippet tabstop navigation and completion
 remain future work.
 Superseded completion requests are cancelled. Definition replies are accepted only for the
 requesting document version, and older diagnostic versions cannot replace current analysis.
+The C/C++ plugin notifies the active editor as soon as clangd returns completions. A timer remains
+for older completion providers that do not send readiness notifications.
 
 ## Additional languages
 

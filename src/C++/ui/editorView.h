@@ -66,6 +66,7 @@
 - (BOOL)setPluginSelection:(NSRange)selection;
 - (BOOL)replaceRangeFromPlugin:(NSRange)range withString:(NSString*)text;
 - (void)replaceSelectionFromPlugin:(NSString*)text;
+- (void)pluginCompletionsDidChangeForPath:(NSString*)path;
 - (void)setPluginNames:(NSArray<NSString*>*)names
               commands:(NSArray<NSDictionary<NSString*, NSString*>*>*)commands
     configurationError:(NSString*)configurationError;

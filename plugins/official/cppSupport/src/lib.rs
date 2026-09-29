@@ -131,6 +131,7 @@ pub struct PluginApi {
         extern "C" fn(*mut c_void, *const c_char, u64, *mut CompletionRowV2, u32) -> u32,
         *mut c_void,
     ) -> i32,
+    notifyCompletionsReady: unsafe extern "C" fn(*mut c_void, *const c_char) -> i32,
 }
 
 #[repr(C)]
@@ -683,7 +684,7 @@ static DESCRIPTOR: PluginDescriptor = PluginDescriptor {
     structSize: std::mem::size_of::<PluginDescriptor>() as u32,
     pluginId: c"kinetic.cpp-support".as_ptr(),
     displayName: c"C/C++ Support".as_ptr(),
-    version: c"0.5.0".as_ptr(),
+    version: c"0.6.0".as_ptr(),
     start,
     stop,
 };
@@ -713,6 +714,15 @@ fn navigate(path: &str, line: u32, column: u32) {
     // SAFETY: The host copies the path and dispatches to its main thread.
     unsafe {
         (api.openLocation)(api.context, path.as_ptr(), line, column);
+    }
+}
+
+fn notifyCompletionsReady(path: &str) {
+    let Some(api) = api() else { return };
+    let Ok(path) = CString::new(path) else { return };
+    // SAFETY: The host copies the path and dispatches to its main thread.
+    unsafe {
+        (api.notifyCompletionsReady)(api.context, path.as_ptr());
     }
 }
 
