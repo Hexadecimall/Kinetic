@@ -53,6 +53,14 @@ class Kinetic < Formula
     EOS
   end
 
+  def post_install
+    app = prefix/"Kinetic.app"
+    system "/usr/bin/codesign", "--force", "--sign", "-", app/"Contents/PlugIns/libkineticCppSupport.dylib"
+    system "/usr/bin/codesign", "--force", "--sign", "-", app/"Contents/Resources/bin/kinetic"
+    system "/usr/bin/codesign", "--force", "--sign", "-", app
+    system "/usr/bin/codesign", "--verify", "--deep", "--strict", app
+  end
+
   test do
     assert_match "kinetic #{version}", shell_output("#{bin}/kinetic --version")
     system "/usr/bin/codesign", "--verify", "--deep", "--strict", prefix/"Kinetic.app"
