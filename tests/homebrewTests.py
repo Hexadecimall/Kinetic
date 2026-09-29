@@ -31,6 +31,13 @@ class HomebrewTests(unittest.TestCase):
             self.assertNotIn("@SHA256@", text)
             self.assertIn("not notarized", text)
             self.assertIn('binary "#{appdir}/Kinetic.app/Contents/Resources/bin/kinetic"', text)
+            self.assertIn('preflight_steps do', text)
+            self.assertIn('postflight_steps do', text)
+            self.assertEqual(text.count('"--force", "--sign", "-"'), 3)
+            self.assertEqual(text.count('"--verify", "--deep", "--strict"'), 3)
+            self.assertLess(text.index('"--verify"'), text.index('"--force"'))
+            self.assertNotIn('xattr', text)
+            self.assertNotIn('spctl', text)
 
     def testRejectsVersionMismatch(self):
         with tempfile.TemporaryDirectory() as directory:

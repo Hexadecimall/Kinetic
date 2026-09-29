@@ -7,7 +7,7 @@
 </p>
 
 > [!IMPORTANT]
-> Kinetic `0.31.1` is an early functional preview. Editing, retained multi-document tabs, persisted
+> Kinetic `0.31.2` is an early functional preview. Editing, retained multi-document tabs, persisted
 > recent projects, mouse selection, undo/redo, basic syntax highlighting, auto-indentation,
 > matching delimiters, custom context menus, in-file and project search, the activity bar, GitHub
 > account sign-in, native plugin host, hidden-file browsing, project file and folder creation,
@@ -44,12 +44,27 @@ after the macOS experience is mature.
 Apple Silicon, macOS 15 or newer:
 
 ```sh
-brew install --cask Hexadecimall/Kinetic/kinetic
+brew install --formula Hexadecimall/Kinetic/kinetic
 ```
 
-The preview is not notarized. If macOS blocks launch, review the app in System Settings →
-Privacy & Security. The cask installs the app and `kinetic` CLI, without LLVM or language servers.
-Updates use `brew upgrade --cask Hexadecimall/Kinetic/kinetic`.
+Homebrew builds the app locally using Command Line Tools, CMake, and an existing Rust toolchain.
+Install Rust with rustup first if Cargo is unavailable. LLVM and language servers are not bundled
+or added as formula dependencies. Updates use `brew upgrade --formula Hexadecimall/Kinetic/kinetic`.
+Launch with `open "$(brew --prefix kinetic)/Kinetic.app"`.
+
+For an existing cask installation, run `brew uninstall --cask kinetic` before installing the
+formula. Settings and privately downloaded tools remain in `~/.kinetic/`.
+
+The source installer (`./scripts/install`) signs the installed copy locally and verifies its
+signature before linking the CLI. To install an already extracted release without building:
+
+```sh
+./scripts/install --app /path/to/Kinetic.app
+```
+
+The incoming bundle must have a valid signature. Local ad-hoc signing does not provide Apple
+notarization, remove quarantine, or change Gatekeeper settings. Installation defaults to
+`~/Applications` and `~/.local/bin`; override with `KINETIC_APP_DIR` and `KINETIC_BIN_DIR`.
 
 ## Build
 

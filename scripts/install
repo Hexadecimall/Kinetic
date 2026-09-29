@@ -4,31 +4,53 @@ set -eu
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 . "$SCRIPT_DIR/lib/common.sh"
 
-PROFILE=release
-APP_DIR=${KINETIC_APP_DIR:-"$HOME/Applications"}
-BIN_DIR=${KINETIC_BIN_DIR:-"$HOME/.local/bin"}
+profile=release
+appDir=${KINETIC_APP_DIR:-"$HOME/Applications"}
+binDir=${KINETIC_BIN_DIR:-"$HOME/.local/bin"}
+sourceApp=
 
 if [ "${1:-}" = "--debug" ]; then
-    PROFILE=debug
+    profile=debug
+elif [ "${1:-}" = "--app" ] && [ "$#" -eq 2 ]; then
+    sourceApp=$2
 elif [ "${1:-}" != "" ] && [ "${1:-}" != "--release" ]; then
-    kinetic_die "usage: ./scripts/install [--debug|--release]"
+    kinetic_die "usage: ./scripts/install [--debug|--release|--app Kinetic.app]"
 fi
 
-"$SCRIPT_DIR/build" "--$PROFILE"
-
-SOURCE_APP="$(kinetic_build_dir "$PROFILE")/Kinetic.app"
-TARGET_APP="$APP_DIR/Kinetic.app"
-TARGET_CLI="$BIN_DIR/kinetic"
-
-[ ! -e "$TARGET_APP" ] || kinetic_die "$TARGET_APP already exists; run ./scripts/uninstall first"
-if [ -e "$TARGET_CLI" ] && [ ! -L "$TARGET_CLI" ]; then
-    kinetic_die "$TARGET_CLI exists and is not a symlink"
+kinetic_require codesign
+kinetic_require ditto
+if [ -z "$sourceApp" ]; then
+    "$SCRIPT_DIR/build" "--$profile"
+    sourceApp="$(kinetic_build_dir "$profile")/Kinetic.app"
 fi
 
-mkdir -p "$APP_DIR" "$BIN_DIR"
-ditto "$SOURCE_APP" "$TARGET_APP"
-ln -sfn "$TARGET_APP/Contents/Resources/bin/kinetic" "$TARGET_CLI"
+targetApp="$appDir/Kinetic.app"
+targetCli="$binDir/kinetic"
 
-printf 'Installed %s\n' "$TARGET_APP"
-printf 'Linked CLI at %s\n' "$TARGET_CLI"
+[ ! -e "$targetApp" ] && [ ! -L "$targetApp" ] ||
+    kinetic_die "$targetApp already exists; run ./scripts/uninstall first"
+if [ -e "$targetCli" ] && [ ! -L "$targetCli" ]; then
+    kinetic_die "$targetCli exists and is not a symlink"
+fi
 
+bundleId=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$sourceApp/Contents/Info.plist")
+[ "$bundleId" = top.frameworksdev.kinetic ] || kinetic_die "expected a Kinetic app bundle"
+codesign --verify --deep --strict "$sourceApp"
+
+mkdir -p "$appDir" "$binDir"
+stagingDir=$(mktemp -d "$appDir/.kinetic-install.XXXXXX")
+trap 'rm -rf -- "$stagingDir"' EXIT
+trap 'exit 1' HUP INT TERM
+stagedApp="$stagingDir/Kinetic.app"
+ditto "$sourceApp" "$stagedApp"
+codesign --verify --deep --strict "$stagedApp"
+codesign --force --sign - "$stagedApp/Contents/PlugIns/libkineticCppSupport.dylib"
+codesign --force --sign - "$stagedApp/Contents/Resources/bin/kinetic"
+codesign --force --sign - "$stagedApp"
+codesign --verify --deep --strict "$stagedApp"
+mv "$stagedApp" "$targetApp"
+ln -sfn "$targetApp/Contents/Resources/bin/kinetic" "$targetCli"
+
+printf 'Installed %s\n' "$targetApp"
+printf 'Linked CLI at %s\n' "$targetCli"
+printf 'Locally ad-hoc signed and verified; not Apple-notarized.\n'
