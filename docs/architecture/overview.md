@@ -19,7 +19,7 @@ between its C++ platform/rendering layer and Rust editor core.
 - Document text, edit application, dirty state, and bounded undo/redo history
 - Plugin contribution metadata and collision rules for commands, shortcuts, menus, panels,
   overlays, and formatters
-- Indentation and completion configuration, numeric preference persistence
+- Indentation and completion configuration, completion-trigger parsing, numeric preference persistence
 - C/C++ Support language-server lifecycle and protocol handling
 
 Selections, workspace state, search, and the native plugin host remain in Objective-C++.
@@ -66,7 +66,9 @@ diagnostics, and source navigation. Rust owns the
 contribution registry; the Objective-C++ host retains callbacks and renders the custom UI in
 process. The included Rust C/C++ Support plugin runs clangd for live errors and Go
 to Definition. Rust owns native document-word completion and the `[autocomplete]` dotfile
-configuration; plugins can contribute completion items through the public C ABI. Settings
+configuration; plugins can contribute completion items through the public C ABI.
+The Rust completion core also identifies member-access and C-family include/import contexts using
+UTF-16 offsets; the C++ editor chooses providers and presents the resulting popup. Settings
 registration and arbitrary widget layouts are not yet exposed.
 
 Opening a workspace folder populates an expandable file tree without using a native outline view.

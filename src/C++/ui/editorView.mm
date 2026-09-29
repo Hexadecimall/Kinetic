@@ -1514,35 +1514,13 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
                                               _caretIndex - (NSUInteger)prefixStart)];
     NSString* fileName = _fileUrl.lastPathComponent ?: _documentTitle;
     BOOL pluginProvider = [self.overlayRenderer hasPluginCompletionProviderForFileName:fileName];
-    BOOL memberAccess = prefixStart > 0 &&
-                        ([_text characterAtIndex:(NSUInteger)prefixStart - 1] == '.' ||
-                         (prefixStart > 1 &&
-                          (([_text characterAtIndex:(NSUInteger)prefixStart - 2] == '-' &&
-                            [_text characterAtIndex:(NSUInteger)prefixStart - 1] == '>') ||
-                           ([_text characterAtIndex:(NSUInteger)prefixStart - 2] == ':' &&
-                            [_text characterAtIndex:(NSUInteger)prefixStart - 1] == ':'))));
-    BOOL includeAccess = NO;
     NSString* extension = fileName.pathExtension.lowercaseString;
-    if (pluginProvider &&
-        [@[ @"c", @"h", @"cc", @"cpp", @"cxx", @"hpp", @"hh", @"hxx", @"m", @"mm" ]
-            containsObject:extension]) {
-        NSRange lastNewline = [_text rangeOfString:@"\n"
-                                            options:NSBackwardsSearch
-                                              range:NSMakeRange(0, _caretIndex)];
-        NSUInteger lineStart = lastNewline.location == NSNotFound ? 0 : NSMaxRange(lastNewline);
-        NSString* line = [[_text substringWithRange:NSMakeRange(lineStart, _caretIndex - lineStart)]
-            stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
-        if ([line hasPrefix:@"#include"] || [line hasPrefix:@"#import"]) {
-            NSRange angle = [line rangeOfString:@"<"];
-            if (angle.location != NSNotFound) {
-                includeAccess = [[line substringFromIndex:NSMaxRange(angle)] rangeOfString:@">"].location == NSNotFound;
-            } else {
-                NSUInteger quoteCount = [[line componentsSeparatedByString:@"\""] count] - 1;
-                includeAccess = quoteCount % 2 == 1;
-            }
-        }
-    }
-    if (prefix.length < minimum && !(pluginProvider && (memberAccess || includeAccess))) {
+    BOOL cFamily = [@[ @"c", @"h", @"cc", @"cpp", @"cxx", @"hpp", @"hh", @"hxx", @"m", @"mm" ]
+        containsObject:extension];
+    uint32_t context = kineticCompletionContext((const uint8_t*)bytes.bytes, bytes.length,
+                                                prefixStart,
+                                                cFamily ? kineticCompletionLanguageCFamily : 0);
+    if (prefix.length < minimum && !(pluginProvider && context != 0)) {
         [self closeCompletions];
         return;
     }

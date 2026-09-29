@@ -20,7 +20,8 @@ requesting document version, and older diagnostic versions cannot replace curren
 The C/C++ plugin notifies the active editor as soon as clangd returns completions. A timer remains
 for older completion providers that do not send readiness notifications.
 Member access and C-family include/import paths continue requesting suggestions while the prefix
-is shorter than the general autocomplete minimum.
+is shorter than the general autocomplete minimum. Rust parses these contexts at UTF-16 boundaries;
+the C++ view retains only provider selection and popup presentation.
 
 ## Additional languages
 

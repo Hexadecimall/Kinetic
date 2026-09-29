@@ -103,6 +103,36 @@ fn prefixAtCaret(text: &str, caretUtf16: usize) -> Option<(usize, String)> {
     Some((text[..start].encode_utf16().count(), prefix.to_string()))
 }
 
+fn completionContext(text: &str, prefixStartUtf16: usize, cFamily: bool) -> u32 {
+    let Some(start) = caretByte(text, prefixStartUtf16) else {
+        return 0;
+    };
+    let before = &text[..start];
+    let member = before.ends_with('.') || before.ends_with("->") || before.ends_with("::");
+    let mut context = u32::from(member);
+    if !cFamily {
+        return context;
+    }
+    let line = before.rsplit('\n').next().unwrap_or("").trim_start();
+    let directive = ["#include", "#import"].into_iter().find_map(|name| {
+        let rest = line.strip_prefix(name)?;
+        rest.chars()
+            .next()
+            .is_some_and(|character| character.is_whitespace() || matches!(character, '<' | '"'))
+            .then_some(rest)
+    });
+    if let Some(directive) = directive {
+        let insideAngle = directive
+            .split_once('<')
+            .is_some_and(|(_, rest)| !rest.contains('>'));
+        let insideQuote = directive.bytes().filter(|&byte| byte == b'"').count() % 2 == 1;
+        if insideAngle || insideQuote {
+            context |= 2;
+        }
+    }
+    context
+}
+
 fn collect(
     text: &str,
     caretUtf16: usize,
@@ -335,6 +365,30 @@ pub extern "C" fn kineticCompletionCollect(
         }
     }
     u32::try_from(suggestions.len()).unwrap_or(0)
+}
+
+#[allow(unsafe_code, reason = "the editor uses the stable C ABI")]
+#[unsafe(no_mangle)]
+pub extern "C" fn kineticCompletionContext(
+    bytes: *const u8,
+    length: u64,
+    prefixStartUtf16: u64,
+    languageFlags: u32,
+) -> u32 {
+    if bytes.is_null() || length > 16 * 1024 * 1024 {
+        return 0;
+    }
+    let (Ok(length), Ok(prefixStartUtf16)) =
+        (usize::try_from(length), usize::try_from(prefixStartUtf16))
+    else {
+        return 0;
+    };
+    // SAFETY: The caller provides a readable document buffer for the declared bounded length.
+    let source = unsafe { std::slice::from_raw_parts(bytes, length) };
+    let Ok(text) = std::str::from_utf8(source) else {
+        return 0;
+    };
+    completionContext(text, prefixStartUtf16, languageFlags & 1 != 0)
 }
 
 fn configurationPath() -> Option<PathBuf> {
@@ -793,6 +847,20 @@ mod tests {
         let (_, values) = collect(text, text.encode_utf16().count(), 2, 8);
         assert_eq!(values, ["helper", "hello", "helloWorld"]);
         assert_eq!(prefixAtCaret("😀he", 1), None);
+    }
+
+    #[test]
+    fn detectsLanguageTriggersAtUtf16Boundaries() {
+        for source in ["object.x", "std::x", "pointer->x"] {
+            let (start, _) = prefixAtCaret(source, source.encode_utf16().count()).unwrap();
+            assert_eq!(completionContext(source, start, false), 1);
+        }
+        let source = "😀\n#include <vector/v";
+        let (start, _) = prefixAtCaret(source, source.encode_utf16().count()).unwrap();
+        assert_eq!(completionContext(source, start, true), 2);
+        assert_eq!(completionContext(source, start, false), 0);
+        assert_eq!(completionContext("#include <vector>", 17, true), 0);
+        assert_eq!(completionContext("😀", 1, true), 0);
     }
 
     #[test]

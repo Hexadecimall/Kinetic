@@ -2,7 +2,13 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.34.1 - Unreleased
+## 0.34.2 - Unreleased
+
+### Changed
+
+- Move member-access and C-family include/import completion-context parsing into the Rust backend behind a UTF-16-safe C ABI. The C++ editor now handles provider selection and presentation only.
+
+## 0.34.1
 
 ### Fixed
 
