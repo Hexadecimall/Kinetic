@@ -73,6 +73,25 @@ typedef uint32_t (*KineticPluginCompletions)(void* userData, const char* prefix,
                                              uint64_t prefixLength,
                                              KineticPluginCompletionItem* items, uint32_t capacity);
 
+// Optional richer completion callback. ABI-1 plugins using KineticPluginCompletions remain valid.
+enum { kineticPluginCompletionHasRange = 1, kineticPluginCompletionSnippet = 2 };
+typedef struct KineticPluginCompletionItemV2 {
+    char label[128];
+    char insertText[256];
+    char filterText[128];
+    char sortText[128];
+    char detail[128];
+    char documentation[512];
+    uint64_t replaceStartUtf16;
+    uint64_t replaceLengthUtf16;
+    uint32_t kind;
+    uint32_t flags;
+} KineticPluginCompletionItemV2;
+typedef uint32_t (*KineticPluginCompletionsV2)(void* userData, const char* prefix,
+                                               uint64_t prefixLength,
+                                               KineticPluginCompletionItemV2* items,
+                                               uint32_t capacity);
+
 typedef struct KineticPluginDiagnostic {
     uint32_t line;
     uint32_t columnUtf16;
@@ -139,6 +158,9 @@ typedef struct KineticPluginApi {
                                     const KineticPluginDiagnosticV2* diagnostics, uint32_t count);
     int32_t (*registerDiagnosticFixProvider)(void* context, const char* extension,
                                              KineticPluginDiagnosticFix callback, void* userData);
+    // Optional trailing field. Do not reorder existing ABI-1 fields.
+    int32_t (*registerCompletionProviderV2)(void* context, const char* extension,
+                                            KineticPluginCompletionsV2 callback, void* userData);
 } KineticPluginApi;
 
 typedef struct KineticPluginDescriptor {

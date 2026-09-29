@@ -45,6 +45,20 @@ pub struct CompletionRow {
 }
 
 #[repr(C)]
+pub struct CompletionRowV2 {
+    label: [c_char; 128],
+    insertText: [c_char; 256],
+    filterText: [c_char; 128],
+    sortText: [c_char; 128],
+    detail: [c_char; 128],
+    documentation: [c_char; 512],
+    replaceStartUtf16: u64,
+    replaceLengthUtf16: u64,
+    kind: u32,
+    flags: u32,
+}
+
+#[repr(C)]
 pub struct PluginApi {
     abiVersion: u32,
     structSize: u32,
@@ -109,6 +123,12 @@ pub struct PluginApi {
         *mut c_void,
         *const c_char,
         extern "C" fn(*mut c_void, *const c_char, u32, u32, u32) -> i32,
+        *mut c_void,
+    ) -> i32,
+    registerCompletionProviderV2: unsafe extern "C" fn(
+        *mut c_void,
+        *const c_char,
+        extern "C" fn(*mut c_void, *const c_char, u64, *mut CompletionRowV2, u32) -> u32,
         *mut c_void,
     ) -> i32,
 }
@@ -228,10 +248,10 @@ extern "C" fn completeDocument(
     _userData: *mut c_void,
     prefix: *const c_char,
     prefixLength: u64,
-    rows: *mut CompletionRow,
+    rows: *mut CompletionRowV2,
     capacity: u32,
 ) -> u32 {
-    if prefix.is_null() || rows.is_null() || prefixLength > 95 || capacity > 32 {
+    if prefix.is_null() || rows.is_null() || prefixLength > 95 || capacity > 128 {
         return 0;
     }
     // SAFETY: The host supplies prefixLength readable bytes and capacity writable rows.
@@ -258,23 +278,28 @@ extern "C" fn completeDocument(
     // SAFETY: The host allocates capacity rows for this callback.
     let output = unsafe { std::slice::from_raw_parts_mut(rows, capacity as usize) };
     let mut count = 0;
-    for item in suggestions.iter().filter(|item| {
-        item.label
-            .to_lowercase()
-            .starts_with(&prefix.to_lowercase())
-            && item.insertText != prefix
-    }) {
+    for item in suggestions.iter().filter(|item| item.insertText != prefix) {
         if count >= output.len() {
             break;
         }
-        output[count] = CompletionRow {
-            label: [0; 96],
-            insertText: [0; 96],
-            detail: [0; 96],
+        output[count] = CompletionRowV2 {
+            label: [0; 128],
+            insertText: [0; 256],
+            filterText: [0; 128],
+            sortText: [0; 128],
+            detail: [0; 128],
+            documentation: [0; 512],
+            replaceStartUtf16: item.replaceStartUtf16,
+            replaceLengthUtf16: item.replaceLengthUtf16,
+            kind: item.kind,
+            flags: item.flags,
         };
         writeField(&mut output[count].label, &item.label);
         writeField(&mut output[count].insertText, &item.insertText);
+        writeField(&mut output[count].filterText, &item.filterText);
+        writeField(&mut output[count].sortText, &item.sortText);
         writeField(&mut output[count].detail, &item.detail);
+        writeField(&mut output[count].documentation, &item.documentation);
         count += 1;
     }
     count as u32
@@ -440,7 +465,11 @@ extern "C" fn formatDocument(
 }
 
 fn writeField<const N: usize>(target: &mut [c_char; N], source: &str) {
-    for (index, byte) in source.as_bytes().iter().take(N - 1).enumerate() {
+    let mut length = source.len().min(N - 1);
+    while !source.is_char_boundary(length) {
+        length -= 1;
+    }
+    for (index, byte) in source.as_bytes()[..length].iter().enumerate() {
         target[index] = *byte as c_char;
     }
 }
@@ -532,7 +561,7 @@ extern "C" fn start(apiPointer: *const PluginApi) -> i32 {
         c"c", c"h", c"cc", c"cpp", c"cxx", c"hpp", c"hh", c"hxx", c"m", c"mm",
     ] {
         if unsafe {
-            (api.registerCompletionProvider)(
+            (api.registerCompletionProviderV2)(
                 context,
                 extension.as_ptr(),
                 completeDocument,
@@ -654,7 +683,7 @@ static DESCRIPTOR: PluginDescriptor = PluginDescriptor {
     structSize: std::mem::size_of::<PluginDescriptor>() as u32,
     pluginId: c"kinetic.cpp-support".as_ptr(),
     displayName: c"C/C++ Support".as_ptr(),
-    version: c"0.4.0".as_ptr(),
+    version: c"0.5.0".as_ptr(),
     start,
     stop,
 };

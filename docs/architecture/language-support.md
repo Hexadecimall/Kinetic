@@ -11,6 +11,11 @@ Yes installs only missing tools under `~/.kinetic/tools`, verifies pinned SHA-25
 license notices, and checks that each binary runs before exposing it to the plugin. Failed
 downloads leave no partial installation. The prompt supports retry after an error.
 
+C-family completion keeps clangd's replacement range, snippet text, filter and sort text, and
+documentation. The Rust backend ranks candidates and expands basic snippet tabstops; the popup
+shows a bounded, scrollable list. Full snippet tabstop navigation and completion-item resolve
+remain future work.
+
 ## Additional languages
 
 Rust, Zig, JavaScript/TypeScript, assembly, Swift, Python, TOML, JSON, Java, Kotlin, shell,

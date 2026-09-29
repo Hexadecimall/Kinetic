@@ -41,6 +41,7 @@ The current host supports:
 | `publishDiagnostics` | Publish up to 2,048 line/column diagnostics for an absolute file path. Safe to call from a worker thread; the host updates the UI on the main thread. |
 | `openLocation` | Open an absolute file path and reveal a 1-based line and 0-based UTF-16 column. Safe to call from a worker thread. |
 | `registerCompletionProvider` | Contribute up to 32 labeled completion items for a file extension and prefix to Kinetic's native autocomplete popup. |
+| `registerCompletionProviderV2` | Optional trailing ABI-1 hook for up to 128 items with filter/sort text, documentation, kind, snippet text, and an explicit UTF-16 replacement range. Existing providers continue to work. |
 | `publishDiagnosticsV2` | Publish diagnostics with an explicit `kineticPluginDiagnosticFixAvailable` flag without changing the layout of older diagnostics. |
 | `registerDiagnosticFixProvider` | Register a quick-fix callback for an extension; the editor calls it when a user clicks Fix on a flagged diagnostic. |
 

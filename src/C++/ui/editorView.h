@@ -10,8 +10,8 @@
 - (NSArray<NSArray<NSDictionary<NSString*, id>*>*>*)pluginSyntaxTokensForLines:
                                                         (NSArray<NSString*>*)lines
                                                                       fileName:(NSString*)fileName;
-- (NSArray<NSDictionary<NSString*, NSString*>*>*)pluginCompletionItemsForPrefix:(NSString*)prefix
-                                                                       fileName:(NSString*)fileName;
+- (NSArray<NSDictionary<NSString*, id>*>*)pluginCompletionItemsForPrefix:(NSString*)prefix
+                                                                fileName:(NSString*)fileName;
 - (BOOL)hasPluginCompletionProviderForFileName:(NSString*)fileName;
 - (BOOL)applyPluginDiagnosticFixForPath:(NSString*)path
                                    line:(NSUInteger)line

@@ -767,9 +767,8 @@
     return [self.pluginHost syntaxTokensForLines:lines fileName:fileName];
 }
 
-- (NSArray<NSDictionary<NSString*, NSString*>*>*)pluginCompletionItemsForPrefix:(NSString*)prefix
-                                                                       fileName:
-                                                                           (NSString*)fileName {
+- (NSArray<NSDictionary<NSString*, id>*>*)pluginCompletionItemsForPrefix:(NSString*)prefix
+                                                                fileName:(NSString*)fileName {
     return [self.pluginHost completionItemsForPrefix:prefix fileName:fileName];
 }
 

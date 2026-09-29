@@ -27,6 +27,11 @@ typedef struct KineticCompletionConfig {
 uint32_t kineticCompletionCollect(const uint8_t* bytes, uint64_t length, uint64_t caretUtf16,
                                   uint32_t minPrefix, KineticCompletionItem* items,
                                   uint32_t capacity, uint64_t* prefixStartUtf16);
+int32_t kineticCompletionMatchScore(const uint8_t* query, uint64_t queryLength,
+                                    const uint8_t* candidate, uint64_t candidateLength);
+// Returns the required UTF-8 byte count. The output is copied only when capacity is sufficient.
+uint64_t kineticCompletionExpandSnippet(const uint8_t* source, uint64_t sourceLength,
+                                        uint8_t* output, uint64_t capacity, uint64_t* caretUtf16);
 int32_t kineticCompletionReadConfig(KineticCompletionConfig* output);
 int32_t kineticCompletionWriteConfig(const KineticCompletionConfig* input);
 typedef struct KineticIndentationConfig {

@@ -42,7 +42,7 @@ impl Default for KineticCompletionConfig {
         Self {
             enabled: true,
             minPrefix: 1,
-            maxResults: 12,
+            maxResults: 24,
         }
     }
 }
@@ -137,6 +137,158 @@ fn collect(
     )
 }
 
+fn matchScore(query: &str, candidate: &str) -> i32 {
+    if query.is_empty() {
+        return 0;
+    }
+    let query = query.to_lowercase();
+    let candidate = candidate.to_lowercase();
+    if candidate.starts_with(&query) {
+        return 1000 - (candidate.chars().count() as i32 - query.chars().count() as i32).min(500);
+    }
+    let mut remaining = query.chars();
+    let mut expected = remaining.next();
+    let mut score = 0;
+    let mut previousMatch = false;
+    let mut previous = ' ';
+    for character in candidate.chars() {
+        if Some(character) == expected {
+            score += if previousMatch { 24 } else { 8 };
+            if !previous.is_alphanumeric() || (previous.is_lowercase() && character.is_uppercase())
+            {
+                score += 16;
+            }
+            expected = remaining.next();
+            previousMatch = true;
+            if expected.is_none() {
+                return score;
+            }
+        } else {
+            previousMatch = false;
+        }
+        previous = character;
+    }
+    -1
+}
+
+fn expandSnippet(source: &str) -> (String, usize) {
+    let characters: Vec<char> = source.chars().collect();
+    let mut output = String::new();
+    let mut firstStop: Option<(u32, usize)> = None;
+    let mut finalStop = None;
+    let mut index = 0;
+    while index < characters.len() {
+        if characters[index] == '\\'
+            && index + 1 < characters.len()
+            && matches!(characters[index + 1], '$' | '}' | '\\')
+        {
+            output.push(characters[index + 1]);
+            index += 2;
+            continue;
+        }
+        if characters[index] == '$' {
+            let mut digitStart = index + 1;
+            let braced = characters.get(digitStart) == Some(&'{');
+            if braced {
+                digitStart += 1;
+            }
+            let mut digitEnd = digitStart;
+            while characters.get(digitEnd).is_some_and(char::is_ascii_digit) {
+                digitEnd += 1;
+            }
+            if digitEnd > digitStart {
+                let number: String = characters[digitStart..digitEnd].iter().collect();
+                if let Ok(number) = number.parse::<u32>() {
+                    let offset = output.encode_utf16().count();
+                    if number == 0 {
+                        finalStop = Some(offset);
+                    } else if firstStop.is_none_or(|(current, _)| number < current) {
+                        firstStop = Some((number, offset));
+                    }
+                    if !braced {
+                        index = digitEnd;
+                        continue;
+                    }
+                    let mut end = digitEnd;
+                    while end < characters.len() && characters[end] != '}' {
+                        end += 1;
+                    }
+                    if end < characters.len() {
+                        if characters.get(digitEnd) == Some(&':') {
+                            output.extend(characters[digitEnd + 1..end].iter());
+                        }
+                        index = end + 1;
+                        continue;
+                    }
+                }
+            }
+        }
+        output.push(characters[index]);
+        index += 1;
+    }
+    let caret = firstStop
+        .map(|(_, offset)| offset)
+        .or(finalStop)
+        .unwrap_or_else(|| output.encode_utf16().count());
+    (output, caret)
+}
+
+#[allow(unsafe_code, reason = "the editor uses the stable C ABI")]
+#[unsafe(no_mangle)]
+pub extern "C" fn kineticCompletionMatchScore(
+    query: *const u8,
+    queryLength: u64,
+    candidate: *const u8,
+    candidateLength: u64,
+) -> i32 {
+    if query.is_null() || candidate.is_null() || queryLength > 1024 || candidateLength > 4096 {
+        return -1;
+    }
+    let (Ok(queryLength), Ok(candidateLength)) = (
+        usize::try_from(queryLength),
+        usize::try_from(candidateLength),
+    ) else {
+        return -1;
+    };
+    // SAFETY: The caller provides readable buffers for the declared bounded lengths.
+    let query = unsafe { std::slice::from_raw_parts(query, queryLength) };
+    let candidate = unsafe { std::slice::from_raw_parts(candidate, candidateLength) };
+    match (std::str::from_utf8(query), std::str::from_utf8(candidate)) {
+        (Ok(query), Ok(candidate)) => matchScore(query, candidate),
+        _ => -1,
+    }
+}
+
+#[allow(unsafe_code, reason = "the editor uses the stable C ABI")]
+#[unsafe(no_mangle)]
+pub extern "C" fn kineticCompletionExpandSnippet(
+    source: *const u8,
+    sourceLength: u64,
+    output: *mut u8,
+    capacity: u64,
+    caretUtf16: *mut u64,
+) -> u64 {
+    if source.is_null() || caretUtf16.is_null() || sourceLength > 1024 * 1024 {
+        return u64::MAX;
+    }
+    let Ok(sourceLength) = usize::try_from(sourceLength) else {
+        return u64::MAX;
+    };
+    // SAFETY: The caller provides readable source bytes and a writable caret slot.
+    let source = unsafe { std::slice::from_raw_parts(source, sourceLength) };
+    let Ok(source) = std::str::from_utf8(source) else {
+        return u64::MAX;
+    };
+    let (text, caret) = expandSnippet(source);
+    // SAFETY: caretUtf16 was checked above.
+    unsafe { *caretUtf16 = caret as u64 };
+    if !output.is_null() && capacity >= text.len() as u64 {
+        // SAFETY: The caller declares at least text.len() bytes of writable capacity.
+        unsafe { std::ptr::copy_nonoverlapping(text.as_ptr(), output, text.len()) };
+    }
+    text.len() as u64
+}
+
 fn copyString(value: &str, target: &mut [u8; 96]) {
     let bytes = value.as_bytes();
     target[..bytes.len()].copy_from_slice(bytes);
@@ -224,7 +376,7 @@ fn parseConfiguration(text: &str) -> Result<KineticCompletionConfig, ()> {
             }
             ("maxResults", value) if !seen[2] => {
                 config.maxResults = value.parse().map_err(|_| ())?;
-                if !(1..=32).contains(&config.maxResults) {
+                if !(1..=128).contains(&config.maxResults) {
                     return Err(());
                 }
                 seen[2] = true;
@@ -509,7 +661,7 @@ pub extern "C" fn kineticCompletionWriteConfig(input: *const KineticCompletionCo
     }
     // SAFETY: The caller provides a readable config structure.
     let config = unsafe { *input };
-    if !(1..=8).contains(&config.minPrefix) || !(1..=32).contains(&config.maxResults) {
+    if !(1..=8).contains(&config.minPrefix) || !(1..=128).contains(&config.maxResults) {
         return -1;
     }
     persistConfiguration(|previous| updateConfiguration(previous, config))
@@ -621,6 +773,21 @@ mod tests {
     use super::*;
 
     #[test]
+    fn ranksPrefixAboveFuzzyAndRejectsUnrelated() {
+        assert!(matchScore("vec", "vector") > matchScore("vec", "validateEntryCount"));
+        assert_eq!(matchScore("zz", "vector"), -1);
+    }
+
+    #[test]
+    fn expandsBasicLspTabstops() {
+        assert_eq!(
+            expandSnippet("call(${1:value}, $2)$0"),
+            ("call(value, )".into(), 5)
+        );
+        assert_eq!(expandSnippet("foo\\$bar"), ("foo$bar".into(), 7));
+    }
+
+    #[test]
     fn ranksDocumentWordsAndRejectsSplitSurrogate() {
         let text = "hello helper helloWorld helper helper he";
         let (_, values) = collect(text, text.encode_utf16().count(), 2, 8);
@@ -643,7 +810,7 @@ mod tests {
         let updated = updateConfiguration(original, KineticCompletionConfig::default()).unwrap();
         assert!(updated.contains("[plugins]\nenabled = true"));
         assert!(updated.contains("# Keep this note\nenabled = true # toggle"));
-        assert!(updated.contains("minPrefix = 1\n\nmaxResults = 12\n[search]"));
+        assert!(updated.contains("minPrefix = 1\n\nmaxResults = 24\n[search]"));
         assert!(updated.ends_with("[search]\nshowButton = true\n"));
     }
 

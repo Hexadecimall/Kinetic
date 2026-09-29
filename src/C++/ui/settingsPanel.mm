@@ -60,7 +60,7 @@ NSArray<NSDictionary*>* kineticSettingsRows(void) {
         row(@"Indentation", @"Pair brackets and quotes", @"editor.delimiters.autoPairs"),
         row(@"Completion", @"Autocomplete", @"editor.autocomplete.enabled"),
         row(@"Completion", @"Minimum prefix", @"editor.autocomplete.minPrefix", 1, 8),
-        row(@"Completion", @"Suggestion limit", @"editor.autocomplete.maxResults", 1, 32),
+        row(@"Completion", @"Suggestion limit", @"editor.autocomplete.maxResults", 1, 128),
         row(@"Navigation", @"Natural scrolling", @"editor.scroll.natural"),
         row(@"Navigation", @"Scroll indicators", @"editor.scroll.indicators"),
         row(@"Interface", @"Panel and switch animations", @"interface.motion.enabled"),

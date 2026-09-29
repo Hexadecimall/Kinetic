@@ -2,7 +2,13 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.32.0 - Unreleased
+## 0.33.0 - Unreleased
+
+### Added
+
+- Preserve clangd completion edit ranges, snippets, filtering metadata, and documentation through a backward-compatible plugin callback. Rank candidates in Rust and keep the editor popup scrollable.
+
+## 0.32.0
 
 ### Added
 

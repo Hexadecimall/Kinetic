@@ -30,8 +30,10 @@ The Official designation comes from the registry's project-owned publisher polic
 self-claim. Version 0.1.0 is published as an immutable
 [GitHub Release](https://github.com/Hexadecimall/Kinetic/releases/tag/cpp-support-v0.1.0).
 Version 0.2.0 added clangd completion, project build-directory discovery, and quick fixes.
-Version 0.4.0 adds private and system tool discovery, retains Objective-C/C++ routing, and is
-prepared for the next immutable release; the catalog
+Version 0.4.0 added private and system tool discovery and retained Objective-C/C++ routing.
+Version 0.5.0 preserves clangd replacement ranges, snippets, filtering text, sort text, and
+documentation through the richer completion callback. It is prepared for the next immutable
+release; the catalog
 will list it only after that asset is published and its digest is verified. The bundled version is
 marked Included in the Plugins page and bundled CLI; it is not separately installed or removed.
 Native code runs with the user's privileges; disabling it takes effect after restarting Kinetic.

@@ -9,6 +9,7 @@
 - (void)redoEdit;
 - (void)drawCaretAtRect:(NSRect)target;
 - (NSRect)completionPopupRect;
+- (void)acceptCompletionAtIndex:(NSUInteger)index;
 - (NSRect)fixRectForLine:(NSUInteger)index diagnostic:(NSDictionary<NSString*, id>*)diagnostic;
 @end
 
@@ -181,6 +182,44 @@ int main() {
             check([replacing.documentText isEqualToString:@"one ONE one\n"] && !replacing.dirty,
                   @"replace all is one undo step") &&
             passed;
+        KineticEditorView* completing =
+            [[KineticEditorView alloc] initWithFrame:NSMakeRect(0, 0, 1180, 760)
+                                            contents:@"prefixXYZtail"
+                                             fileUrl:nil];
+        [completing setPluginSelection:NSMakeRange(9, 0)];
+        [completing setValue:@6 forKey:@"completionPrefixStart"];
+        [completing setValue:@[
+            @{
+                @"label" : @"method",
+                @"insertText" : @"method(${1:arg})$0",
+                @"flags" : @3,
+                @"replaceStart" : @6,
+                @"replaceLength" : @3,
+                @"documentation" : @"Method documentation"
+            }
+        ] forKey:@"completionItems"];
+        [completing acceptCompletionAtIndex:0];
+        passed =
+            check([completing.documentText isEqualToString:@"prefixmethod(arg)tail"] &&
+                      [completing pluginSelection].location == 13,
+                  @"LSP completion applies the server range and expands snippet text") &&
+            passed;
+        [completing undoEdit];
+        passed = check([completing.documentText isEqualToString:@"prefixXYZtail"],
+                       @"completion is one undo step") &&
+                 passed;
+        NSMutableArray* manyCompletions = [NSMutableArray array];
+        for (NSUInteger index = 0; index < 24; ++index) {
+            [manyCompletions addObject:@{
+                @"label" : [NSString stringWithFormat:@"symbol%lu", (unsigned long)index],
+                @"insertText" : @"symbol",
+                @"detail" : @""
+            }];
+        }
+        [completing setValue:manyCompletions forKey:@"completionItems"];
+        passed = check(NSHeight([completing completionPopupRect]) == 216.0,
+                       @"completion popup bounds a long result list") &&
+                 passed;
         NSString* root = [NSTemporaryDirectory()
             stringByAppendingPathComponent:[NSString stringWithFormat:@"kinetic-tree-%@",
                                                                       NSUUID.UUID.UUIDString]];

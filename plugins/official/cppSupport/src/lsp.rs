@@ -37,7 +37,14 @@ struct CompletionQuery {
 pub struct CompletionItem {
     pub label: String,
     pub insertText: String,
+    pub filterText: String,
+    pub sortText: String,
     pub detail: String,
+    pub documentation: String,
+    pub replaceStartUtf16: u64,
+    pub replaceLengthUtf16: u64,
+    pub kind: u32,
+    pub flags: u32,
 }
 
 pub struct FixEdit {
@@ -325,7 +332,7 @@ fn definition(message: &Value) -> Option<(String, u32, u32)> {
     ))
 }
 
-fn completionItems(message: &Value) -> Vec<CompletionItem> {
+fn completionItems(message: &Value, query: &CompletionQuery, text: &str) -> Vec<CompletionItem> {
     let result = message.get("result");
     let values = result.and_then(Value::as_array).or_else(|| {
         result
@@ -335,6 +342,9 @@ fn completionItems(message: &Value) -> Vec<CompletionItem> {
     let Some(values) = values else {
         return Vec::new();
     };
+    let caret = utf16Offset(text, query.line as u64, query.column as u64)
+        .unwrap_or_else(|| text.encode_utf16().count() as u64);
+    let prefixLength = query.prefix.encode_utf16().count() as u64;
     values
         .iter()
         .filter_map(|item| {
@@ -344,26 +354,64 @@ fn completionItems(message: &Value) -> Vec<CompletionItem> {
                 .or_else(|| item.get("insertText"))
                 .and_then(Value::as_str)
                 .unwrap_or(label);
-            let insertText = if item.get("insertTextFormat").and_then(Value::as_u64) == Some(2)
-                || insertion.contains('$')
-            {
-                item.get("filterText")
-                    .and_then(Value::as_str)
-                    .unwrap_or_else(|| label.split('(').next().unwrap_or(label))
-            } else {
-                insertion
-            };
-            if label.is_empty() || insertText.is_empty() {
+            if label.is_empty() || insertion.is_empty() {
                 return None;
             }
+            let range = item
+                .pointer("/textEdit/replace")
+                .or_else(|| item.pointer("/textEdit/range"));
+            let (start, length) = range
+                .and_then(|range| {
+                    let start = range.get("start")?;
+                    let end = range.get("end")?;
+                    let start = utf16Offset(
+                        text,
+                        start.get("line")?.as_u64()?,
+                        start.get("character")?.as_u64()?,
+                    )?;
+                    let end = utf16Offset(
+                        text,
+                        end.get("line")?.as_u64()?,
+                        end.get("character")?.as_u64()?,
+                    )?;
+                    (end >= start).then_some((start, end - start))
+                })
+                .unwrap_or((caret.saturating_sub(prefixLength), prefixLength));
             let detail = item.get("detail").and_then(Value::as_str).unwrap_or("");
+            let documentation = item
+                .get("documentation")
+                .and_then(|value| {
+                    value
+                        .as_str()
+                        .or_else(|| value.get("value").and_then(Value::as_str))
+                })
+                .unwrap_or("");
             Some(CompletionItem {
-                label: label.chars().take(95).collect(),
-                insertText: insertText.chars().take(95).collect(),
-                detail: detail.chars().take(95).collect(),
+                label: label.into(),
+                insertText: insertion.into(),
+                filterText: item
+                    .get("filterText")
+                    .and_then(Value::as_str)
+                    .unwrap_or(label)
+                    .into(),
+                sortText: item
+                    .get("sortText")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .into(),
+                detail: detail.into(),
+                documentation: documentation.into(),
+                replaceStartUtf16: start,
+                replaceLengthUtf16: length,
+                kind: item.get("kind").and_then(Value::as_u64).unwrap_or(0) as u32,
+                flags: 1 | if item.get("insertTextFormat").and_then(Value::as_u64) == Some(2) {
+                    2
+                } else {
+                    0
+                },
             })
         })
-        .take(32)
+        .take(128)
         .collect()
 }
 
@@ -466,7 +514,11 @@ impl LanguageServer {
                         if let Ok(mut state) = readerState.lock()
                             && state.lastCompletionQuery.as_ref() == Some(&query)
                         {
-                            state.completionItems = completionItems(&message);
+                            let document = state.documentTexts.get(&query.path).cloned();
+                            state.completionItems = document
+                                .as_deref()
+                                .map(|text| completionItems(&message, &query, text))
+                                .unwrap_or_default();
                         }
                     } else if let Some((path, line, column)) = definition(&message) {
                         navigate(&path, line, column);
@@ -674,6 +726,34 @@ mod tests {
         let (_, diagnostics) = parseDiagnostics(&message).unwrap();
         assert_eq!(diagnostics[0].flags, 1);
         assert_eq!(diagnostics[0].message[0] as u8, b'U');
+    }
+
+    #[test]
+    fn completionKeepsServerEditAndSnippetMetadata() {
+        let query = CompletionQuery {
+            path: "/tmp/main.cpp".into(),
+            version: 2,
+            line: 0,
+            column: 5,
+            prefix: "fo".into(),
+        };
+        let response = json!({"result":{"isIncomplete":true,"items":[{
+            "label":"foo(int)","filterText":"foo","sortText":"001",
+            "detail":"method","documentation":{"kind":"markdown","value":"A useful method"},
+            "kind":2,"insertTextFormat":2,
+            "textEdit":{"range":{"start":{"line":0,"character":3},
+                                 "end":{"line":0,"character":5}},
+                        "newText":"foo(${1:value})$0"}
+        }]}});
+        let items = completionItems(&response, &query, "ob.fo");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].insertText, "foo(${1:value})$0");
+        assert_eq!(
+            (items[0].replaceStartUtf16, items[0].replaceLengthUtf16),
+            (3, 2)
+        );
+        assert_eq!(items[0].flags, 3);
+        assert_eq!(items[0].documentation, "A useful method");
     }
 
     #[test]
