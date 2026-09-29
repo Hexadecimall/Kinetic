@@ -4,8 +4,8 @@ class KineticRustRequirement < Requirement
   satisfy(build_env: false) do
     cargo = which("cargo")
     if cargo && cargo.realpath.basename.to_s == "rustup"
-      rustupHome = ENV.fetch("RUSTUP_HOME", "#{Etc.getpwuid.dir}/.rustup")
-      resolved = Utils.popen_read({ "RUSTUP_HOME" => rustupHome }, cargo.realpath, "which", "cargo").strip
+      directory = ENV.fetch("RUSTUP_HOME", "#{Etc.getpwuid.dir}/.rustup")
+      resolved = Utils.popen_read({ "RUSTUP_HOME" => directory }, cargo.realpath, "which", "cargo").strip
       cargo = Pathname.new(resolved) if resolved.start_with?("/")
     end
     cargo if cargo&.executable? && cargo.realpath.basename.to_s != "rustup"
@@ -30,6 +30,17 @@ class Kinetic < Formula
   depends_on macos: :sequoia
   uses_from_macos "python" => :build
 
+  post_install_steps do
+    run "/usr/bin/codesign",
+        args: ["--force", "--sign", "-", "{{prefix}}/Kinetic.app/Contents/PlugIns/libkineticCppSupport.dylib"]
+    run "/usr/bin/codesign",
+        args: ["--force", "--sign", "-", "{{prefix}}/Kinetic.app/Contents/Resources/bin/kinetic"]
+    run "/usr/bin/codesign",
+        args: ["--force", "--sign", "-", "{{prefix}}/Kinetic.app"]
+    run "/usr/bin/codesign",
+        args: ["--verify", "--deep", "--strict", "{{prefix}}/Kinetic.app"]
+  end
+
   def install
     ENV["CARGO_HOME"] = buildpath/"cargo-home"
     ENV["CARGO_NET_OFFLINE"] = "true"
@@ -51,14 +62,6 @@ class Kinetic < Formula
       To add it to Applications:
         ln -s "#{opt_prefix}/Kinetic.app" ~/Applications/Kinetic.app
     EOS
-  end
-
-  def post_install
-    app = prefix/"Kinetic.app"
-    system "/usr/bin/codesign", "--force", "--sign", "-", app/"Contents/PlugIns/libkineticCppSupport.dylib"
-    system "/usr/bin/codesign", "--force", "--sign", "-", app/"Contents/Resources/bin/kinetic"
-    system "/usr/bin/codesign", "--force", "--sign", "-", app
-    system "/usr/bin/codesign", "--verify", "--deep", "--strict", app
   end
 
   test do

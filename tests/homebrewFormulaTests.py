@@ -32,7 +32,7 @@ class HomebrewFormulaTests(unittest.TestCase):
             self.assertIn('CARGO_NET_OFFLINE', text)
             self.assertIn('refute_path_exists', text)
             self.assertNotIn('bottle do', text)
-            self.assertIn('def post_install', text)
+            self.assertIn('post_install_steps do', text)
             self.assertEqual(text.count('"--force", "--sign", "-"'), 3)
 
     def testRejectsUnpinnedRevision(self):
