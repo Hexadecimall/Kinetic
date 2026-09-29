@@ -2,6 +2,12 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
+## 0.31.2 - Unreleased
+
+### Fixed
+
+- Verify app bundles before installation, locally sign the staged copy, and verify it before publishing the app and CLI link. Allow installing an extracted signed bundle without rebuilding.
+
 ## 0.31.1
 
 ### Added
