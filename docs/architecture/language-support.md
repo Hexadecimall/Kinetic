@@ -15,6 +15,8 @@ C-family completion keeps clangd's replacement range, snippet text, filter and s
 documentation. The Rust backend ranks candidates and expands basic snippet tabstops; the popup
 shows a bounded, scrollable list. Full snippet tabstop navigation and completion-item resolve
 remain future work.
+Superseded completion requests are cancelled. Definition replies are accepted only for the
+requesting document version, and older diagnostic versions cannot replace current analysis.
 
 ## Additional languages
 

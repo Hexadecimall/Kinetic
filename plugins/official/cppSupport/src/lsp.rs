@@ -18,6 +18,7 @@ struct State {
     diagnostics: HashMap<String, Vec<Value>>,
     pending: HashMap<String, String>,
     pendingCompletions: HashMap<u64, CompletionQuery>,
+    pendingDefinitions: HashMap<u64, (String, u32)>,
     pendingFixes: HashMap<u64, mpsc::Sender<Value>>,
     lastCompletionQuery: Option<CompletionQuery>,
     completionItems: Vec<CompletionItem>,
@@ -290,6 +291,16 @@ fn parseDiagnostics(message: &Value) -> Option<(String, Vec<Diagnostic>)> {
     Some((path, result))
 }
 
+fn diagnosticsAreCurrent(documents: &HashMap<String, u32>, message: &Value, path: &str) -> bool {
+    let Some(&currentVersion) = documents.get(path) else {
+        return false;
+    };
+    message
+        .pointer("/params/version")
+        .and_then(Value::as_u64)
+        .is_none_or(|version| version == currentVersion as u64)
+}
+
 fn compilationDatabase(workspace: &str) -> Option<PathBuf> {
     let root = Path::new(workspace);
     let candidates = [
@@ -457,6 +468,7 @@ impl LanguageServer {
             diagnostics: HashMap::new(),
             pending: HashMap::new(),
             pendingCompletions: HashMap::new(),
+            pendingDefinitions: HashMap::new(),
             pendingFixes: HashMap::new(),
             lastCompletionQuery: None,
             completionItems: Vec::new(),
@@ -487,15 +499,24 @@ impl LanguageServer {
                     == Some("textDocument/publishDiagnostics")
                 {
                     if let Some((path, diagnostics)) = parseDiagnostics(&message) {
-                        if let Ok(mut state) = readerState.lock() {
-                            let raw = message
-                                .pointer("/params/diagnostics")
-                                .and_then(Value::as_array)
-                                .cloned()
-                                .unwrap_or_default();
-                            state.diagnostics.insert(path.clone(), raw);
+                        let accepted = if let Ok(mut state) = readerState.lock() {
+                            if !diagnosticsAreCurrent(&state.documents, &message, &path) {
+                                false
+                            } else {
+                                let raw = message
+                                    .pointer("/params/diagnostics")
+                                    .and_then(Value::as_array)
+                                    .cloned()
+                                    .unwrap_or_default();
+                                state.diagnostics.insert(path.clone(), raw);
+                                true
+                            }
+                        } else {
+                            false
+                        };
+                        if accepted {
+                            publish(&path, &diagnostics);
                         }
-                        publish(&path, &diagnostics);
                     }
                 } else if let Some(id) = message.get("id").and_then(Value::as_u64) {
                     if let Some(reply) = readerState
@@ -520,8 +541,16 @@ impl LanguageServer {
                                 .map(|text| completionItems(&message, &query, text))
                                 .unwrap_or_default();
                         }
-                    } else if let Some((path, line, column)) = definition(&message) {
-                        navigate(&path, line, column);
+                    } else {
+                        let current = readerState.lock().ok().and_then(|mut state| {
+                            let (requestedPath, version) = state.pendingDefinitions.remove(&id)?;
+                            (state.documents.get(&requestedPath) == Some(&version)).then_some(())
+                        });
+                        if current.is_some()
+                            && let Some((path, line, column)) = definition(&message)
+                        {
+                            navigate(&path, line, column);
+                        }
                     }
                 }
             }
@@ -564,8 +593,24 @@ impl LanguageServer {
             return;
         }
         state.documentTexts.insert(path.clone(), text.clone());
+        state.diagnostics.remove(&path);
         state.lastCompletionQuery = None;
         state.completionItems.clear();
+        for id in state.pendingCompletions.keys() {
+            let _ = self
+                .sender
+                .send(json!({"jsonrpc":"2.0","method":"$/cancelRequest",
+                "params":{"id":id}}));
+        }
+        state.pendingCompletions.clear();
+        state.pendingDefinitions.retain(|id, (requestedPath, _)| {
+            if requestedPath != &path {
+                return true;
+            }
+            let _ = self.sender.send(json!({"jsonrpc":"2.0","method":"$/cancelRequest",
+                "params":{"id":id}}));
+            false
+        });
         let message = if let Some(version) = state.documents.get_mut(&path) {
             *version = version.saturating_add(1);
             didChange(&path, &text, *version)
@@ -606,6 +651,12 @@ impl LanguageServer {
         }
         state.lastCompletionQuery = Some(query.clone());
         state.completionItems.clear();
+        for id in state.pendingCompletions.keys() {
+            let _ = self
+                .sender
+                .send(json!({"jsonrpc":"2.0","method":"$/cancelRequest",
+                "params":{"id":id}}));
+        }
         state.pendingCompletions.clear();
         let id = state.nextRequestId;
         state.nextRequestId += 1;
@@ -623,16 +674,24 @@ impl LanguageServer {
         let Ok(mut state) = self.state.lock() else {
             return;
         };
-        if !state.ready {
+        if !state.ready || !state.documents.contains_key(&path) {
             return;
         }
         let id = state.nextRequestId;
         state.nextRequestId += 1;
-        let _ = self.sender.send(
-            json!({"jsonrpc":"2.0","id":id,"method":"textDocument/definition","params":{
-                "textDocument":{"uri":uri(&path)},"position":{"line":line,"character":column}
-            }}),
-        );
+        let version = state.documents[&path];
+        state.pendingDefinitions.insert(id, (path.clone(), version));
+        if self
+            .sender
+            .send(
+                json!({"jsonrpc":"2.0","id":id,"method":"textDocument/definition","params":{
+                    "textDocument":{"uri":uri(&path)},"position":{"line":line,"character":column}
+                }}),
+            )
+            .is_err()
+        {
+            state.pendingDefinitions.remove(&id);
+        }
     }
 
     pub fn quickFix(&self, path: &str, line: u32, column: u32, length: u32) -> Option<Value> {
@@ -668,9 +727,22 @@ impl LanguageServer {
             "context":{"diagnostics":diagnostics,"only":["quickfix"]}
         }});
         if self.sender.send(request).is_err() {
+            if let Ok(mut state) = self.state.lock() {
+                state.pendingFixes.remove(&id);
+            }
             return None;
         }
-        receiver.recv_timeout(Duration::from_millis(800)).ok()
+        let result = receiver.recv_timeout(Duration::from_millis(800)).ok();
+        if result.is_none()
+            && let Ok(mut state) = self.state.lock()
+        {
+            state.pendingFixes.remove(&id);
+            let _ = self
+                .sender
+                .send(json!({"jsonrpc":"2.0","method":"$/cancelRequest",
+                "params":{"id":id}}));
+        }
+        result
     }
 
     pub fn stop(self) {
@@ -698,6 +770,26 @@ mod tests {
             readFrame(&mut BufReader::new(bytes.as_slice())).unwrap(),
             Some(value)
         );
+    }
+
+    #[test]
+    fn oldOrUnknownDiagnosticsDoNotReplaceCurrentDocument() {
+        let documents = HashMap::from([("/tmp/main.cpp".to_owned(), 4)]);
+        let message = json!({"params":{"version":3}});
+        assert!(!diagnosticsAreCurrent(
+            &documents,
+            &message,
+            "/tmp/main.cpp"
+        ));
+        assert!(!diagnosticsAreCurrent(
+            &documents,
+            &message,
+            "/tmp/other.cpp"
+        ));
+        let message = json!({"params":{"version":4}});
+        assert!(diagnosticsAreCurrent(&documents, &message, "/tmp/main.cpp"));
+        let message = json!({"params":{}});
+        assert!(diagnosticsAreCurrent(&documents, &message, "/tmp/main.cpp"));
     }
 
     #[test]

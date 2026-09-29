@@ -2,7 +2,14 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.33.0 - Unreleased
+## 0.33.1 - Unreleased
+
+### Fixed
+
+- Match clangd definition replies to their request and document version instead of treating unrelated responses as navigation. Cancel superseded completion requests and ignore stale diagnostics.
+- Cover definition navigation against a valid CMake compilation database fixture with real clangd.
+
+## 0.33.0
 
 ### Added
 

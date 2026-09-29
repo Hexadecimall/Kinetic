@@ -192,23 +192,18 @@ int main(int argc, const char* argv[]) {
                 @"opening a CMake project reconfigures clangd and resolves its header");
 
         delegate.source =
-            @"int answer() { return 42; }\nint main() { return answer() + definitionProbe; }\n";
+            @"#include \"local.hpp\"\nint main() { return answer(); }\n\n";
         require([delegate.source writeToFile:delegate.path
                                   atomically:YES
                                     encoding:NSUTF8StringEncoding
                                        error:nil],
                 @"updated source");
         delegate.selection = [delegate.source rangeOfString:@"answer" options:NSBackwardsSearch];
-        delegate.selection = NSMakeRange(delegate.selection.location, 0);
+        delegate.selection = NSMakeRange(delegate.selection.location + 3, 0);
         delegate.diagnostics = nil;
         [host emitEvent:@"document.changed"];
         require(waitUntil(^BOOL {
-                  for (NSDictionary* diagnostic in delegate.diagnostics) {
-                      if ([diagnostic[@"message"] containsString:@"definitionProbe"]) {
-                          return YES;
-                      }
-                  }
-                  return NO;
+                  return delegate.diagnostics != nil && delegate.diagnostics.count == 0;
                 }),
                 @"clangd analyzed the changed C++ document");
         require([host executeCommand:@"kinetic.cpp.goToDefinition"], @"definition command");
@@ -222,7 +217,8 @@ int main(int argc, const char* argv[]) {
         }
         require(definitionResolved, @"clangd definition result");
         require([delegate.definitionPath.stringByResolvingSymlinksInPath
-                    isEqualToString:delegate.path.stringByResolvingSymlinksInPath],
+                    isEqualToString:[includePath stringByAppendingPathComponent:@"local.hpp"]
+                                         .stringByResolvingSymlinksInPath],
                 @"definition path");
         delegate.source = @"int answer() { return 42; }\nint main() { ans\n";
         delegate.selection = NSMakeRange(
