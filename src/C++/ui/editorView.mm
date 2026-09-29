@@ -443,6 +443,33 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     [self resizeSearchPopover];
 }
 
+- (NSUInteger)replaceAllInFile:(NSString*)query
+                    withString:(NSString*)replacement
+                     matchCase:(BOOL)matchCase {
+    if (query.length == 0 || replacement == nil) {
+        return 0;
+    }
+    NSMutableString* updated = [_text mutableCopy];
+    NSUInteger count = [updated replaceOccurrencesOfString:query
+                                                withString:replacement
+                                                   options:matchCase ? 0 : NSCaseInsensitiveSearch
+                                                     range:NSMakeRange(0, updated.length)];
+    if (count == 0 || [updated isEqualToString:_text]) {
+        return count;
+    }
+    [self recordUndoState];
+    if (![self replaceTextInRange:NSMakeRange(0, _text.length) withString:updated]) {
+        return 0;
+    }
+    _caretIndex = MIN(_caretIndex, _text.length);
+    _selectionAnchor = _caretIndex;
+    [self updateDirtyState];
+    [self ensureCaretVisible];
+    [self refreshFileSearch];
+    self.needsDisplay = YES;
+    return count;
+}
+
 - (void)resizeSearchPopover {
     if (!_searchOpen || _searchAnimating) {
         return;
@@ -2309,6 +2336,45 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         [self revealLine:[result[@"line"] unsignedIntegerValue]
                   column:[result[@"column"] unsignedIntegerValue]
                   length:[result[@"length"] unsignedIntegerValue]];
+    }
+}
+
+- (void)searchPopover:(KineticSearchPopover*)popover didRequestReplaceResult:(NSDictionary*)result {
+    if (popover.scope != KineticSearchScopeFile || popover.query.length == 0) {
+        return;
+    }
+    NSUInteger line = [result[@"line"] unsignedIntegerValue];
+    NSUInteger column = [result[@"column"] unsignedIntegerValue];
+    NSUInteger length = [result[@"length"] unsignedIntegerValue];
+    if (line == 0 || column == 0 || length == 0) {
+        return;
+    }
+    NSArray<NSString*>* lines = [self documentLines];
+    if (line > lines.count || column - 1 > lines[line - 1].length ||
+        length > lines[line - 1].length - (column - 1)) {
+        return;
+    }
+    NSUInteger offset = column - 1;
+    for (NSUInteger index = 0; index < line - 1; ++index) {
+        offset += lines[index].length + 1;
+    }
+    NSRange range = NSMakeRange(offset, length);
+    if (NSMaxRange(range) > _text.length ||
+        [[_text substringWithRange:range]
+            compare:popover.query
+            options:popover.matchCase ? 0 : NSCaseInsensitiveSearch] != NSOrderedSame) {
+        return;
+    }
+    if ([self replaceRangeFromPlugin:range withString:popover.replacement]) {
+        [self refreshFileSearch];
+    }
+}
+
+- (void)searchPopoverDidRequestReplaceAll:(KineticSearchPopover*)popover {
+    if (popover.scope == KineticSearchScopeFile) {
+        [self replaceAllInFile:popover.query
+                    withString:popover.replacement
+                     matchCase:popover.matchCase];
     }
 }
 

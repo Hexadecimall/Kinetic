@@ -48,6 +48,9 @@
 - (void)focusWorkspaceSearch;
 - (void)focusFileSearch;
 - (void)toggleFileSearch;
+- (NSUInteger)replaceAllInFile:(NSString*)query
+                    withString:(NSString*)replacement
+                     matchCase:(BOOL)matchCase;
 - (void)focusSearchQuery;
 - (void)revealLine:(NSUInteger)line column:(NSUInteger)column length:(NSUInteger)length;
 - (void)revealCreatedFolderAtUrl:(NSURL*)url;

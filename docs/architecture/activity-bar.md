@@ -35,10 +35,11 @@ custom titlebar. The icon appears only while an editor is open; it no longer occ
 The button and Command-F open in-file search; Command-Shift-F opens project search. Both scopes show
 live result rows and support match case, keyboard selection, and opening the selected match. In-file
 search finds each occurrence, including multiple on one line, and highlights visible matches in the
-editor. Project search scans filenames and UTF-8 lines off the UI thread, including unsaved text in
-open files. Its query and results follow the window's project across tabs. Hidden files, package
-contents, common generated folders, files over 1 MiB, and binary files are skipped; results stop at
-300 matches or 10,000 scanned files.
+editor. The in-file panel also replaces a selected match or all matches without closing the panel.
+Replace All is a single document undo step. Project search scans filenames and UTF-8 lines off the UI
+thread, including unsaved text in open files. Its query and results follow the window's project
+across tabs. Hidden files, package contents, common generated folders, files over 1 MiB, and binary
+files are skipped; results stop at 300 matches or 10,000 scanned files.
 
 Settings opens a searchable, categorized overlay with animated switches and compact steppers.
 Live controls cover editor type, scrolling, syntax highlighting, indentation, delimiter pairing,

@@ -2,7 +2,13 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.31.2 - Unreleased
+## 0.32.0 - Unreleased
+
+### Added
+
+- Add in-file Replace and Replace All to the custom search panel, with case matching and a single undo step for Replace All.
+
+## 0.31.2
 
 ### Fixed
 

@@ -167,6 +167,20 @@ int main() {
         passed = check(placeholder.documentText.length == 0 && !placeholder.dirty,
                        @"workspace placeholder does not create an untitled document") &&
                  passed;
+        KineticEditorView* replacing =
+            [[KineticEditorView alloc] initWithFrame:NSMakeRect(0, 0, 1180, 760)
+                                            contents:@"one ONE one\n"
+                                             fileUrl:nil];
+        passed =
+            check([replacing replaceAllInFile:@"one" withString:@"two" matchCase:NO] == 3 &&
+                      [replacing.documentText isEqualToString:@"two two two\n"] && replacing.dirty,
+                  @"replace all updates every match and dirty state") &&
+            passed;
+        [replacing undoEdit];
+        passed =
+            check([replacing.documentText isEqualToString:@"one ONE one\n"] && !replacing.dirty,
+                  @"replace all is one undo step") &&
+            passed;
         NSString* root = [NSTemporaryDirectory()
             stringByAppendingPathComponent:[NSString stringWithFormat:@"kinetic-tree-%@",
                                                                       NSUUID.UUID.UUIDString]];
