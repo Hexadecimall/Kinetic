@@ -8,6 +8,12 @@ The cask installs `Kinetic.app` and links its embedded CLI as `kinetic`; it does
 install language servers. Ordinary uninstall preserves `~/.kinetic/` settings and downloaded tools.
 Homebrew-managed app upgrades use `brew upgrade --cask Hexadecimall/Kinetic/kinetic`.
 
+Before installation, Homebrew verifies the downloaded bundle, ad-hoc signs the plugin, CLI,
+and app locally in that order, then verifies the completed signature. It verifies the app again
+at its installed location. Failed signing or verification aborts installation. This does not
+remove quarantine or provide Apple notarization. Existing installations can run
+`brew reinstall --cask Hexadecimall/Kinetic/kinetic` to apply the signing steps.
+
 Publication requires the matching ZIP at the versioned GitHub release URL and the generated cask
 in `Hexadecimall/homebrew-Kinetic`, under `Casks/kinetic.rb`. After publication:
 

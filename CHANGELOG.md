@@ -6,6 +6,8 @@ All notable Kinetic changes are recorded here. Versions use `main.feature.patch`
 
 ### Fixed
 
+- Apply local ad-hoc signing and strict verification during Homebrew installation and reinstallation, without changing quarantine or Gatekeeper settings.
+
 - Verify app bundles before installation, locally sign the staged copy, and verify it before publishing the app and CLI link. Allow installing an extracted signed bundle without rebuilding.
 
 ## 0.31.1
