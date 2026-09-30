@@ -10,6 +10,7 @@ mod extensions;
 mod packages;
 mod preferences;
 mod toolDiscovery;
+mod workspace;
 
 const abiVersion: u32 = 1;
 const versionBytes: &[u8] = concat!(env!("CARGO_PKG_VERSION"), "\0").as_bytes();

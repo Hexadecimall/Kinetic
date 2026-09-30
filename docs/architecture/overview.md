@@ -12,7 +12,7 @@ between its C++ platform/rendering layer and Rust editor core.
 - GPU device management, compositing, text presentation, and UI primitives
 - Frame scheduling, animation, hit testing, and native surface integration
 - Custom window chrome, traffic controls, and in-window application menus
-- Custom file browsing, document presentation, scrolling, and tween execution
+- File-browser presentation, document presentation, scrolling, and tween execution
 
 ### Rust
 
@@ -20,9 +20,14 @@ between its C++ platform/rendering layer and Rust editor core.
 - Plugin contribution metadata and collision rules for commands, shortcuts, menus, panels,
   overlays, and formatters
 - Indentation and completion configuration, completion-trigger parsing, numeric preference persistence
+- Project-folder validation and Explorer directory enumeration, including hidden entries and
+  folder-first ordering
 - C/C++ Support language-server lifecycle and protocol handling
 
-Selections, workspace state, search, and the native plugin host remain in Objective-C++.
+Selections, the active workspace URL, project search, custom file-dialog browsing, and the native
+plugin host remain in Objective-C++. The UI's `openFolder` action opens the custom picker;
+`openFolderAtUrl` is the single project-opening path for picker and Recent Projects. Its folder
+validation and the Explorer tree's directory listing cross `kineticBackend.h` into Rust.
 Lua automation is not implemented.
 
 ### ABI boundary
@@ -72,6 +77,7 @@ UTF-16 offsets; the C++ editor chooses providers and presents the resulting popu
 registration and arbitrary widget layouts are not yet exposed.
 
 Opening a workspace folder populates an expandable file tree without using a native outline view.
+The Rust backend enumerates each expanded directory; Objective-C++ owns expansion and rendering.
 The Explorer shows hidden entries and creates files and folders through Kinetic-drawn dialogs; the
 custom Open and Save browsers show hidden entries too. Context menus serve tabs, project files,
 browser rows and fields, recent projects, and search alongside the editor surface.

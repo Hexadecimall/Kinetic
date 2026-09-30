@@ -76,6 +76,7 @@ add_custom_command(
         "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/packages.rs"
         "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/preferences.rs"
         "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/toolDiscovery.rs"
+        "${CMAKE_SOURCE_DIR}/src/Rust/backend/src/workspace.rs"
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     COMMENT "Building Kinetic's Rust backend"
     VERBATIM)

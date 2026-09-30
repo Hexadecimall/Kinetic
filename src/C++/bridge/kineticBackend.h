@@ -14,6 +14,10 @@ uint32_t kineticBackendAbiVersion(void);
 const char* kineticBackendVersion(void);
 int32_t kineticPackageMain(void);
 
+bool kineticWorkspaceIsFolder(const char* path);
+// Returns the required JSON byte count, or zero on failure. Copies only with enough capacity.
+uint64_t kineticWorkspaceListDirectory(const char* path, uint8_t* output, uint64_t capacity);
+
 typedef struct KineticCompletionItem {
     uint8_t label[96];
     uint8_t insertText[96];

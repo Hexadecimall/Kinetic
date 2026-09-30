@@ -11,10 +11,12 @@ live animated width, so expanded workspace UI never overlays or clips document t
 
 Explorer labels the current document as Open in Editor and provides distinct Open File and Open
 Folder actions. Opening a folder builds a sorted, expandable, scrollable file tree, including
-dotfiles and hidden folders; selecting a file opens it in the editor. The project header has
-New File and New Folder controls. Their Kinetic-drawn dialogs create inside the current project,
-including a selected subfolder, reject duplicates, and reveal the result in the shared tree. A new
-file opens in its own tab. Dot-prefixed names are valid. The same hidden entries appear in custom
+dotfiles and hidden folders; selecting a file opens it in the editor.
+Rust supplies directory entries through the backend ABI; the C++ view owns tree expansion and
+rendering. Picker selection and Recent Projects share the app's `openFolderAtUrl` entry point.
+The project header has New File and New Folder controls. Their Kinetic-drawn dialogs create inside
+the current project, including a selected subfolder, reject duplicates, and reveal the result in
+the shared tree. A new file opens in its own tab. Dot-prefixed names are valid. The same hidden entries appear in custom
 Open and Save browsers. Explorer searches nested filenames in the current project, and custom
 Open File/Open Folder browsers filter the current folder by name. Kinetic-drawn context menus provide file/folder creation and path copying
 from the Explorer, and opening or path copying from file-browser rows. Directory symlinks are

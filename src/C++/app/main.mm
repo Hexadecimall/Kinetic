@@ -1184,6 +1184,30 @@
     [self presentFileDialogWithMode:KineticFileDialogModeOpenFolder initialPath:@"~/"];
 }
 
+- (BOOL)openFolderAtUrl:(NSURL*)folderUrl {
+    if (folderUrl == nil ||
+        !kineticWorkspaceIsFolder(folderUrl.fileSystemRepresentation)) {
+        return NO;
+    }
+    ++self.searchGeneration;
+    self.workspaceUrl = folderUrl;
+    self.searchUiState = @{};
+    self.activitySection = KineticActivitySectionExplorer;
+    [self recordRecentProject:folderUrl];
+    for (KineticEditorView* editor in self.editors) {
+        editor.workspaceUrl = folderUrl;
+        [editor applySearchUiState:@{}];
+        [editor setActivitySection:self.activitySection animated:YES];
+    }
+    if (self.editor == nil) {
+        self.workspaceUiState = @{};
+        [self openWorkspacePlaceholder];
+    } else {
+        self.workspaceUiState = self.editor.workspaceUiState;
+    }
+    return YES;
+}
+
 - (void)cloneRepository {
     if (self.cloneDialog != nil) {
         [self.cloneDialog focusUrl];
@@ -1448,9 +1472,7 @@
         return;
     }
     if (mode == KineticFileDialogModeOpenFolder) {
-        BOOL isDirectory = NO;
-        if (![NSFileManager.defaultManager fileExistsAtPath:path isDirectory:&isDirectory] ||
-            !isDirectory) {
+        if (!kineticWorkspaceIsFolder(fileUrl.fileSystemRepresentation)) {
             [dialog showError:@"That folder does not exist."];
             return;
         }
@@ -1459,23 +1481,8 @@
             [self startCloneIntoDirectory:fileUrl];
             return;
         }
-        ++self.searchGeneration;
-        self.workspaceUrl = fileUrl;
-        self.searchUiState = @{};
-        self.activitySection = KineticActivitySectionExplorer;
-        [self recordRecentProject:fileUrl];
+        [self openFolderAtUrl:fileUrl];
         [self dismissFileDialog];
-        if (self.editor == nil) {
-            self.workspaceUiState = @{};
-            [self openWorkspacePlaceholder];
-        } else {
-            for (KineticEditorView* editor in self.editors) {
-                editor.workspaceUrl = fileUrl;
-                [editor applySearchUiState:@{}];
-                [editor setActivitySection:self.activitySection animated:YES];
-            }
-            self.workspaceUiState = self.editor.workspaceUiState;
-        }
         return;
     }
     if (mode == KineticFileDialogModeOpen) {
@@ -1583,29 +1590,8 @@
 }
 
 - (void)openRecentProjectAtUrl:(NSURL*)projectUrl {
-    BOOL directory = NO;
-    if (![NSFileManager.defaultManager fileExistsAtPath:projectUrl.path isDirectory:&directory] ||
-        !directory) {
+    if (![self openFolderAtUrl:projectUrl]) {
         self.home.recentProjects = [self persistedRecentProjects];
-        return;
-    }
-    ++self.searchGeneration;
-    self.workspaceUrl = projectUrl;
-    self.searchUiState = @{};
-    self.activitySection = KineticActivitySectionExplorer;
-    [self recordRecentProject:projectUrl];
-    for (KineticEditorView* editor in self.editors) {
-        editor.workspaceUrl = projectUrl;
-        [editor applySearchUiState:@{}];
-        [editor setActivitySection:self.activitySection animated:YES];
-    }
-    if (self.editor != nil) {
-        self.workspaceUiState = self.editor.workspaceUiState;
-    } else {
-        self.workspaceUiState = @{};
-    }
-    if (self.editor == nil) {
-        [self openWorkspacePlaceholder];
     }
 }
 

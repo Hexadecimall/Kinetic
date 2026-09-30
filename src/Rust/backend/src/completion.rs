@@ -174,7 +174,8 @@ fn matchScore(query: &str, candidate: &str) -> i32 {
     let query = query.to_lowercase();
     let candidate = candidate.to_lowercase();
     if candidate.starts_with(&query) {
-        return 1000 - (candidate.chars().count() as i32 - query.chars().count() as i32).min(500);
+        let extraCharacters = candidate.chars().count() - query.chars().count();
+        return 1000 - i32::try_from(extraCharacters.min(500)).unwrap_or(500);
     }
     let mut remaining = query.chars();
     let mut expected = remaining.next();

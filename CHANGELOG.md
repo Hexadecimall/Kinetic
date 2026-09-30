@@ -2,7 +2,16 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.34.2 - Unreleased
+## 0.35.0 - Unreleased
+
+### Changed
+
+- Route folder opening from the custom picker and Recent Projects through one searchable
+  `openFolderAtUrl` entry point. Rust now validates project folders and enumerates Explorer
+  directories, including hidden entries and folder-first sorting; C++ retains view state and
+  presentation.
+
+## 0.34.2
 
 ### Changed
 
