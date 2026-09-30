@@ -319,6 +319,15 @@ fn compilationDatabase(workspace: &str) -> Option<PathBuf> {
         .find(|directory| directory.join("compile_commands.json").is_file())
 }
 
+pub fn projectRootForFile(filePath: &str) -> Option<String> {
+    Path::new(filePath)
+        .parent()?
+        .ancestors()
+        .filter_map(Path::to_str)
+        .find(|directory| compilationDatabase(directory).is_some())
+        .map(str::to_owned)
+}
+
 fn definition(message: &Value) -> Option<(String, u32, u32)> {
     let result = message.get("result")?;
     let location = if let Some(items) = result.as_array() {
@@ -857,11 +866,22 @@ mod tests {
 
     #[test]
     fn discoversCMakeDatabaseAndParsesSameFileFix() {
-        let root = std::env::temp_dir().join(format!("kinetic-clangd-{}", std::process::id()));
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root =
+            std::env::temp_dir().join(format!("kinetic-clangd-{}-{nonce}", std::process::id()));
+        std::fs::create_dir(&root).unwrap();
         let directory = root.join("build/debug");
         std::fs::create_dir_all(&directory).unwrap();
         std::fs::write(directory.join("compile_commands.json"), "[]").unwrap();
         assert_eq!(compilationDatabase(root.to_str().unwrap()), Some(directory));
+        let source = root.join("src/main.cpp");
+        assert_eq!(
+            projectRootForFile(source.to_str().unwrap()),
+            root.to_str().map(str::to_owned)
+        );
         let _ = std::fs::remove_dir_all(root);
         let response = json!({"result":[{"kind":"quickfix","edit":{"changes":{
             "file:///tmp/demo.cpp":[{"range":{"start":{"line":0,"character":0},

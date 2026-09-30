@@ -200,7 +200,8 @@ extern "C" fn documentEvent(_userData: *mut c_void, eventName: *const c_char) {
     let activated = !eventName.is_null()
         && unsafe { CStr::from_ptr(eventName) }.to_bytes() == b"document.activated";
     if let Some(api) = api() {
-        let workspace = copyHostString(api.copyWorkspacePath);
+        let workspace = copyHostString(api.copyWorkspacePath)
+            .or_else(|| activeDocument().and_then(|(path, _)| lsp::projectRootForFile(&path)));
         if let Ok(mut current) = currentWorkspace().lock()
             && (*current != workspace || (activated && STATUS.load(Ordering::Acquire) == 0))
         {
@@ -315,6 +316,12 @@ extern "C" fn goToDefinition(_userData: *mut c_void) {
     let mut length = 0_u64;
     // SAFETY: The host writes two u64 values.
     if unsafe { (api.getSelection)(api.context, &mut caret, &mut length) } != 0 {
+        return;
+    }
+    if let Some(target) = language::localIncludeAtCaret(&path, &text, caret)
+        && let Some(target) = target.to_str()
+    {
+        navigate(target, 1, 0);
         return;
     }
     let (line, column) = positionAtCaret(&text, caret);
@@ -649,7 +656,8 @@ extern "C" fn start(apiPointer: *const PluginApi) -> i32 {
             }
         }
     }
-    let workspace = copyHostString(api.copyWorkspacePath);
+    let workspace = copyHostString(api.copyWorkspacePath)
+        .or_else(|| activeDocument().and_then(|(path, _)| lsp::projectRootForFile(&path)));
     if let Ok(mut current) = currentWorkspace().lock() {
         *current = workspace.clone();
     }
@@ -684,7 +692,7 @@ static DESCRIPTOR: PluginDescriptor = PluginDescriptor {
     structSize: std::mem::size_of::<PluginDescriptor>() as u32,
     pluginId: c"kinetic.cpp-support".as_ptr(),
     displayName: c"C/C++ Support".as_ptr(),
-    version: c"0.6.0".as_ptr(),
+    version: c"0.6.1".as_ptr(),
     start,
     stop,
 };

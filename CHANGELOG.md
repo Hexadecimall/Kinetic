@@ -2,7 +2,15 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.35.0 - Unreleased
+## 0.35.1 - Unreleased
+
+### Changed
+
+- Command-click in C-family files invokes Go to Definition. Quoted headers relative to the source
+  file open directly even without a clangd compilation database. When no project folder is open,
+  clangd discovers a compilation database from the active file's ancestor directories.
+
+## 0.35.0
 
 ### Changed
 

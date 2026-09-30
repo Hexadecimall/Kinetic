@@ -12,6 +12,8 @@ It uses the public plugin ABI: there is no private syntax, navigation, or diagno
 The plugin provides C/C++ syntax tokens for `.c`, `.h`, `.cc`, `.cpp`, `.cxx`, `.hpp`, `.hh`, and
 `.hxx`; a clangd language-server session for live diagnostics, completion, inline quick fixes, and Go to Definition; an explicit
 clang-format formatter; and Switch Header / Source. Go to Definition is Command-Option-B and
+Command-click in C-family files. Quoted includes relative to the source file open directly when the
+caret is on the header name, even without a compilation database; other navigation uses clangd.
 Switch Header / Source is Command-Option-H. These actions are editor commands, not Plugins-page rows.
 Format Document appears in File for matching extensions when clang-format is available. The
 formatter honors a nearby `.clang-format` file through clang-format's normal discovery.
@@ -22,7 +24,8 @@ active, while diagnostics and navigation are unavailable.
 Header/source switching searches sibling files with a matching stem. A project-local
 `compile_commands.json` in the project root or a common CMake build directory (including
 `build/debug`) is supplied to clangd. The server restarts when the active workspace changes.
-Other build layouts can still use clangd's normal discovery rules.
+Without an open workspace, the plugin also searches the active file's ancestor directories for a
+database in those locations. Other build layouts can still use clangd's normal discovery rules.
 
 Disable the included plugin with `disabledFiles = ["libkineticCppSupport.dylib"]` under
 `[plugins]` in `~/.kinetic/config.toml`, or disable all native plugins with `enabled = false`.
@@ -33,10 +36,10 @@ Version 0.2.0 added clangd completion, project build-directory discovery, and qu
 Version 0.4.0 added private and system tool discovery and retained Objective-C/C++ routing.
 Version 0.6.0 preserves clangd replacement ranges, snippets, filtering text, sort text, and
 documentation through the richer completion callback, and notifies the editor when asynchronous
-results arrive. It is prepared for the next immutable
-release; the catalog
-will list it only after that asset is published and its digest is verified. The bundled version is
-marked Included in the Plugins page and bundled CLI; it is not separately installed or removed.
+results arrive. Version 0.6.1 adds direct navigation for source-relative quoted includes. This
+bundled version is prepared for an immutable release; the catalog will list it only after that
+asset is published and its digest is verified. It is marked Included in the Plugins page and
+bundled CLI; it is not separately installed or removed.
 Native code runs with the user's privileges; disabling it takes effect after restarting Kinetic.
 
 Build and test through `./scripts/test`. The Rust plugin crate has isolated unit tests; the

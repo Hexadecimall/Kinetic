@@ -2283,9 +2283,16 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         _selectionAnchor = index;
     }
     _caretIndex = index;
-    _draggingSelection = YES;
+    BOOL goToDefinition =
+        self.fileUrl != nil && (event.modifierFlags & NSEventModifierFlagCommand) != 0 &&
+        [@[ @"c", @"h", @"cc", @"cpp", @"cxx", @"hpp", @"hh", @"hxx", @"m", @"mm" ]
+            containsObject:self.fileUrl.pathExtension.lowercaseString];
+    _draggingSelection = !goToDefinition;
     [self ensureCaretVisible];
     self.needsDisplay = YES;
+    if (goToDefinition) {
+        [self.commandHandler executePluginCommand:@"kinetic.cpp.goToDefinition"];
+    }
 }
 
 - (void)rightMouseDown:(NSEvent*)event {
