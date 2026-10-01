@@ -2,7 +2,14 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.35.1 - Unreleased
+## 0.35.2 - Unreleased
+
+### Changed
+
+- Use CMake's generated compile database for clangd via a local, ignored repository-root link.
+  Remove the hard-coded C++23 override so each source file uses its actual compile flags.
+
+## 0.35.1
 
 ### Changed
 

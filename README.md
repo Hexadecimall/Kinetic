@@ -7,7 +7,7 @@
 </p>
 
 > [!IMPORTANT]
-> Kinetic `0.35.1` is an early functional preview. Editing, retained multi-document tabs, persisted
+> Kinetic `0.35.2` is an early functional preview. Editing, retained multi-document tabs, persisted
 > recent projects, mouse selection, undo/redo, basic syntax highlighting, auto-indentation,
 > matching delimiters, custom context menus, in-file find/replace and project search, the activity bar, GitHub
 > account sign-in, native plugin host, hidden-file browsing, project file and folder creation,
@@ -84,6 +84,10 @@ private download for missing tools; see [`lib/llvm/README.md`](lib/llvm/README.m
 ./scripts/build
 ./scripts/run
 ```
+
+`./scripts/build` generates `compile_commands.json` through CMake and links the active build
+database at the repository root for clangd. The link is local and ignored by Git; `.clangd` does
+not override CMake's per-file language standards or include paths.
 
 Useful entry points:
 
