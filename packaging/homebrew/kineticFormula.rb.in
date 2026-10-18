@@ -1,0 +1,72 @@
+class KineticRustRequirement < Requirement
+  fatal true
+
+  satisfy(build_env: false) do
+    cargo = which("cargo")
+    if cargo && cargo.realpath.basename.to_s == "rustup"
+      directory = ENV.fetch("RUSTUP_HOME", "#{Etc.getpwuid.dir}/.rustup")
+      resolved = Utils.popen_read({ "RUSTUP_HOME" => directory }, cargo.realpath, "which", "cargo").strip
+      cargo = Pathname.new(resolved) if resolved.start_with?("/")
+    end
+    cargo if cargo&.executable? && cargo.realpath.basename.to_s != "rustup"
+  end
+
+  def message
+    "An existing Rust toolchain is required. Install Rust with rustup before installing Kinetic."
+  end
+end
+
+class Kinetic < Formula
+  desc "Code editor with Rust and C++ plugin support"
+  homepage "https://github.com/Hexadecimall/Kinetic"
+  url "https://github.com/Hexadecimall/Kinetic/archive/@COMMIT@.tar.gz"
+  version "@VERSION@"
+  sha256 "@SHA256@"
+  license "Apache-2.0"
+
+  depends_on "cmake" => :build
+  depends_on KineticRustRequirement => :build
+  depends_on arch: :arm64
+  depends_on macos: :sequoia
+  uses_from_macos "python" => :build
+
+  def install
+    ENV["CARGO_HOME"] = buildpath/"cargo-home"
+    ENV["CARGO_NET_OFFLINE"] = "true"
+    system "cmake", "-S", ".", "-B", "build", *std_cmake_args,
+           "-DCMAKE_OSX_ARCHITECTURES=arm64", "-DCMAKE_OSX_DEPLOYMENT_TARGET=15.0"
+    system "cmake", "--build", "build", "--target", "kinetic_sign_bundle", "--parallel", ENV.make_jobs
+    app = buildpath/"build/Kinetic.app"
+    odie "The app must not bundle language tools" if (app/"Contents/Resources/tools").exist?
+    prefix.install app
+    system "/usr/bin/codesign", "--verify", "--deep", "--strict", prefix/"Kinetic.app"
+    bin.install_symlink prefix/"Kinetic.app/Contents/Resources/bin/kinetic"
+  end
+
+  post_install_steps do
+    run "/usr/bin/codesign",
+        args: ["--force", "--sign", "-", "{{prefix}}/Kinetic.app/Contents/PlugIns/libkineticCppSupport.dylib"]
+    run "/usr/bin/codesign",
+        args: ["--force", "--sign", "-", "{{prefix}}/Kinetic.app/Contents/Resources/bin/kinetic"]
+    run "/usr/bin/codesign",
+        args: ["--force", "--sign", "-", "{{prefix}}/Kinetic.app"]
+    run "/usr/bin/codesign",
+        args: ["--verify", "--deep", "--strict", "{{prefix}}/Kinetic.app"]
+  end
+
+  def caveats
+    <<~EOS
+      Kinetic was built locally. No LLVM toolchain or language tools are bundled.
+      Launch with:
+        open "#{opt_prefix}/Kinetic.app"
+      To add it to Applications:
+        ln -s "#{opt_prefix}/Kinetic.app" ~/Applications/Kinetic.app
+    EOS
+  end
+
+  test do
+    assert_match "kinetic #{version}", shell_output("#{bin}/kinetic --version")
+    system "/usr/bin/codesign", "--verify", "--deep", "--strict", prefix/"Kinetic.app"
+    refute_path_exists prefix/"Kinetic.app/Contents/Resources/tools"
+  end
+end

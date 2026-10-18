@@ -1,6 +1,8 @@
 # Settings surface
 
 The Settings activity and Command-Comma open a rounded, Kinetic-drawn overlay above the workspace.
+Command-Comma and the welcome screen's lower-left Settings icon open the same panel without
+creating a document or tab.
 Settings and Plugins preserve the underlying document tabs and Explorer. Both animate open and
 closed; Escape, Command-W, the close button, or a backdrop click dismiss the panel.
 

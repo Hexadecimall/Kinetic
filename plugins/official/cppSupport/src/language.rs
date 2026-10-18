@@ -1,4 +1,28 @@
 use crate::SyntaxToken;
+use std::path::{Path, PathBuf};
+
+pub fn localIncludeAtCaret(path: &str, text: &str, caretUtf16: u64) -> Option<PathBuf> {
+    let (line, column) = crate::positionAtCaret(text, caretUtf16);
+    let sourceLine = text.lines().nth(line as usize)?;
+    let directive = sourceLine
+        .trim_start()
+        .strip_prefix("#include")?
+        .trim_start();
+    let nameAndSuffix = directive.strip_prefix('"')?;
+    let nameEnd = nameAndSuffix.find('"')?;
+    let name = &nameAndSuffix[..nameEnd];
+    if name.is_empty() {
+        return None;
+    }
+    let quoteStart = sourceLine.len() - directive.len();
+    let startUtf16 = sourceLine[..quoteStart].encode_utf16().count() + 1;
+    let endUtf16 = startUtf16 + name.encode_utf16().count();
+    if (column as usize) < startUtf16 || (column as usize) > endUtf16 {
+        return None;
+    }
+    let target = Path::new(path).parent()?.join(name);
+    target.is_file().then_some(target)
+}
 
 const KEYWORDS: &str = "alignas alignof asm auto break case catch class concept const consteval constexpr constinit const_cast continue co_await co_return co_yield decltype default delete do dynamic_cast else enum explicit export extern false for friend goto if import inline mutable namespace new noexcept nullptr operator private protected public register reinterpret_cast requires return sizeof static static_assert static_cast struct switch template this thread_local throw true try typedef typeid typename union using virtual volatile while";
 const TYPES: &str = "bool char char8_t char16_t char32_t double float int long short signed unsigned void wchar_t size_t ptrdiff_t int8_t int16_t int32_t int64_t uint8_t uint16_t uint32_t uint64_t";
@@ -165,5 +189,31 @@ mod tests {
         }];
         assert_eq!(tokens("😀 int", &mut state, &mut output), 1);
         assert_eq!(output[0].startUtf16, 3);
+    }
+
+    #[test]
+    fn localIncludeResolvesOnlyWhenCaretIsOnExistingQuotedPath() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root =
+            std::env::temp_dir().join(format!("kinetic-include-{}-{nonce}", std::process::id()));
+        std::fs::create_dir(&root).unwrap();
+        let header = root.join("local.hpp");
+        std::fs::write(&header, b"int answer();\n").unwrap();
+        let source = root.join("main.cpp");
+        let text = "😀\n  #include \"local.hpp\"\n";
+        let caret = text[..text.find("local").unwrap()].encode_utf16().count() as u64 + 2;
+        assert_eq!(
+            localIncludeAtCaret(source.to_str().unwrap(), text, caret),
+            Some(header)
+        );
+        assert_eq!(localIncludeAtCaret(source.to_str().unwrap(), text, 0), None);
+        assert_eq!(
+            localIncludeAtCaret(source.to_str().unwrap(), "#include <local.hpp>\n", 11),
+            None
+        );
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

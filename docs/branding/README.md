@@ -9,6 +9,8 @@ contrast are validated by `kineticThemeTests`. User overrides are documented in
 Kinetic's identity pairs structural electric blue with forward orange motion. The revised mark is
 a clean geometric K with a blue stem and upper arm and an orange lower arm. It must remain recognizable at application-icon,
 favicon, and toolbar sizes.
+The lower arm mirrors the upper arm about the mark's horizontal center at y=254, preserving
+equal reach, thickness, and tip curvature in every variant.
 
 ## Core palette
 

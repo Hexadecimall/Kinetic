@@ -10,6 +10,8 @@
 @property(nonatomic, copy) NSArray<NSDictionary<NSString*, id>*>* diagnostics;
 @property(nonatomic, copy) NSString* definitionPath;
 @property(nonatomic) NSUInteger definitionLine;
+@property(nonatomic, copy) NSString* completionReadyPath;
+@property(nonatomic) BOOL completionReadyOnMainThread;
 @end
 
 @implementation CppSupportDelegate
@@ -91,6 +93,11 @@
     self.definitionPath = path;
     self.definitionLine = line;
 }
+- (void)pluginHost:(KineticPluginHost*)host completionsReadyForPath:(NSString*)path {
+    (void)host;
+    self.completionReadyPath = path;
+    self.completionReadyOnMainThread = [NSThread isMainThread];
+}
 @end
 
 static void require(BOOL condition, NSString* message) {
@@ -153,6 +160,24 @@ int main(int argc, const char* argv[]) {
                 }),
                 @"clangd delivered an inline error");
 
+        NSString* nearbyHeader = [root stringByAppendingPathComponent:@"nearby.hpp"];
+        require([@"int nearby();\n" writeToFile:nearbyHeader
+                                     atomically:YES
+                                       encoding:NSUTF8StringEncoding
+                                          error:nil],
+                @"nearby header fixture");
+        delegate.source = @"#include \"nearby.hpp\"\nint main() { return unknownSymbol; }\n";
+        NSRange nearbyName = [delegate.source rangeOfString:@"nearby.hpp"];
+        delegate.selection = NSMakeRange(nearbyName.location + 2, 0);
+        require([host executeCommand:@"kinetic.cpp.goToDefinition"], @"nearby include command");
+        require(waitUntil(^BOOL {
+                  return [delegate.definitionPath.stringByResolvingSymlinksInPath
+                      isEqualToString:nearbyHeader.stringByResolvingSymlinksInPath];
+                }),
+                @"local header opens without a compilation database");
+        delegate.definitionPath = nil;
+        delegate.definitionLine = 0;
+
         NSString* includePath = [root stringByAppendingPathComponent:@"include"];
         NSString* databasePath = [root stringByAppendingPathComponent:@"build/debug"];
         require([NSFileManager.defaultManager createDirectoryAtPath:includePath
@@ -183,32 +208,27 @@ int main(int argc, const char* argv[]) {
                            atomically:YES],
                 @"write compilation database");
         delegate.source = @"#include \"local.hpp\"\nint main() { return answer(); }\n";
-        delegate.workspacePath = root;
         delegate.diagnostics = nil;
         [host emitEvent:@"document.changed"];
         require(waitUntil(^BOOL {
                   return delegate.diagnostics != nil && delegate.diagnostics.count == 0;
                 }),
-                @"opening a CMake project reconfigures clangd and resolves its header");
+                @"source file discovers nearby compilation database without an open folder");
+        delegate.workspacePath = root;
 
         delegate.source =
-            @"int answer() { return 42; }\nint main() { return answer() + definitionProbe; }\n";
+            @"#include \"local.hpp\"\nint main() { return answer(); }\n\n";
         require([delegate.source writeToFile:delegate.path
                                   atomically:YES
                                     encoding:NSUTF8StringEncoding
                                        error:nil],
                 @"updated source");
         delegate.selection = [delegate.source rangeOfString:@"answer" options:NSBackwardsSearch];
-        delegate.selection = NSMakeRange(delegate.selection.location, 0);
+        delegate.selection = NSMakeRange(delegate.selection.location + 3, 0);
         delegate.diagnostics = nil;
         [host emitEvent:@"document.changed"];
         require(waitUntil(^BOOL {
-                  for (NSDictionary* diagnostic in delegate.diagnostics) {
-                      if ([diagnostic[@"message"] containsString:@"definitionProbe"]) {
-                          return YES;
-                      }
-                  }
-                  return NO;
+                  return delegate.diagnostics != nil && delegate.diagnostics.count == 0;
                 }),
                 @"clangd analyzed the changed C++ document");
         require([host executeCommand:@"kinetic.cpp.goToDefinition"], @"definition command");
@@ -222,14 +242,35 @@ int main(int argc, const char* argv[]) {
         }
         require(definitionResolved, @"clangd definition result");
         require([delegate.definitionPath.stringByResolvingSymlinksInPath
-                    isEqualToString:delegate.path.stringByResolvingSymlinksInPath],
+                    isEqualToString:[includePath stringByAppendingPathComponent:@"local.hpp"]
+                                         .stringByResolvingSymlinksInPath],
                 @"definition path");
+        delegate.definitionPath = nil;
+        delegate.definitionLine = 0;
+        NSRange includeName = [delegate.source rangeOfString:@"local.hpp"];
+        delegate.selection = NSMakeRange(includeName.location + 2, 0);
+        require([host executeCommand:@"kinetic.cpp.goToDefinition"], @"include definition command");
+        require(waitUntil(^BOOL {
+                  return delegate.definitionLine == 1;
+                }),
+                @"included header navigation");
+        require([delegate.definitionPath.stringByResolvingSymlinksInPath
+                    isEqualToString:[includePath stringByAppendingPathComponent:@"local.hpp"]
+                                         .stringByResolvingSymlinksInPath],
+                @"included header path");
         delegate.source = @"int answer() { return 42; }\nint main() { ans\n";
         delegate.selection = NSMakeRange(
             [delegate.source rangeOfString:@"ans" options:NSBackwardsSearch].location + 3, 0);
         [host emitEvent:@"document.changed"];
         require([host hasCompletionProviderForFileName:@"main.cpp"],
                 @"clangd completion provider registered");
+        (void)[host completionItemsForPrefix:@"ans" fileName:@"main.cpp"];
+        require(waitUntil(^BOOL {
+                  return [delegate.completionReadyPath.stringByResolvingSymlinksInPath
+                      isEqualToString:delegate.path.stringByResolvingSymlinksInPath];
+                }),
+                @"clangd delivered completion-ready event");
+        require(delegate.completionReadyOnMainThread, @"completion event runs on main thread");
         require(waitUntil(^BOOL {
                   NSArray* items = [host completionItemsForPrefix:@"ans" fileName:@"main.cpp"];
                   for (NSDictionary* item in items) {

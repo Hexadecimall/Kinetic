@@ -25,6 +25,7 @@
                   line:(NSUInteger)line
                 column:(NSUInteger)column;
 - (void)pluginHostContributionsDidChange:(KineticPluginHost*)host;
+- (void)pluginHost:(KineticPluginHost*)host completionsReadyForPath:(NSString*)path;
 @end
 
 @interface KineticPluginHost : NSObject
@@ -44,8 +45,8 @@
 - (void)drawOverlaysInRect:(NSRect)rect;
 - (NSArray<NSArray<NSDictionary<NSString*, id>*>*>*)syntaxTokensForLines:(NSArray<NSString*>*)lines
                                                                 fileName:(NSString*)fileName;
-- (NSArray<NSDictionary<NSString*, NSString*>*>*)completionItemsForPrefix:(NSString*)prefix
-                                                                 fileName:(NSString*)fileName;
+- (NSArray<NSDictionary<NSString*, id>*>*)completionItemsForPrefix:(NSString*)prefix
+                                                          fileName:(NSString*)fileName;
 - (BOOL)hasCompletionProviderForFileName:(NSString*)fileName;
 - (BOOL)applyDiagnosticFixForPath:(NSString*)path
                              line:(NSUInteger)line

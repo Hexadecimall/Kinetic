@@ -14,6 +14,10 @@ uint32_t kineticBackendAbiVersion(void);
 const char* kineticBackendVersion(void);
 int32_t kineticPackageMain(void);
 
+bool kineticWorkspaceIsFolder(const char* path);
+// Returns the required JSON byte count, or zero on failure. Copies only with enough capacity.
+uint64_t kineticWorkspaceListDirectory(const char* path, uint8_t* output, uint64_t capacity);
+
 typedef struct KineticCompletionItem {
     uint8_t label[96];
     uint8_t insertText[96];
@@ -27,6 +31,18 @@ typedef struct KineticCompletionConfig {
 uint32_t kineticCompletionCollect(const uint8_t* bytes, uint64_t length, uint64_t caretUtf16,
                                   uint32_t minPrefix, KineticCompletionItem* items,
                                   uint32_t capacity, uint64_t* prefixStartUtf16);
+enum {
+    kineticCompletionContextMember = 1,
+    kineticCompletionContextInclude = 2,
+    kineticCompletionLanguageCFamily = 1,
+};
+uint32_t kineticCompletionContext(const uint8_t* bytes, uint64_t length,
+                                  uint64_t prefixStartUtf16, uint32_t languageFlags);
+int32_t kineticCompletionMatchScore(const uint8_t* query, uint64_t queryLength,
+                                    const uint8_t* candidate, uint64_t candidateLength);
+// Returns the required UTF-8 byte count. The output is copied only when capacity is sufficient.
+uint64_t kineticCompletionExpandSnippet(const uint8_t* source, uint64_t sourceLength,
+                                        uint8_t* output, uint64_t capacity, uint64_t* caretUtf16);
 int32_t kineticCompletionReadConfig(KineticCompletionConfig* output);
 int32_t kineticCompletionWriteConfig(const KineticCompletionConfig* input);
 typedef struct KineticIndentationConfig {

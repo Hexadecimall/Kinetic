@@ -4,12 +4,30 @@
 
 C/C++ Support also routes Objective-C and Objective-C++ documents through clangd. It provides
 syntax highlighting, completion, diagnostics, same-file quick fixes, definition navigation,
-formatting, and header/source switching. The app does not bundle language tools. Opening a
-C-family file probes for usable clangd and clang-format executables off the UI thread. Missing
-tools produce a custom Yes/No prompt once per window session. No leaves editing available.
+formatting, and header/source switching. Command-click and Command-Option-B invoke definition
+navigation. Quoted headers relative to the source file open directly with either action, even
+without a compilation database; clangd resolves other definition targets. The app does not bundle
+language tools. Opening a C-family file probes for usable clangd and clang-format executables off
+the UI thread. Missing tools produce a custom Yes/No prompt once per window session. No leaves
+editing available.
+When a file is open without an explicit project folder, C/C++ Support searches its ancestor
+directories for a compilation database in the documented CMake locations. This lets clangd use
+project include flags without requiring a separate Open Folder action.
 Yes installs only missing tools under `~/.kinetic/tools`, verifies pinned SHA-256 digests, preserves
 license notices, and checks that each binary runs before exposing it to the plugin. Failed
 downloads leave no partial installation. The prompt supports retry after an error.
+
+C-family completion keeps clangd's replacement range, snippet text, filter and sort text, and
+documentation. The Rust backend ranks candidates and expands basic snippet tabstops; the popup
+shows a bounded, scrollable list. Full snippet tabstop navigation and completion-item resolve
+remain future work.
+Superseded completion requests are cancelled. Definition replies are accepted only for the
+requesting document version, and older diagnostic versions cannot replace current analysis.
+The C/C++ plugin notifies the active editor as soon as clangd returns completions. A timer remains
+for older completion providers that do not send readiness notifications.
+Member access and C-family include/import paths continue requesting suggestions while the prefix
+is shorter than the general autocomplete minimum. Rust parses these contexts at UTF-16 boundaries;
+the C++ view retains only provider selection and popup presentation.
 
 ## Additional languages
 

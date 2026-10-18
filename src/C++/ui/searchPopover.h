@@ -12,12 +12,15 @@ typedef NS_ENUM(NSInteger, KineticSearchScope) {
 @protocol KineticSearchPopoverDelegate <NSObject>
 - (void)searchPopoverDidChange:(KineticSearchPopover*)popover;
 - (void)searchPopover:(KineticSearchPopover*)popover didSelectResult:(NSDictionary*)result;
+- (void)searchPopover:(KineticSearchPopover*)popover didRequestReplaceResult:(NSDictionary*)result;
+- (void)searchPopoverDidRequestReplaceAll:(KineticSearchPopover*)popover;
 - (void)searchPopoverDidRequestClose:(KineticSearchPopover*)popover;
 @end
 
 @interface KineticSearchPopover : NSView
 @property(nonatomic, assign) id<KineticSearchPopoverDelegate> delegate;
 @property(nonatomic, readonly, copy) NSString* query;
+@property(nonatomic, readonly, copy) NSString* replacement;
 @property(nonatomic, readonly) KineticSearchScope scope;
 @property(nonatomic, readonly) BOOL matchCase;
 @property(nonatomic) BOOL projectAvailable;
