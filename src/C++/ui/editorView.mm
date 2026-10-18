@@ -610,8 +610,8 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
 }
 
 - (void)presentUtilitySection:(KineticActivitySection)section
-                      inView:(NSView*)host
-                    animated:(BOOL)animated {
+                       inView:(NSView*)host
+                     animated:(BOOL)animated {
     [_utilityPanel removeFromSuperview];
     _utilityPanelHost = host;
     _settingsVisible = section == KineticActivitySectionSettings;
@@ -1530,9 +1530,9 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     NSString* extension = fileName.pathExtension.lowercaseString;
     BOOL cFamily = [@[ @"c", @"h", @"cc", @"cpp", @"cxx", @"hpp", @"hh", @"hxx", @"m", @"mm" ]
         containsObject:extension];
-    uint32_t context = kineticCompletionContext((const uint8_t*)bytes.bytes, bytes.length,
-                                                prefixStart,
-                                                cFamily ? kineticCompletionLanguageCFamily : 0);
+    uint32_t context =
+        kineticCompletionContext((const uint8_t*)bytes.bytes, bytes.length, prefixStart,
+                                 cFamily ? kineticCompletionLanguageCFamily : 0);
     if (prefix.length < minimum && !(pluginProvider && context != 0)) {
         [self closeCompletions];
         return;

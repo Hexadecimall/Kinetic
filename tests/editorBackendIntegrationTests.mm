@@ -19,7 +19,9 @@
 @end
 
 @implementation CompletionRenderer
-- (void)drawPluginOverlaysInRect:(NSRect)rect { (void)rect; }
+- (void)drawPluginOverlaysInRect:(NSRect)rect {
+    (void)rect;
+}
 - (NSArray*)pluginSyntaxTokensForLines:(NSArray*)lines fileName:(NSString*)fileName {
     (void)lines;
     (void)fileName;
@@ -28,8 +30,10 @@
 - (NSArray*)pluginCompletionItemsForPrefix:(NSString*)prefix fileName:(NSString*)fileName {
     (void)fileName;
     self.requestedPrefix = prefix;
-    return @[ @{ @"label" : @"xyz", @"insertText" : @"xyz", @"filterText" : @"xyz" },
-              @{ @"label" : @"vector", @"insertText" : @"vector", @"filterText" : @"vector" } ];
+    return @[
+        @{@"label" : @"xyz", @"insertText" : @"xyz", @"filterText" : @"xyz"},
+        @{@"label" : @"vector", @"insertText" : @"vector", @"filterText" : @"vector"}
+    ];
 }
 - (BOOL)hasPluginCompletionProviderForFileName:(NSString*)fileName {
     (void)fileName;
@@ -125,11 +129,14 @@ int main() {
         [editor setPluginNumber:0 property:@"interface.motion.enabled"];
         [editor showSettingsInView:welcomeHost];
         passed = check(welcomeHost.subviews.count == 1, @"settings opens above welcome host") &&
-                 check(editor.tabTitles.count == 1, @"welcome settings creates no document tab") && passed;
+                 check(editor.tabTitles.count == 1, @"welcome settings creates no document tab") &&
+                 passed;
         [editor showSettingsInView:welcomeHost];
-        passed = check(welcomeHost.subviews.count == 1, @"reopening settings keeps one overlay") && passed;
+        passed = check(welcomeHost.subviews.count == 1, @"reopening settings keeps one overlay") &&
+                 passed;
         passed = check([editor closeUtilityPanelIfOpen] && welcomeHost.subviews.count == 0,
-                       @"welcome settings dismisses cleanly") && passed;
+                       @"welcome settings dismisses cleanly") &&
+                 passed;
         passed = check([editor.documentText isEqualToString:@"initial"], @"undo text") &&
                  check(!editor.dirty, @"undo save state") && passed;
         [editor redoEdit];
@@ -267,22 +274,20 @@ int main() {
                                              fileUrl:nil];
         [completing setPluginSelection:NSMakeRange(9, 0)];
         [completing setValue:@6 forKey:@"completionPrefixStart"];
-        [completing setValue:@[
-            @{
-                @"label" : @"method",
-                @"insertText" : @"method(${1:arg})$0",
-                @"flags" : @3,
-                @"replaceStart" : @6,
-                @"replaceLength" : @3,
-                @"documentation" : @"Method documentation"
-            }
-        ] forKey:@"completionItems"];
+        [completing setValue:@[ @{
+                        @"label" : @"method",
+                        @"insertText" : @"method(${1:arg})$0",
+                        @"flags" : @3,
+                        @"replaceStart" : @6,
+                        @"replaceLength" : @3,
+                        @"documentation" : @"Method documentation"
+                    } ]
+                      forKey:@"completionItems"];
         [completing acceptCompletionAtIndex:0];
-        passed =
-            check([completing.documentText isEqualToString:@"prefixmethod(arg)tail"] &&
-                      [completing pluginSelection].location == 13,
-                  @"LSP completion applies the server range and expands snippet text") &&
-            passed;
+        passed = check([completing.documentText isEqualToString:@"prefixmethod(arg)tail"] &&
+                           [completing pluginSelection].location == 13,
+                       @"LSP completion applies the server range and expands snippet text") &&
+                 passed;
         [completing undoEdit];
         passed = check([completing.documentText isEqualToString:@"prefixXYZtail"],
                        @"completion is one undo step") &&

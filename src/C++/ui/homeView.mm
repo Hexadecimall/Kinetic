@@ -172,7 +172,8 @@ NSColor* homeColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0
         CGFloat knobX = NSMinX(settingsRect) + (row == 1 ? 21.0 : 12.0);
         [settingsIcon moveToPoint:NSMakePoint(NSMinX(settingsRect) + 6.0, lineY)];
         [settingsIcon lineToPoint:NSMakePoint(NSMaxX(settingsRect) - 6.0, lineY)];
-        [settingsIcon appendBezierPathWithOvalInRect:NSMakeRect(knobX - 2.5, lineY - 2.5, 5.0, 5.0)];
+        [settingsIcon
+            appendBezierPathWithOvalInRect:NSMakeRect(knobX - 2.5, lineY - 2.5, 5.0, 5.0)];
     }
     [homeColor(170, 184, 204) setStroke];
     [settingsIcon stroke];
@@ -241,7 +242,7 @@ NSColor* homeColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0
             NSForegroundColorAttributeName : homeColor(148, 161, 178),
         };
         [@"No recent files or folders" drawAtPoint:NSMakePoint(rightX + 41.0, y + 125.0)
-                            withAttributes:emptyAttributes];
+                                    withAttributes:emptyAttributes];
     } else {
         NSMutableParagraphStyle* truncatingStyle = [[NSMutableParagraphStyle alloc] init];
         truncatingStyle.lineBreakMode = NSLineBreakByTruncatingMiddle;
@@ -358,19 +359,19 @@ NSColor* homeColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0
             continue;
         }
         NSURL* projectUrl = _recentProjects[index];
-        [KineticContextMenu
-            showInView:self
-               atPoint:point
-                 items:@[ @{@"title" : @"Open"}, @{@"title" : @"Copy Path"} ]
-               handler:^(NSUInteger selected) {
-                 if (selected == 0) {
-                     [self.commandHandler openRecentProjectAtUrl:projectUrl];
-                 } else {
-                     [NSPasteboard.generalPasteboard clearContents];
-                     [NSPasteboard.generalPasteboard setString:projectUrl.path
-                                                       forType:NSPasteboardTypeString];
-                 }
-               }];
+        [KineticContextMenu showInView:self
+                               atPoint:point
+                                 items:@[ @{@"title" : @"Open"}, @{@"title" : @"Copy Path"} ]
+                               handler:^(NSUInteger selected) {
+                                 if (selected == 0) {
+                                     [self.commandHandler openRecentProjectAtUrl:projectUrl];
+                                 } else {
+                                     [NSPasteboard.generalPasteboard clearContents];
+                                     [NSPasteboard.generalPasteboard
+                                         setString:projectUrl.path
+                                           forType:NSPasteboardTypeString];
+                                 }
+                               }];
         return;
     }
 }

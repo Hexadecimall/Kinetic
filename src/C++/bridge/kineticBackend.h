@@ -36,8 +36,8 @@ enum {
     kineticCompletionContextInclude = 2,
     kineticCompletionLanguageCFamily = 1,
 };
-uint32_t kineticCompletionContext(const uint8_t* bytes, uint64_t length,
-                                  uint64_t prefixStartUtf16, uint32_t languageFlags);
+uint32_t kineticCompletionContext(const uint8_t* bytes, uint64_t length, uint64_t prefixStartUtf16,
+                                  uint32_t languageFlags);
 int32_t kineticCompletionMatchScore(const uint8_t* query, uint64_t queryLength,
                                     const uint8_t* candidate, uint64_t candidateLength);
 // Returns the required UTF-8 byte count. The output is copied only when capacity is sufficient.

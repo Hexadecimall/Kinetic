@@ -2,8 +2,8 @@
 #import "contextMenu.h"
 #import "theme.h"
 
-#import "tween.h"
 #include "kineticBackend.h"
+#import "tween.h"
 
 namespace {
 

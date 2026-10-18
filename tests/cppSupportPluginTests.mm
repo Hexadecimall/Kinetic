@@ -216,8 +216,7 @@ int main(int argc, const char* argv[]) {
                 @"source file discovers nearby compilation database without an open folder");
         delegate.workspacePath = root;
 
-        delegate.source =
-            @"#include \"local.hpp\"\nint main() { return answer(); }\n\n";
+        delegate.source = @"#include \"local.hpp\"\nint main() { return answer(); }\n\n";
         require([delegate.source writeToFile:delegate.path
                                   atomically:YES
                                     encoding:NSUTF8StringEncoding
@@ -243,7 +242,7 @@ int main(int argc, const char* argv[]) {
         require(definitionResolved, @"clangd definition result");
         require([delegate.definitionPath.stringByResolvingSymlinksInPath
                     isEqualToString:[includePath stringByAppendingPathComponent:@"local.hpp"]
-                                         .stringByResolvingSymlinksInPath],
+                                        .stringByResolvingSymlinksInPath],
                 @"definition path");
         delegate.definitionPath = nil;
         delegate.definitionLine = 0;
@@ -256,7 +255,7 @@ int main(int argc, const char* argv[]) {
                 @"included header navigation");
         require([delegate.definitionPath.stringByResolvingSymlinksInPath
                     isEqualToString:[includePath stringByAppendingPathComponent:@"local.hpp"]
-                                         .stringByResolvingSymlinksInPath],
+                                        .stringByResolvingSymlinksInPath],
                 @"included header path");
         delegate.source = @"int answer() { return 42; }\nint main() { ans\n";
         delegate.selection = NSMakeRange(

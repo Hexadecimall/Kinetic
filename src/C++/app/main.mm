@@ -1002,13 +1002,14 @@
     if (self.editor == nil) {
         if (self.homeSettingsEditor == nil) {
             self.homeSettingsEditor = [[KineticEditorView alloc] initWithFrame:self.home.bounds
-                                                                    contents:@""
-                                                                     fileUrl:nil];
+                                                                      contents:@""
+                                                                       fileUrl:nil];
             self.homeSettingsEditor.commandHandler = self;
         }
         for (NSString* property in self.pluginNumberOverrides) {
-            [self.homeSettingsEditor setPluginNumber:self.pluginNumberOverrides[property].doubleValue
-                                            property:property];
+            [self.homeSettingsEditor
+                setPluginNumber:self.pluginNumberOverrides[property].doubleValue
+                       property:property];
         }
         for (NSString* property in self.pluginStringOverrides) {
             [self.homeSettingsEditor setPluginString:self.pluginStringOverrides[property]
@@ -1204,8 +1205,7 @@
 }
 
 - (BOOL)openFolderAtUrl:(NSURL*)folderUrl {
-    if (folderUrl == nil ||
-        !kineticWorkspaceIsFolder(folderUrl.fileSystemRepresentation)) {
+    if (folderUrl == nil || !kineticWorkspaceIsFolder(folderUrl.fileSystemRepresentation)) {
         return NO;
     }
     ++self.searchGeneration;
