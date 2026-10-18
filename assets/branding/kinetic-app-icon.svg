@@ -22,6 +22,6 @@
   <g filter="url(#shadow)" transform="translate(218 218) scale(1.15)">
     <rect x="70" y="54" width="80" height="404" rx="22" fill="url(#blue)"/>
     <path fill="url(#blue)" d="M150 225 323 54c8-8 18-12 30-12h71c17 0 25 20 13 32L246 250c-7 6-15 8-24 8h-72v-33Z"/>
-    <path fill="url(#orange)" d="m178 254 68-16 191 193c12 13 3 35-15 35h-70c-12 0-22-4-30-13L178 290v-36Z"/>
+    <path fill="url(#orange)" d="M150 283 323 454c8 8 18 12 30 12h71c17 0 25-20 13-32L246 258c-7-6-15-8-24-8h-72v33Z"/>
   </g>
 </svg>

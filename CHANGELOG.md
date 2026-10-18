@@ -2,7 +2,14 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.35.3 - Unreleased
+## 0.35.4 - Unreleased
+
+### Fixed
+
+- Match the orange logo arm to the blue arm's length, angle, and rounded tip across all brand
+  variants. Regenerate the application and OAuth icons.
+
+## 0.35.3
 
 ### Fixed
 
