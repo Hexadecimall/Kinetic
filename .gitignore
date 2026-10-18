@@ -1,6 +1,7 @@
 /build/
 /dist/
 /target/
+**/target/
 /coverage/
 /.kinetic/
 /.fiddleaudit
@@ -15,6 +16,7 @@
 /venv/
 /CMakeUserPresets.json
 /compile_commands.json
+/.cache/clangd/
 /.env
 /.env.*
 !/.env.example

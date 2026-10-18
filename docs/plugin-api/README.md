@@ -41,6 +41,8 @@ The current host supports:
 | `publishDiagnostics` | Publish up to 2,048 line/column diagnostics for an absolute file path. Safe to call from a worker thread; the host updates the UI on the main thread. |
 | `openLocation` | Open an absolute file path and reveal a 1-based line and 0-based UTF-16 column. Safe to call from a worker thread. |
 | `registerCompletionProvider` | Contribute up to 32 labeled completion items for a file extension and prefix to Kinetic's native autocomplete popup. |
+| `registerCompletionProviderV2` | Optional trailing ABI-1 hook for up to 128 items with filter/sort text, documentation, kind, snippet text, and an explicit UTF-16 replacement range. Existing providers continue to work. |
+| `notifyCompletionsReady` | Tell the active editor that an asynchronous completion result is ready for an absolute file path. Safe to call from a worker thread; the host schedules an editor refresh on the main thread. |
 | `publishDiagnosticsV2` | Publish diagnostics with an explicit `kineticPluginDiagnosticFixAvailable` flag without changing the layout of older diagnostics. |
 | `registerDiagnosticFixProvider` | Register a quick-fix callback for an extension; the editor calls it when a user clicks Fix on a flagged diagnostic. |
 
@@ -51,9 +53,9 @@ after `start` returns. Contributions belong to that plugin and are removed if `s
 An optional trailing `stop` callback in `KineticPluginDescriptor` is invoked before the host
 unloads the library; older descriptors without it remain valid. Registration and editor-event
 callbacks run on the main thread. Syntax callbacks run during rendering on the main thread;
-only `publishDiagnostics`, `publishDiagnosticsV2`, and `openLocation` explicitly support worker-thread calls. Completion
+only `publishDiagnostics`, `publishDiagnosticsV2`, `openLocation`, and `notifyCompletionsReady` explicitly support worker-thread calls. Completion
 callbacks run synchronously on the main thread while suggestions refresh and must return quickly;
-each label, insertion, and detail is limited to 95 UTF-8 bytes. No plugin draws the popup.
+legacy item fields are limited to 95 UTF-8 bytes, while V2 fields use the capacities in the public header. No plugin draws the popup.
 Shortcut modifiers use the
 `kineticPluginModifier*` constants; a plugin shortcut may supersede a built-in shortcut.
 Panel callbacks can return up to 32 rows per panel. Overlay callbacks can return up to 128 draw

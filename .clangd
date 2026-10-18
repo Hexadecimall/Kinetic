@@ -1,0 +1,3 @@
+# ./scripts/build links the active CMake database at the project root.
+CompileFlags:
+  CompilationDatabase: .

@@ -54,6 +54,18 @@ NSColor* homeColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0
     return NO;
 }
 
+- (BOOL)acceptsFirstResponder {
+    return YES;
+}
+
+- (NSRect)settingsButtonRect {
+    return NSMakeRect(10.0, NSHeight(self.bounds) - 42.0, 32.0, 32.0);
+}
+
+- (void)resetCursorRects {
+    [self addCursorRect:[self settingsButtonRect] cursor:NSCursor.pointingHandCursor];
+}
+
 - (CGFloat)contentX {
     return MAX(48.0, floor((NSWidth(self.bounds) - kContentWidth) * 0.5));
 }
@@ -151,6 +163,21 @@ NSColor* homeColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0
                         radius:185.0
                        options:0];
 
+    NSRect settingsRect = [self settingsButtonRect];
+    NSBezierPath* settingsIcon = [NSBezierPath bezierPath];
+    settingsIcon.lineWidth = 1.25;
+    settingsIcon.lineCapStyle = NSLineCapStyleRound;
+    for (NSInteger row = 0; row < 3; ++row) {
+        CGFloat lineY = NSMinY(settingsRect) + 9.0 + row * 7.0;
+        CGFloat knobX = NSMinX(settingsRect) + (row == 1 ? 21.0 : 12.0);
+        [settingsIcon moveToPoint:NSMakePoint(NSMinX(settingsRect) + 6.0, lineY)];
+        [settingsIcon lineToPoint:NSMakePoint(NSMaxX(settingsRect) - 6.0, lineY)];
+        [settingsIcon
+            appendBezierPathWithOvalInRect:NSMakeRect(knobX - 2.5, lineY - 2.5, 5.0, 5.0)];
+    }
+    [homeColor(170, 184, 204) setStroke];
+    [settingsIcon stroke];
+
     NSImage* appIcon = NSApp.applicationIconImage;
     [appIcon drawInRect:NSMakeRect(x, y - 5.0, 44.0, 44.0)
                fromRect:NSZeroRect
@@ -214,8 +241,8 @@ NSColor* homeColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0
             NSFontAttributeName : [NSFont systemFontOfSize:12.0 weight:NSFontWeightRegular],
             NSForegroundColorAttributeName : homeColor(148, 161, 178),
         };
-        [@"No recent projects" drawAtPoint:NSMakePoint(rightX + 41.0, y + 125.0)
-                            withAttributes:emptyAttributes];
+        [@"No recent files or folders" drawAtPoint:NSMakePoint(rightX + 41.0, y + 125.0)
+                                    withAttributes:emptyAttributes];
     } else {
         NSMutableParagraphStyle* truncatingStyle = [[NSMutableParagraphStyle alloc] init];
         truncatingStyle.lineBreakMode = NSLineBreakByTruncatingMiddle;
@@ -298,6 +325,10 @@ NSColor* homeColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0
 
 - (void)mouseDown:(NSEvent*)event {
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+    if (NSPointInRect(point, [self settingsButtonRect])) {
+        [self.commandHandler showSettings];
+        return;
+    }
     for (NSUInteger index = 0; index < _actionRects.count; ++index) {
         if (!NSPointInRect(point, _actionRects[index].rectValue)) {
             continue;
@@ -328,19 +359,19 @@ NSColor* homeColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0
             continue;
         }
         NSURL* projectUrl = _recentProjects[index];
-        [KineticContextMenu
-            showInView:self
-               atPoint:point
-                 items:@[ @{@"title" : @"Open Project"}, @{@"title" : @"Copy Path"} ]
-               handler:^(NSUInteger selected) {
-                 if (selected == 0) {
-                     [self.commandHandler openRecentProjectAtUrl:projectUrl];
-                 } else {
-                     [NSPasteboard.generalPasteboard clearContents];
-                     [NSPasteboard.generalPasteboard setString:projectUrl.path
-                                                       forType:NSPasteboardTypeString];
-                 }
-               }];
+        [KineticContextMenu showInView:self
+                               atPoint:point
+                                 items:@[ @{@"title" : @"Open"}, @{@"title" : @"Copy Path"} ]
+                               handler:^(NSUInteger selected) {
+                                 if (selected == 0) {
+                                     [self.commandHandler openRecentProjectAtUrl:projectUrl];
+                                 } else {
+                                     [NSPasteboard.generalPasteboard clearContents];
+                                     [NSPasteboard.generalPasteboard
+                                         setString:projectUrl.path
+                                           forType:NSPasteboardTypeString];
+                                 }
+                               }];
         return;
     }
 }

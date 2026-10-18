@@ -2,6 +2,7 @@
 #import "contextMenu.h"
 #import "theme.h"
 
+#include "kineticBackend.h"
 #import "tween.h"
 
 namespace {
@@ -23,6 +24,20 @@ BOOL activityIsDirectory(NSURL* url) {
     BOOL directory = NO;
     [NSFileManager.defaultManager fileExistsAtPath:url.path isDirectory:&directory];
     return directory;
+}
+
+NSArray<NSDictionary*>* activityDirectoryEntries(NSURL* directory) {
+    uint64_t length = kineticWorkspaceListDirectory(directory.fileSystemRepresentation, nullptr, 0);
+    if (length == 0 || length > 8 * 1024 * 1024) {
+        return @[];
+    }
+    NSMutableData* data = [NSMutableData dataWithLength:static_cast<NSUInteger>(length)];
+    if (kineticWorkspaceListDirectory(directory.fileSystemRepresentation,
+                                      static_cast<uint8_t*>(data.mutableBytes), length) != length) {
+        return @[];
+    }
+    id parsed = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+    return [parsed isKindOfClass:NSArray.class] ? parsed : @[];
 }
 
 } // namespace
@@ -325,25 +340,17 @@ BOOL activityIsDirectory(NSURL* url) {
     if (depth > 12 || entries.count >= 500) {
         return;
     }
-    NSArray<NSURL*>* urls =
-        [NSFileManager.defaultManager contentsOfDirectoryAtURL:directory
-                                    includingPropertiesForKeys:@[ NSURLIsDirectoryKey ]
-                                                       options:0
-                                                         error:nil];
-    urls = [urls sortedArrayUsingComparator:^NSComparisonResult(NSURL* left, NSURL* right) {
-      BOOL leftDirectory = activityIsDirectory(left);
-      BOOL rightDirectory = activityIsDirectory(right);
-      if (leftDirectory != rightDirectory) {
-          return leftDirectory ? NSOrderedAscending : NSOrderedDescending;
-      }
-      return [left.lastPathComponent localizedCaseInsensitiveCompare:right.lastPathComponent];
-    }];
-    for (NSURL* url in urls) {
+    for (NSDictionary* item in activityDirectoryEntries(directory)) {
+        NSString* path = item[@"path"];
+        if (![path isKindOfClass:NSString.class]) {
+            continue;
+        }
+        NSURL* url = [NSURL fileURLWithPath:path];
         KineticActivityTreeEntry* entry = [[KineticActivityTreeEntry alloc] init];
         entry.url = url;
-        entry.displayName = url.lastPathComponent;
+        entry.displayName = item[@"name"];
         entry.depth = depth;
-        entry.directory = activityIsDirectory(url);
+        entry.directory = [item[@"directory"] boolValue];
         [entries addObject:entry];
         if (entry.directory && [_expandedPaths containsObject:url.path]) {
             [self appendDirectory:url depth:depth + 1 toEntries:entries];

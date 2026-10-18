@@ -10,8 +10,8 @@
 - (NSArray<NSArray<NSDictionary<NSString*, id>*>*>*)pluginSyntaxTokensForLines:
                                                         (NSArray<NSString*>*)lines
                                                                       fileName:(NSString*)fileName;
-- (NSArray<NSDictionary<NSString*, NSString*>*>*)pluginCompletionItemsForPrefix:(NSString*)prefix
-                                                                       fileName:(NSString*)fileName;
+- (NSArray<NSDictionary<NSString*, id>*>*)pluginCompletionItemsForPrefix:(NSString*)prefix
+                                                                fileName:(NSString*)fileName;
 - (BOOL)hasPluginCompletionProviderForFileName:(NSString*)fileName;
 - (BOOL)applyPluginDiagnosticFixForPath:(NSString*)path
                                    line:(NSUInteger)line
@@ -48,6 +48,9 @@
 - (void)focusWorkspaceSearch;
 - (void)focusFileSearch;
 - (void)toggleFileSearch;
+- (NSUInteger)replaceAllInFile:(NSString*)query
+                    withString:(NSString*)replacement
+                     matchCase:(BOOL)matchCase;
 - (void)focusSearchQuery;
 - (void)revealLine:(NSUInteger)line column:(NSUInteger)column length:(NSUInteger)length;
 - (void)revealCreatedFolderAtUrl:(NSURL*)url;
@@ -63,10 +66,12 @@
 - (BOOL)setPluginSelection:(NSRange)selection;
 - (BOOL)replaceRangeFromPlugin:(NSRange)range withString:(NSString*)text;
 - (void)replaceSelectionFromPlugin:(NSString*)text;
+- (void)pluginCompletionsDidChangeForPath:(NSString*)path;
 - (void)setPluginNames:(NSArray<NSString*>*)names
               commands:(NSArray<NSDictionary<NSString*, NSString*>*>*)commands
     configurationError:(NSString*)configurationError;
 - (void)setPluginPanels:(NSArray<NSDictionary<NSString*, id>*>*)panels;
 - (void)setCatalogPlugins:(NSArray<NSDictionary<NSString*, id>*>*)plugins status:(NSString*)status;
 - (void)setAppPackageStatus:(NSString*)status;
+- (void)showSettingsInView:(NSView*)host;
 @end

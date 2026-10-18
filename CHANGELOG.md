@@ -2,6 +2,93 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
+## 0.35.4
+
+### Fixed
+
+- Match the orange logo arm to the blue arm's length, angle, and rounded tip across all brand
+  variants. Regenerate the application and OAuth icons.
+
+## 0.35.3
+
+### Fixed
+
+- Open Settings from the welcome screen through Command-Comma or its lower-left icon without
+  creating a document tab.
+- Include opened and saved files alongside folders in Home's recent list, and reopen each entry
+  as the correct type.
+
+## 0.35.2
+
+### Changed
+
+- Use CMake's generated compile database for clangd via a local, ignored repository-root link.
+  Remove the hard-coded C++23 override so each source file uses its actual compile flags.
+
+## 0.35.1
+
+### Changed
+
+- Command-click in C-family files invokes Go to Definition. Quoted headers relative to the source
+  file open directly even without a clangd compilation database. When no project folder is open,
+  clangd discovers a compilation database from the active file's ancestor directories.
+
+## 0.35.0
+
+### Changed
+
+- Route folder opening from the custom picker and Recent Projects through one searchable
+  `openFolderAtUrl` entry point. Rust now validates project folders and enumerates Explorer
+  directories, including hidden entries and folder-first sorting; C++ retains view state and
+  presentation.
+
+## 0.34.2
+
+### Changed
+
+- Move member-access and C-family include/import completion-context parsing into the Rust backend behind a UTF-16-safe C ABI. The C++ editor now handles provider selection and presentation only.
+
+## 0.34.1
+
+### Fixed
+
+- Keep language-server suggestions open below the global minimum prefix length after member access (`.`, `->`, `::`) and within C-family include/import paths.
+
+## 0.34.0
+
+### Added
+
+- Let native plugins notify the active editor when asynchronous completion results are ready. C/C++ Support now refreshes suggestions on clangd's reply instead of waiting for the next timer tick. Older completion providers retain the timer fallback.
+
+## 0.33.1
+
+### Fixed
+
+- Match clangd definition replies to their request and document version instead of treating unrelated responses as navigation. Cancel superseded completion requests and ignore stale diagnostics.
+- Cover definition navigation against a valid CMake compilation database fixture with real clangd.
+
+## 0.33.0
+
+### Added
+
+- Preserve clangd completion edit ranges, snippets, filtering metadata, and documentation through a backward-compatible plugin callback. Rank candidates in Rust and keep the editor popup scrollable.
+
+## 0.32.0
+
+### Added
+
+- Add in-file Replace and Replace All to the custom search panel, with case matching and a single undo step for Replace All.
+
+## 0.31.2
+
+### Fixed
+
+- Use a checksum-pinned local source build for Homebrew, with an existing Rust toolchain and no LLVM or language-tool dependency. Verify the installed app signature and reject bundled language tools.
+
+- Apply local ad-hoc signing and strict verification during Homebrew installation and reinstallation, without changing quarantine or Gatekeeper settings.
+
+- Verify app bundles before installation, locally sign the staged copy, and verify it before publishing the app and CLI link. Allow installing an extracted signed bundle without rebuilding.
+
 ## 0.31.1
 
 ### Added

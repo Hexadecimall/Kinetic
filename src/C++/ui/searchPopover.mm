@@ -4,7 +4,8 @@
 
 namespace {
 
-constexpr CGFloat kResultsY = 151.0;
+constexpr CGFloat kFileResultsY = 213.0;
+constexpr CGFloat kProjectResultsY = 151.0;
 constexpr CGFloat kResultHeight = 44.0;
 
 NSColor* searchColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
@@ -15,12 +16,16 @@ NSColor* searchColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
 
 @interface KineticSearchPopover () {
     NSMutableString* _query;
+    NSMutableString* _replacement;
     NSArray<NSDictionary*>* _results;
     NSUInteger _caretIndex;
     NSInteger _selectedResult;
     NSInteger _hoveredResult;
     CGFloat _scrollOffset;
     BOOL _selectAll;
+    NSUInteger _replacementCaret;
+    BOOL _replacementSelectAll;
+    BOOL _editingReplacement;
     BOOL _loading;
     BOOL _truncated;
     BOOL _matchCase;
@@ -35,6 +40,7 @@ NSColor* searchColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     self = [super initWithFrame:frameRect];
     if (self) {
         _query = [NSMutableString string];
+        _replacement = [NSMutableString string];
         _results = @[];
         _selectedResult = -1;
         _hoveredResult = -1;
@@ -64,6 +70,10 @@ NSColor* searchColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     return [_query copy];
 }
 
+- (NSString*)replacement {
+    return [_replacement copy];
+}
+
 - (KineticSearchScope)scope {
     return _scope;
 }
@@ -79,6 +89,7 @@ NSColor* searchColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
 - (NSDictionary*)searchState {
     return @{
         @"query" : [_query copy],
+        @"replacement" : [_replacement copy],
         @"scope" : @(_scope),
         @"matchCase" : @(_matchCase),
         @"results" : _results,
@@ -90,6 +101,9 @@ NSColor* searchColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
 - (void)applySearchState:(NSDictionary*)state {
     NSString* query = state[@"query"];
     [_query setString:[query isKindOfClass:NSString.class] ? query : @""];
+    NSString* replacement = state[@"replacement"];
+    [_replacement setString:[replacement isKindOfClass:NSString.class] ? replacement : @""];
+    _replacementCaret = _replacement.length;
     _caretIndex = _query.length;
     _scope = [state[@"scope"] integerValue] == KineticSearchScopeProject ? KineticSearchScopeProject
                                                                          : KineticSearchScopeFile;
@@ -101,6 +115,8 @@ NSColor* searchColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     _selectedResult = _results.count > 0 ? 0 : -1;
     _scrollOffset = 0.0;
     _selectAll = NO;
+    _replacementSelectAll = NO;
+    _editingReplacement = NO;
     self.needsDisplay = YES;
 }
 
@@ -127,15 +143,21 @@ NSColor* searchColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
 }
 
 - (void)focusQuery {
+    _editingReplacement = NO;
     [self.window makeFirstResponder:self];
     self.needsDisplay = YES;
 }
 
 - (CGFloat)preferredHeight {
+    CGFloat extraHeight = _scope == KineticSearchScopeFile ? 62.0 : 0.0;
     if (_query.length == 0 || _results.count == 0) {
-        return 165.0;
+        return 165.0 + extraHeight;
     }
-    return 159.0 + MIN((NSUInteger)5, _results.count) * kResultHeight;
+    return 159.0 + extraHeight + MIN((NSUInteger)5, _results.count) * kResultHeight;
+}
+
+- (CGFloat)resultsY {
+    return _scope == KineticSearchScopeFile ? kFileResultsY : kProjectResultsY;
 }
 
 - (NSRect)closeRect {
@@ -158,14 +180,26 @@ NSColor* searchColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     return NSMakeRect(NSWidth(self.bounds) - 42.0, 80.0, 29.0, 31.0);
 }
 
+- (NSRect)replacementRect {
+    return NSMakeRect(13.0, 119.0, NSWidth(self.bounds) - 26.0, 31.0);
+}
+
+- (NSRect)replaceRect {
+    return NSMakeRect(NSWidth(self.bounds) - 154.0, 157.0, 68.0, 27.0);
+}
+
+- (NSRect)replaceAllRect {
+    return NSMakeRect(NSWidth(self.bounds) - 81.0, 157.0, 68.0, 27.0);
+}
+
 - (NSRect)resultRectAtIndex:(NSUInteger)index {
-    return NSMakeRect(7.0, kResultsY + index * kResultHeight - _scrollOffset,
+    return NSMakeRect(7.0, [self resultsY] + index * kResultHeight - _scrollOffset,
                       NSWidth(self.bounds) - 14.0, kResultHeight);
 }
 
 - (CGFloat)maximumScroll {
-    return MAX(0.0,
-               _results.count * kResultHeight - MAX(1.0, NSHeight(self.bounds) - kResultsY - 8.0));
+    return MAX(0.0, _results.count * kResultHeight -
+                        MAX(1.0, NSHeight(self.bounds) - [self resultsY] - 8.0));
 }
 
 - (void)drawScope:(NSString*)title inRect:(NSRect)rect selected:(BOOL)selected {
@@ -218,9 +252,9 @@ NSColor* searchColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
     NSRect queryRect = [self queryRect];
     [searchColor(29, 38, 51) setFill];
     [[NSBezierPath bezierPathWithRoundedRect:queryRect xRadius:5.0 yRadius:5.0] fill];
-    [searchColor(self.window.firstResponder == self ? 77 : 75,
-                 self.window.firstResponder == self ? 141 : 89,
-                 self.window.firstResponder == self ? 255 : 109, 0.72) setStroke];
+    BOOL queryFocused = self.window.firstResponder == self && !_editingReplacement;
+    [searchColor(queryFocused ? 77 : 75, queryFocused ? 141 : 89, queryFocused ? 255 : 109, 0.72)
+        setStroke];
     [[NSBezierPath bezierPathWithRoundedRect:queryRect xRadius:5.0 yRadius:5.0] stroke];
     NSDictionary* queryAttributes = @{
         NSFontAttributeName : [NSFont systemFontOfSize:12.5],
@@ -251,7 +285,7 @@ NSColor* searchColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
         }
         [visibleQuery drawAtPoint:queryPoint withAttributes:queryAttributes];
     }
-    if (self.window.firstResponder == self && !_selectAll) {
+    if (self.window.firstResponder == self && !_selectAll && !_editingReplacement) {
         NSUInteger caretInVisible =
             MIN(visibleQuery.length, _caretIndex > visibleStart ? _caretIndex - visibleStart : 0);
         CGFloat caretX = queryPoint.x + [[visibleQuery substringToIndex:caretInVisible]
@@ -273,6 +307,52 @@ NSColor* searchColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
                                                         : searchColor(155, 170, 189),
         }];
 
+    if (_scope == KineticSearchScopeFile) {
+        NSRect replacementRect = [self replacementRect];
+        [searchColor(29, 38, 51) setFill];
+        [[NSBezierPath bezierPathWithRoundedRect:replacementRect xRadius:5.0 yRadius:5.0] fill];
+        [searchColor(_editingReplacement && self.window.firstResponder == self ? 77 : 75,
+                     _editingReplacement && self.window.firstResponder == self ? 141 : 89,
+                     _editingReplacement && self.window.firstResponder == self ? 255 : 109, 0.72)
+            setStroke];
+        [[NSBezierPath bezierPathWithRoundedRect:replacementRect xRadius:5.0 yRadius:5.0] stroke];
+        NSString* replacementLabel = _replacement.length > 0 ? _replacement : @"Replace with…";
+        if (_replacementSelectAll && _editingReplacement && _replacement.length > 0) {
+            [searchColor(77, 141, 255, 0.35) setFill];
+            NSRectFill(NSInsetRect(replacementRect, 9.0, 6.0));
+        }
+        [replacementLabel drawInRect:NSInsetRect(replacementRect, 9.0, 7.0)
+                      withAttributes:@{
+                          NSFontAttributeName : [NSFont systemFontOfSize:12.5],
+                          NSForegroundColorAttributeName : _replacement.length > 0
+                              ? searchColor(229, 236, 246)
+                              : searchColor(126, 142, 163),
+                      }];
+        if (_editingReplacement && self.window.firstResponder == self && !_replacementSelectAll) {
+            CGFloat caretX =
+                NSMinX(replacementRect) + 9.0 +
+                [[_replacement substringToIndex:MIN(_replacementCaret, _replacement.length)]
+                    sizeWithAttributes:queryAttributes]
+                    .width;
+            [searchColor(111, 166, 255) setFill];
+            NSRectFill(NSMakeRect(MIN(caretX, NSMaxX(replacementRect) - 10.0),
+                                  NSMinY(replacementRect) + 7.0, 1.5, 17.0));
+        }
+        BOOL canReplace =
+            _scope == KineticSearchScopeFile && _query.length > 0 && _results.count > 0;
+        for (NSString* title in @[ @"Replace", @"All" ]) {
+            NSRect button =
+                [title isEqualToString:@"All"] ? [self replaceAllRect] : [self replaceRect];
+            [searchColor(77, 141, 255, canReplace ? 0.21 : 0.08) setFill];
+            [[NSBezierPath bezierPathWithRoundedRect:button xRadius:5.0 yRadius:5.0] fill];
+            [title drawInRect:NSInsetRect(button, 9.0, 5.0)
+                withAttributes:@{
+                    NSFontAttributeName : [NSFont systemFontOfSize:11.0 weight:NSFontWeightMedium],
+                    NSForegroundColorAttributeName : canReplace ? searchColor(180, 209, 255)
+                                                                : searchColor(115, 130, 150),
+                }];
+        }
+    }
     NSString* status = _scope == KineticSearchScopeFile ? @"Type to find in this file."
                                                         : @"Type to search the project.";
     if (_scope == KineticSearchScopeProject && !_projectAvailable) {
@@ -284,14 +364,14 @@ NSColor* searchColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
                                             _truncated ? @"+" : @"",
                                             _results.count == 1 ? @"match" : @"matches"];
     }
-    [status drawAtPoint:NSMakePoint(16.0, 126.0)
+    [status drawAtPoint:NSMakePoint(16.0, [self resultsY] - 23.0)
          withAttributes:@{
              NSFontAttributeName : [NSFont systemFontOfSize:11.0],
              NSForegroundColorAttributeName : searchColor(142, 158, 180),
          }];
 
-    NSRect clip = NSMakeRect(2.0, kResultsY, NSWidth(self.bounds) - 4.0,
-                             MAX(0.0, NSHeight(self.bounds) - kResultsY - 3.0));
+    NSRect clip = NSMakeRect(2.0, [self resultsY], NSWidth(self.bounds) - 4.0,
+                             MAX(0.0, NSHeight(self.bounds) - [self resultsY] - 3.0));
     [NSGraphicsContext saveGraphicsState];
     [[NSBezierPath bezierPathWithRect:clip] addClip];
     NSMutableParagraphStyle* truncation = [[NSMutableParagraphStyle alloc] init];
@@ -353,7 +433,7 @@ NSColor* searchColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
 - (void)mouseMoved:(NSEvent*)event {
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
     NSInteger hovered = -1;
-    for (NSUInteger index = 0; point.y >= kResultsY && index < _results.count; ++index) {
+    for (NSUInteger index = 0; point.y >= [self resultsY] && index < _results.count; ++index) {
         if (NSPointInRect(point, [self resultRectAtIndex:index])) {
             hovered = (NSInteger)index;
             break;
@@ -385,12 +465,26 @@ NSColor* searchColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
         _matchCase = !_matchCase;
         [self.delegate searchPopoverDidChange:self];
         [self focusQuery];
+    } else if (_scope == KineticSearchScopeFile && NSPointInRect(point, [self replaceRect]) &&
+               _results.count > 0) {
+        NSUInteger index = _selectedResult >= 0 ? (NSUInteger)_selectedResult : 0;
+        [self.delegate searchPopover:self didRequestReplaceResult:_results[index]];
+    } else if (_scope == KineticSearchScopeFile && NSPointInRect(point, [self replaceAllRect]) &&
+               _results.count > 0) {
+        [self.delegate searchPopoverDidRequestReplaceAll:self];
+    } else if (_scope == KineticSearchScopeFile && NSPointInRect(point, [self replacementRect])) {
+        _editingReplacement = YES;
+        _replacementSelectAll = NO;
+        _replacementCaret = _replacement.length;
+        [self.window makeFirstResponder:self];
+        self.needsDisplay = YES;
     } else if (NSPointInRect(point, [self queryRect])) {
+        _editingReplacement = NO;
         _selectAll = NO;
         _caretIndex = _query.length;
         [self focusQuery];
     } else {
-        for (NSUInteger index = 0; point.y >= kResultsY && index < _results.count; ++index) {
+        for (NSUInteger index = 0; point.y >= [self resultsY] && index < _results.count; ++index) {
             if (NSPointInRect(point, [self resultRectAtIndex:index])) {
                 [self.delegate searchPopover:self didSelectResult:_results[index]];
                 return;
@@ -402,33 +496,41 @@ NSColor* searchColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
 
 - (void)rightMouseDown:(NSEvent*)event {
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
-    if (!NSPointInRect(point, [self queryRect])) {
+    BOOL replacementField =
+        _scope == KineticSearchScopeFile && NSPointInRect(point, [self replacementRect]);
+    if (!replacementField && !NSPointInRect(point, [self queryRect])) {
         return;
     }
+    _editingReplacement = replacementField;
+    NSMutableString* field = replacementField ? _replacement : _query;
+    BOOL* selected = replacementField ? &_replacementSelectAll : &_selectAll;
     NSString* pasted = [NSPasteboard.generalPasteboard stringForType:NSPasteboardTypeString];
     [KineticContextMenu
         showInView:self
            atPoint:point
              items:@[
-                 @{@"title" : @"Copy Query", @"enabled" : @(_query.length > 0)},
+                 @{
+                     @"title" : replacementField ? @"Copy Replacement" : @"Copy Query",
+                     @"enabled" : @(field.length > 0)
+                 },
                  @{@"title" : @"Paste", @"enabled" : @(pasted.length > 0)},
-                 @{@"title" : @"Select All", @"enabled" : @(_query.length > 0)},
-                 @{@"title" : @"Clear", @"enabled" : @(_query.length > 0)}
+                 @{@"title" : @"Select All", @"enabled" : @(field.length > 0)},
+                 @{@"title" : @"Clear", @"enabled" : @(field.length > 0)}
              ]
            handler:^(NSUInteger index) {
              if (index == 0) {
                  [NSPasteboard.generalPasteboard clearContents];
-                 [NSPasteboard.generalPasteboard setString:_query forType:NSPasteboardTypeString];
+                 [NSPasteboard.generalPasteboard setString:field forType:NSPasteboardTypeString];
              } else if (index == 1) {
                  NSString* oneLine = [[pasted
                      componentsSeparatedByCharactersInSet:NSCharacterSet.newlineCharacterSet]
                      componentsJoinedByString:@" "];
                  [self replaceSelectionWithText:oneLine];
              } else if (index == 2) {
-                 _selectAll = YES;
+                 *selected = YES;
                  self.needsDisplay = YES;
              } else {
-                 _selectAll = YES;
+                 *selected = YES;
                  [self replaceSelectionWithText:@""];
              }
            }];
@@ -440,36 +542,44 @@ NSColor* searchColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
 }
 
 - (void)replaceSelectionWithText:(NSString*)text {
-    if (_selectAll) {
-        [_query setString:@""];
-        _caretIndex = 0;
-        _selectAll = NO;
+    NSMutableString* field = _editingReplacement ? _replacement : _query;
+    NSUInteger* caret = _editingReplacement ? &_replacementCaret : &_caretIndex;
+    BOOL* selected = _editingReplacement ? &_replacementSelectAll : &_selectAll;
+    if (*selected) {
+        [field setString:@""];
+        *caret = 0;
+        *selected = NO;
     }
-    if (_query.length + text.length > 200) {
+    if (field.length + text.length > 200) {
         return;
     }
-    [_query insertString:text atIndex:_caretIndex];
-    _caretIndex += text.length;
-    [self.delegate searchPopoverDidChange:self];
+    [field insertString:text atIndex:*caret];
+    *caret += text.length;
+    if (!_editingReplacement) {
+        [self.delegate searchPopoverDidChange:self];
+    }
     self.needsDisplay = YES;
 }
 
 - (void)keyDown:(NSEvent*)event {
     BOOL command = (event.modifierFlags & NSEventModifierFlagCommand) != 0;
     NSString* key = event.charactersIgnoringModifiers.lowercaseString;
+    NSMutableString* field = _editingReplacement ? _replacement : _query;
+    NSUInteger* caret = _editingReplacement ? &_replacementCaret : &_caretIndex;
+    BOOL* selected = _editingReplacement ? &_replacementSelectAll : &_selectAll;
     if (event.keyCode == 53) {
         [self.delegate searchPopoverDidRequestClose:self];
         return;
     }
     if (command && [key isEqualToString:@"a"]) {
-        _selectAll = YES;
+        *selected = YES;
         self.needsDisplay = YES;
         return;
     }
     if (command && ([key isEqualToString:@"c"] || [key isEqualToString:@"x"])) {
-        if (_selectAll) {
+        if (*selected) {
             [NSPasteboard.generalPasteboard clearContents];
-            [NSPasteboard.generalPasteboard setString:_query forType:NSPasteboardTypeString];
+            [NSPasteboard.generalPasteboard setString:field forType:NSPasteboardTypeString];
             if ([key isEqualToString:@"x"]) {
                 [self replaceSelectionWithText:@""];
             }
@@ -485,29 +595,31 @@ NSColor* searchColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
         return;
     }
     if (event.keyCode == 51 || event.keyCode == 117) {
-        if (_selectAll) {
+        if (*selected) {
             [self replaceSelectionWithText:@""];
-        } else if (event.keyCode == 51 && _caretIndex > 0) {
-            NSRange previous = [_query rangeOfComposedCharacterSequenceAtIndex:_caretIndex - 1];
-            [_query deleteCharactersInRange:previous];
-            _caretIndex = previous.location;
-            [self.delegate searchPopoverDidChange:self];
-        } else if (event.keyCode == 117 && _caretIndex < _query.length) {
-            NSRange next = [_query rangeOfComposedCharacterSequenceAtIndex:_caretIndex];
-            [_query deleteCharactersInRange:next];
-            [self.delegate searchPopoverDidChange:self];
+        } else if (event.keyCode == 51 && *caret > 0) {
+            NSRange previous = [field rangeOfComposedCharacterSequenceAtIndex:*caret - 1];
+            [field deleteCharactersInRange:previous];
+            *caret = previous.location;
+            if (!_editingReplacement)
+                [self.delegate searchPopoverDidChange:self];
+        } else if (event.keyCode == 117 && *caret < field.length) {
+            NSRange next = [field rangeOfComposedCharacterSequenceAtIndex:*caret];
+            [field deleteCharactersInRange:next];
+            if (!_editingReplacement)
+                [self.delegate searchPopoverDidChange:self];
         }
         self.needsDisplay = YES;
         return;
     }
     if (event.keyCode == 123 || event.keyCode == 124) {
-        _selectAll = NO;
+        *selected = NO;
         if (command) {
-            _caretIndex = event.keyCode == 123 ? 0 : _query.length;
-        } else if (event.keyCode == 123 && _caretIndex > 0) {
-            _caretIndex = [_query rangeOfComposedCharacterSequenceAtIndex:_caretIndex - 1].location;
-        } else if (event.keyCode == 124 && _caretIndex < _query.length) {
-            _caretIndex = NSMaxRange([_query rangeOfComposedCharacterSequenceAtIndex:_caretIndex]);
+            *caret = event.keyCode == 123 ? 0 : field.length;
+        } else if (event.keyCode == 123 && *caret > 0) {
+            *caret = [field rangeOfComposedCharacterSequenceAtIndex:*caret - 1].location;
+        } else if (event.keyCode == 124 && *caret < field.length) {
+            *caret = NSMaxRange([field rangeOfComposedCharacterSequenceAtIndex:*caret]);
         }
         self.needsDisplay = YES;
         return;
@@ -519,8 +631,8 @@ NSColor* searchColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
             NSRect row = [self resultRectAtIndex:(NSUInteger)_selectedResult];
             if (NSMaxY(row) > NSHeight(self.bounds) - 8.0) {
                 _scrollOffset += NSMaxY(row) - (NSHeight(self.bounds) - 8.0);
-            } else if (NSMinY(row) < kResultsY) {
-                _scrollOffset -= kResultsY - NSMinY(row);
+            } else if (NSMinY(row) < [self resultsY]) {
+                _scrollOffset -= [self resultsY] - NSMinY(row);
             }
             _scrollOffset = MIN([self maximumScroll], MAX(0.0, _scrollOffset));
             self.needsDisplay = YES;
@@ -528,6 +640,10 @@ NSColor* searchColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1
         return;
     }
     if (event.keyCode == 36 || event.keyCode == 76) {
+        if (_editingReplacement && _scope == KineticSearchScopeFile && _results.count > 0) {
+            [self.delegate searchPopover:self didRequestReplaceResult:_results[0]];
+            return;
+        }
         if (_selectedResult >= 0 && _selectedResult < (NSInteger)_results.count) {
             [self.delegate searchPopover:self
                          didSelectResult:_results[(NSUInteger)_selectedResult]];

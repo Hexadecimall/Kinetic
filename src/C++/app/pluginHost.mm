@@ -68,6 +68,9 @@ static int32_t registerSyntaxProvider(void* context, const char* extension,
                                       KineticPluginSyntaxTokens callback, void* userData);
 static int32_t registerCompletionProvider(void* context, const char* extension,
                                           KineticPluginCompletions callback, void* userData);
+static int32_t registerCompletionProviderV2(void* context, const char* extension,
+                                            KineticPluginCompletionsV2 callback, void* userData);
+static int32_t notifyCompletionsReady(void* context, const char* filePath);
 static uint64_t copyActiveFilePath(void* context, char* buffer, uint64_t capacity);
 static uint64_t copyWorkspacePath(void* context, char* buffer, uint64_t capacity);
 static int32_t publishDiagnostics(void* context, const char* filePath,
@@ -264,6 +267,8 @@ static BOOL readPluginConfiguration(NSURL* configurationUrl, BOOL* enabled,
             registerCompletionProvider,
             publishDiagnosticsV2,
             registerDiagnosticFixProvider,
+            registerCompletionProviderV2,
+            notifyCompletionsReady,
         };
     }
     return self;
@@ -568,6 +573,31 @@ static int32_t registerCompletionProvider(void* context, const char* extension,
         @"extension" : name,
         @"callback" : [NSValue valueWithPointer:(void*)callback],
         @"userData" : [NSValue valueWithPointer:userData],
+        @"rich" : @NO,
+    }];
+    return 0;
+}
+
+static int32_t registerCompletionProviderV2(void* context, const char* extension,
+                                            KineticPluginCompletionsV2 callback, void* userData) {
+    if (![NSThread isMainThread] || callback == nullptr) {
+        return -1;
+    }
+    KineticPluginHost* host = hostForContext(context);
+    NSString* owner = ownerForContext(context);
+    NSString* name = stringForUtf8(extension).lowercaseString;
+    if (owner == nil || name.length == 0 || name.length > 24 ||
+        [name rangeOfCharacterFromSet:NSCharacterSet.alphanumericCharacterSet.invertedSet]
+                .location != NSNotFound ||
+        kineticExtensionRegister(host->_registry, owner.UTF8String, kineticExtensionCompletion,
+                                 name.UTF8String, name.UTF8String, name.UTF8String) != 0) {
+        return -1;
+    }
+    [host->_completionCallbacks addObject:@{
+        @"extension" : name,
+        @"callback" : [NSValue valueWithPointer:(void*)callback],
+        @"userData" : [NSValue valueWithPointer:userData],
+        @"rich" : @YES,
     }];
     return 0;
 }
@@ -710,6 +740,20 @@ static int32_t openLocation(void* context, const char* filePath, uint32_t line,
       if ([host.delegate respondsToSelector:@selector(pluginHost:
                                                 openLocationAtPath:line:column:)]) {
           [host.delegate pluginHost:host openLocationAtPath:path line:line column:columnUtf16];
+      }
+    });
+    return 0;
+}
+
+static int32_t notifyCompletionsReady(void* context, const char* filePath) {
+    NSString* path = stringForUtf8(filePath);
+    if (path.length == 0 || !path.isAbsolutePath) {
+        return -1;
+    }
+    KineticPluginHost* host = hostForContext(context);
+    dispatch_async(dispatch_get_main_queue(), ^{
+      if ([host.delegate respondsToSelector:@selector(pluginHost:completionsReadyForPath:)]) {
+          [host.delegate pluginHost:host completionsReadyForPath:path];
       }
     });
     return 0;
@@ -1054,16 +1098,48 @@ static int32_t replaceRangeUtf8(void* context, uint64_t startUtf16, uint64_t len
     return nil;
 }
 
-- (NSArray<NSDictionary<NSString*, NSString*>*>*)completionItemsForPrefix:(NSString*)prefix
-                                                                 fileName:(NSString*)fileName {
+- (NSArray<NSDictionary<NSString*, id>*>*)completionItemsForPrefix:(NSString*)prefix
+                                                          fileName:(NSString*)fileName {
     NSString* extension = fileName.pathExtension.lowercaseString;
     NSData* prefixBytes = [prefix dataUsingEncoding:NSUTF8StringEncoding];
     if (prefixBytes == nil || prefixBytes.length > 95) {
         return @[];
     }
-    NSMutableArray<NSDictionary<NSString*, NSString*>*>* result = [NSMutableArray array];
+    NSMutableArray<NSDictionary<NSString*, id>*>* result = [NSMutableArray array];
     for (NSDictionary<NSString*, id>* provider in _completionCallbacks) {
         if (![provider[@"extension"] isEqualToString:extension]) {
+            continue;
+        }
+        if ([provider[@"rich"] boolValue]) {
+            auto callback = (KineticPluginCompletionsV2)[provider[@"callback"] pointerValue];
+            KineticPluginCompletionItemV2 items[128] = {};
+            uint32_t count = MIN(callback([provider[@"userData"] pointerValue], prefix.UTF8String,
+                                          prefixBytes.length, items, 128),
+                                 128u);
+            for (uint32_t index = 0; index < count; ++index) {
+                const auto& item = items[index];
+                if (memchr(item.label, 0, sizeof(item.label)) == nullptr ||
+                    memchr(item.insertText, 0, sizeof(item.insertText)) == nullptr) {
+                    continue;
+                }
+                NSString* label = stringForUtf8(item.label);
+                NSString* insertText = stringForUtf8(item.insertText);
+                if (label.length == 0 || insertText == nil) {
+                    continue;
+                }
+                [result addObject:@{
+                    @"label" : label,
+                    @"insertText" : insertText,
+                    @"filterText" : stringForUtf8(item.filterText) ?: label,
+                    @"sortText" : stringForUtf8(item.sortText) ?: @"",
+                    @"detail" : stringForUtf8(item.detail) ?: @"",
+                    @"documentation" : stringForUtf8(item.documentation) ?: @"",
+                    @"kind" : @(item.kind),
+                    @"flags" : @(item.flags),
+                    @"replaceStart" : @(item.replaceStartUtf16),
+                    @"replaceLength" : @(item.replaceLengthUtf16),
+                }];
+            }
             continue;
         }
         auto callback = (KineticPluginCompletions)[provider[@"callback"] pointerValue];

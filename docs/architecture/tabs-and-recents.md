@@ -14,16 +14,17 @@ remaining document; closing the final tab returns to Home when no project is ope
 instead retains an empty workspace, not a new Untitled document. Opening a folder or recent project
 also uses that empty workspace until an actual file is opened. Command-Shift-Left Bracket and
 Command-Shift-Right Bracket cycle through tabs with wrapping. Recent-project rows have custom
-Open Project and Copy Path menus.
+Open and Copy Path menus.
 
 The tab strip collapses when no document tabs are visible. The activity rail and Explorer then
 start directly beneath the titlebar; opening a document restores the strip. Settings and Plugins
 are rounded overlays, not document tabs, and do not reserve tab-strip space.
 
-Opening a workspace folder moves it to the front of a bounded recent-project list stored in the
-application defaults domain. Missing folders are filtered before display. Home draws the project
-name and truncated parent path as custom rows; selecting one restores that workspace without
-creating an Untitled file.
+Opening a file or workspace folder, or saving a document to disk, moves its path to the front of
+a bounded recent list stored in the application defaults domain. Existing folder history remains
+compatible. Missing paths are filtered before display. Home draws the name and truncated parent
+path as custom rows; selecting a file opens that document, while selecting a folder restores the
+workspace without creating an Untitled file. Unsaved Untitled documents are not recent entries.
 
 Settings exposes preferred tab width. Other customization limits are documented in
 [`settings.md`](settings.md) and the [plugin API](../plugin-api/README.md).

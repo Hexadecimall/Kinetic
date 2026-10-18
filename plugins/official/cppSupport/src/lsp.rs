@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use serde_json::{Value, json};
 
-use crate::{Diagnostic, STATUS, diagnosticMessage, navigate, publish};
+use crate::{Diagnostic, STATUS, diagnosticMessage, navigate, notifyCompletionsReady, publish};
 use std::sync::atomic::Ordering;
 
 struct State {
@@ -18,6 +18,7 @@ struct State {
     diagnostics: HashMap<String, Vec<Value>>,
     pending: HashMap<String, String>,
     pendingCompletions: HashMap<u64, CompletionQuery>,
+    pendingDefinitions: HashMap<u64, (String, u32)>,
     pendingFixes: HashMap<u64, mpsc::Sender<Value>>,
     lastCompletionQuery: Option<CompletionQuery>,
     completionItems: Vec<CompletionItem>,
@@ -37,7 +38,14 @@ struct CompletionQuery {
 pub struct CompletionItem {
     pub label: String,
     pub insertText: String,
+    pub filterText: String,
+    pub sortText: String,
     pub detail: String,
+    pub documentation: String,
+    pub replaceStartUtf16: u64,
+    pub replaceLengthUtf16: u64,
+    pub kind: u32,
+    pub flags: u32,
 }
 
 pub struct FixEdit {
@@ -283,6 +291,16 @@ fn parseDiagnostics(message: &Value) -> Option<(String, Vec<Diagnostic>)> {
     Some((path, result))
 }
 
+fn diagnosticsAreCurrent(documents: &HashMap<String, u32>, message: &Value, path: &str) -> bool {
+    let Some(&currentVersion) = documents.get(path) else {
+        return false;
+    };
+    message
+        .pointer("/params/version")
+        .and_then(Value::as_u64)
+        .is_none_or(|version| version == currentVersion as u64)
+}
+
 fn compilationDatabase(workspace: &str) -> Option<PathBuf> {
     let root = Path::new(workspace);
     let candidates = [
@@ -299,6 +317,15 @@ fn compilationDatabase(workspace: &str) -> Option<PathBuf> {
     candidates
         .into_iter()
         .find(|directory| directory.join("compile_commands.json").is_file())
+}
+
+pub fn projectRootForFile(filePath: &str) -> Option<String> {
+    Path::new(filePath)
+        .parent()?
+        .ancestors()
+        .filter_map(Path::to_str)
+        .find(|directory| compilationDatabase(directory).is_some())
+        .map(str::to_owned)
 }
 
 fn definition(message: &Value) -> Option<(String, u32, u32)> {
@@ -325,7 +352,7 @@ fn definition(message: &Value) -> Option<(String, u32, u32)> {
     ))
 }
 
-fn completionItems(message: &Value) -> Vec<CompletionItem> {
+fn completionItems(message: &Value, query: &CompletionQuery, text: &str) -> Vec<CompletionItem> {
     let result = message.get("result");
     let values = result.and_then(Value::as_array).or_else(|| {
         result
@@ -335,6 +362,9 @@ fn completionItems(message: &Value) -> Vec<CompletionItem> {
     let Some(values) = values else {
         return Vec::new();
     };
+    let caret = utf16Offset(text, query.line as u64, query.column as u64)
+        .unwrap_or_else(|| text.encode_utf16().count() as u64);
+    let prefixLength = query.prefix.encode_utf16().count() as u64;
     values
         .iter()
         .filter_map(|item| {
@@ -344,26 +374,64 @@ fn completionItems(message: &Value) -> Vec<CompletionItem> {
                 .or_else(|| item.get("insertText"))
                 .and_then(Value::as_str)
                 .unwrap_or(label);
-            let insertText = if item.get("insertTextFormat").and_then(Value::as_u64) == Some(2)
-                || insertion.contains('$')
-            {
-                item.get("filterText")
-                    .and_then(Value::as_str)
-                    .unwrap_or_else(|| label.split('(').next().unwrap_or(label))
-            } else {
-                insertion
-            };
-            if label.is_empty() || insertText.is_empty() {
+            if label.is_empty() || insertion.is_empty() {
                 return None;
             }
+            let range = item
+                .pointer("/textEdit/replace")
+                .or_else(|| item.pointer("/textEdit/range"));
+            let (start, length) = range
+                .and_then(|range| {
+                    let start = range.get("start")?;
+                    let end = range.get("end")?;
+                    let start = utf16Offset(
+                        text,
+                        start.get("line")?.as_u64()?,
+                        start.get("character")?.as_u64()?,
+                    )?;
+                    let end = utf16Offset(
+                        text,
+                        end.get("line")?.as_u64()?,
+                        end.get("character")?.as_u64()?,
+                    )?;
+                    (end >= start).then_some((start, end - start))
+                })
+                .unwrap_or((caret.saturating_sub(prefixLength), prefixLength));
             let detail = item.get("detail").and_then(Value::as_str).unwrap_or("");
+            let documentation = item
+                .get("documentation")
+                .and_then(|value| {
+                    value
+                        .as_str()
+                        .or_else(|| value.get("value").and_then(Value::as_str))
+                })
+                .unwrap_or("");
             Some(CompletionItem {
-                label: label.chars().take(95).collect(),
-                insertText: insertText.chars().take(95).collect(),
-                detail: detail.chars().take(95).collect(),
+                label: label.into(),
+                insertText: insertion.into(),
+                filterText: item
+                    .get("filterText")
+                    .and_then(Value::as_str)
+                    .unwrap_or(label)
+                    .into(),
+                sortText: item
+                    .get("sortText")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .into(),
+                detail: detail.into(),
+                documentation: documentation.into(),
+                replaceStartUtf16: start,
+                replaceLengthUtf16: length,
+                kind: item.get("kind").and_then(Value::as_u64).unwrap_or(0) as u32,
+                flags: 1 | if item.get("insertTextFormat").and_then(Value::as_u64) == Some(2) {
+                    2
+                } else {
+                    0
+                },
             })
         })
-        .take(32)
+        .take(128)
         .collect()
 }
 
@@ -409,6 +477,7 @@ impl LanguageServer {
             diagnostics: HashMap::new(),
             pending: HashMap::new(),
             pendingCompletions: HashMap::new(),
+            pendingDefinitions: HashMap::new(),
             pendingFixes: HashMap::new(),
             lastCompletionQuery: None,
             completionItems: Vec::new(),
@@ -439,15 +508,24 @@ impl LanguageServer {
                     == Some("textDocument/publishDiagnostics")
                 {
                     if let Some((path, diagnostics)) = parseDiagnostics(&message) {
-                        if let Ok(mut state) = readerState.lock() {
-                            let raw = message
-                                .pointer("/params/diagnostics")
-                                .and_then(Value::as_array)
-                                .cloned()
-                                .unwrap_or_default();
-                            state.diagnostics.insert(path.clone(), raw);
+                        let accepted = if let Ok(mut state) = readerState.lock() {
+                            if !diagnosticsAreCurrent(&state.documents, &message, &path) {
+                                false
+                            } else {
+                                let raw = message
+                                    .pointer("/params/diagnostics")
+                                    .and_then(Value::as_array)
+                                    .cloned()
+                                    .unwrap_or_default();
+                                state.diagnostics.insert(path.clone(), raw);
+                                true
+                            }
+                        } else {
+                            false
+                        };
+                        if accepted {
+                            publish(&path, &diagnostics);
                         }
-                        publish(&path, &diagnostics);
                     }
                 } else if let Some(id) = message.get("id").and_then(Value::as_u64) {
                     if let Some(reply) = readerState
@@ -463,13 +541,30 @@ impl LanguageServer {
                         .ok()
                         .and_then(|mut state| state.pendingCompletions.remove(&id));
                     if let Some(query) = completion {
+                        let mut ready = false;
                         if let Ok(mut state) = readerState.lock()
                             && state.lastCompletionQuery.as_ref() == Some(&query)
                         {
-                            state.completionItems = completionItems(&message);
+                            let document = state.documentTexts.get(&query.path).cloned();
+                            state.completionItems = document
+                                .as_deref()
+                                .map(|text| completionItems(&message, &query, text))
+                                .unwrap_or_default();
+                            ready = true;
                         }
-                    } else if let Some((path, line, column)) = definition(&message) {
-                        navigate(&path, line, column);
+                        if ready {
+                            notifyCompletionsReady(&query.path);
+                        }
+                    } else {
+                        let current = readerState.lock().ok().and_then(|mut state| {
+                            let (requestedPath, version) = state.pendingDefinitions.remove(&id)?;
+                            (state.documents.get(&requestedPath) == Some(&version)).then_some(())
+                        });
+                        if current.is_some()
+                            && let Some((path, line, column)) = definition(&message)
+                        {
+                            navigate(&path, line, column);
+                        }
                     }
                 }
             }
@@ -512,8 +607,26 @@ impl LanguageServer {
             return;
         }
         state.documentTexts.insert(path.clone(), text.clone());
+        state.diagnostics.remove(&path);
         state.lastCompletionQuery = None;
         state.completionItems.clear();
+        for id in state.pendingCompletions.keys() {
+            let _ = self
+                .sender
+                .send(json!({"jsonrpc":"2.0","method":"$/cancelRequest",
+                "params":{"id":id}}));
+        }
+        state.pendingCompletions.clear();
+        state.pendingDefinitions.retain(|id, (requestedPath, _)| {
+            if requestedPath != &path {
+                return true;
+            }
+            let _ = self
+                .sender
+                .send(json!({"jsonrpc":"2.0","method":"$/cancelRequest",
+                "params":{"id":id}}));
+            false
+        });
         let message = if let Some(version) = state.documents.get_mut(&path) {
             *version = version.saturating_add(1);
             didChange(&path, &text, *version)
@@ -554,6 +667,12 @@ impl LanguageServer {
         }
         state.lastCompletionQuery = Some(query.clone());
         state.completionItems.clear();
+        for id in state.pendingCompletions.keys() {
+            let _ = self
+                .sender
+                .send(json!({"jsonrpc":"2.0","method":"$/cancelRequest",
+                "params":{"id":id}}));
+        }
         state.pendingCompletions.clear();
         let id = state.nextRequestId;
         state.nextRequestId += 1;
@@ -571,16 +690,24 @@ impl LanguageServer {
         let Ok(mut state) = self.state.lock() else {
             return;
         };
-        if !state.ready {
+        if !state.ready || !state.documents.contains_key(&path) {
             return;
         }
         let id = state.nextRequestId;
         state.nextRequestId += 1;
-        let _ = self.sender.send(
-            json!({"jsonrpc":"2.0","id":id,"method":"textDocument/definition","params":{
-                "textDocument":{"uri":uri(&path)},"position":{"line":line,"character":column}
-            }}),
-        );
+        let version = state.documents[&path];
+        state.pendingDefinitions.insert(id, (path.clone(), version));
+        if self
+            .sender
+            .send(
+                json!({"jsonrpc":"2.0","id":id,"method":"textDocument/definition","params":{
+                    "textDocument":{"uri":uri(&path)},"position":{"line":line,"character":column}
+                }}),
+            )
+            .is_err()
+        {
+            state.pendingDefinitions.remove(&id);
+        }
     }
 
     pub fn quickFix(&self, path: &str, line: u32, column: u32, length: u32) -> Option<Value> {
@@ -616,9 +743,22 @@ impl LanguageServer {
             "context":{"diagnostics":diagnostics,"only":["quickfix"]}
         }});
         if self.sender.send(request).is_err() {
+            if let Ok(mut state) = self.state.lock() {
+                state.pendingFixes.remove(&id);
+            }
             return None;
         }
-        receiver.recv_timeout(Duration::from_millis(800)).ok()
+        let result = receiver.recv_timeout(Duration::from_millis(800)).ok();
+        if result.is_none()
+            && let Ok(mut state) = self.state.lock()
+        {
+            state.pendingFixes.remove(&id);
+            let _ = self
+                .sender
+                .send(json!({"jsonrpc":"2.0","method":"$/cancelRequest",
+                "params":{"id":id}}));
+        }
+        result
     }
 
     pub fn stop(self) {
@@ -646,6 +786,26 @@ mod tests {
             readFrame(&mut BufReader::new(bytes.as_slice())).unwrap(),
             Some(value)
         );
+    }
+
+    #[test]
+    fn oldOrUnknownDiagnosticsDoNotReplaceCurrentDocument() {
+        let documents = HashMap::from([("/tmp/main.cpp".to_owned(), 4)]);
+        let message = json!({"params":{"version":3}});
+        assert!(!diagnosticsAreCurrent(
+            &documents,
+            &message,
+            "/tmp/main.cpp"
+        ));
+        assert!(!diagnosticsAreCurrent(
+            &documents,
+            &message,
+            "/tmp/other.cpp"
+        ));
+        let message = json!({"params":{"version":4}});
+        assert!(diagnosticsAreCurrent(&documents, &message, "/tmp/main.cpp"));
+        let message = json!({"params":{}});
+        assert!(diagnosticsAreCurrent(&documents, &message, "/tmp/main.cpp"));
     }
 
     #[test]
@@ -677,12 +837,51 @@ mod tests {
     }
 
     #[test]
+    fn completionKeepsServerEditAndSnippetMetadata() {
+        let query = CompletionQuery {
+            path: "/tmp/main.cpp".into(),
+            version: 2,
+            line: 0,
+            column: 5,
+            prefix: "fo".into(),
+        };
+        let response = json!({"result":{"isIncomplete":true,"items":[{
+            "label":"foo(int)","filterText":"foo","sortText":"001",
+            "detail":"method","documentation":{"kind":"markdown","value":"A useful method"},
+            "kind":2,"insertTextFormat":2,
+            "textEdit":{"range":{"start":{"line":0,"character":3},
+                                 "end":{"line":0,"character":5}},
+                        "newText":"foo(${1:value})$0"}
+        }]}});
+        let items = completionItems(&response, &query, "ob.fo");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].insertText, "foo(${1:value})$0");
+        assert_eq!(
+            (items[0].replaceStartUtf16, items[0].replaceLengthUtf16),
+            (3, 2)
+        );
+        assert_eq!(items[0].flags, 3);
+        assert_eq!(items[0].documentation, "A useful method");
+    }
+
+    #[test]
     fn discoversCMakeDatabaseAndParsesSameFileFix() {
-        let root = std::env::temp_dir().join(format!("kinetic-clangd-{}", std::process::id()));
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root =
+            std::env::temp_dir().join(format!("kinetic-clangd-{}-{nonce}", std::process::id()));
+        std::fs::create_dir(&root).unwrap();
         let directory = root.join("build/debug");
         std::fs::create_dir_all(&directory).unwrap();
         std::fs::write(directory.join("compile_commands.json"), "[]").unwrap();
         assert_eq!(compilationDatabase(root.to_str().unwrap()), Some(directory));
+        let source = root.join("src/main.cpp");
+        assert_eq!(
+            projectRootForFile(source.to_str().unwrap()),
+            root.to_str().map(str::to_owned)
+        );
         let _ = std::fs::remove_dir_all(root);
         let response = json!({"result":[{"kind":"quickfix","edit":{"changes":{
             "file:///tmp/demo.cpp":[{"range":{"start":{"line":0,"character":0},
