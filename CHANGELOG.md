@@ -2,7 +2,7 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.35.4 - Unreleased
+## 0.35.4 - 2026-10-18
 
 ### Fixed
 
