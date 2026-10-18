@@ -148,6 +148,7 @@
 @property(nonatomic, strong) KineticHomeView* home;
 @property(nonatomic, strong) KineticTrafficBar* trafficBar;
 @property(nonatomic, strong) KineticEditorView* editor;
+@property(nonatomic, strong) KineticEditorView* homeSettingsEditor;
 @property(nonatomic, strong) NSMutableArray<KineticEditorView*>* editors;
 @property(nonatomic, strong) KineticFileDialog* fileDialog;
 @property(nonatomic, strong) KineticCommandPalette* commandPalette;
@@ -265,9 +266,8 @@
     NSMutableArray<NSURL*>* projects = [NSMutableArray array];
     for (NSString* path in paths ?: @[]) {
         BOOL directory = NO;
-        if ([NSFileManager.defaultManager fileExistsAtPath:path isDirectory:&directory] &&
-            directory) {
-            [projects addObject:[NSURL fileURLWithPath:path isDirectory:YES]];
+        if ([NSFileManager.defaultManager fileExistsAtPath:path isDirectory:&directory]) {
+            [projects addObject:[NSURL fileURLWithPath:path isDirectory:directory]];
         }
     }
     return projects;
@@ -422,6 +422,7 @@
 - (void)openEditorWithContents:(NSString*)contents
                        fileUrl:(NSURL*)fileUrl
           workspacePlaceholder:(BOOL)workspacePlaceholder {
+    [self.homeSettingsEditor closeUtilityPanelIfOpen];
     if (!workspacePlaceholder && self.editor.workspacePlaceholder) {
         self.workspaceUiState = self.editor.workspaceUiState;
         self.searchUiState = self.editor.searchUiState;
@@ -431,6 +432,7 @@
         self.editor = nil;
     }
     if (fileUrl != nil) {
+        [self recordRecentProject:fileUrl];
         for (NSUInteger index = 0; index < self.editors.count; ++index) {
             if ([self.editors[index].fileUrl.path isEqualToString:fileUrl.path]) {
                 [self activateTabAtIndex:index];
@@ -694,6 +696,7 @@
 
 - (void)showAppPackageStatus:(NSString*)status {
     self.appPackageStatus = status;
+    [self.homeSettingsEditor setAppPackageStatus:status];
     for (KineticEditorView* editor in self.editors) {
         [editor setAppPackageStatus:status];
     }
@@ -997,6 +1000,22 @@
 
 - (void)showSettings {
     if (self.editor == nil) {
+        if (self.homeSettingsEditor == nil) {
+            self.homeSettingsEditor = [[KineticEditorView alloc] initWithFrame:self.home.bounds
+                                                                    contents:@""
+                                                                     fileUrl:nil];
+            self.homeSettingsEditor.commandHandler = self;
+        }
+        for (NSString* property in self.pluginNumberOverrides) {
+            [self.homeSettingsEditor setPluginNumber:self.pluginNumberOverrides[property].doubleValue
+                                            property:property];
+        }
+        for (NSString* property in self.pluginStringOverrides) {
+            [self.homeSettingsEditor setPluginString:self.pluginStringOverrides[property]
+                                            property:property];
+        }
+        [self.homeSettingsEditor setAppPackageStatus:self.appPackageStatus];
+        [self.homeSettingsEditor showSettingsInView:self.home];
         return;
     }
     self.activitySection = KineticActivitySectionSettings;
@@ -1373,6 +1392,7 @@
         return NO;
     }
     self.editor.fileUrl = fileUrl;
+    [self recordRecentProject:fileUrl];
     [self.editor markSaved];
     [self updateTabMetadata];
     [self checkToolsForFile:fileUrl];
@@ -1527,6 +1547,8 @@
 }
 
 - (BOOL)closeActiveTab {
+    if ([self.homeSettingsEditor closeUtilityPanelIfOpen])
+        return YES;
     if ([self.editor closeUtilityPanelIfOpen])
         return YES;
     if (self.editor == nil) {
@@ -1590,8 +1612,15 @@
 }
 
 - (void)openRecentProjectAtUrl:(NSURL*)projectUrl {
-    if (![self openFolderAtUrl:projectUrl]) {
+    BOOL directory = NO;
+    if (![NSFileManager.defaultManager fileExistsAtPath:projectUrl.path isDirectory:&directory]) {
         self.home.recentProjects = [self persistedRecentProjects];
+        return;
+    }
+    if (directory) {
+        [self openFolderAtUrl:projectUrl];
+    } else {
+        [self openFileAtUrl:projectUrl];
     }
 }
 

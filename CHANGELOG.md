@@ -2,7 +2,16 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.35.2 - Unreleased
+## 0.35.3 - Unreleased
+
+### Fixed
+
+- Open Settings from the welcome screen through Command-Comma or its lower-left icon without
+  creating a document tab.
+- Include opened and saved files alongside folders in Home's recent list, and reopen each entry
+  as the correct type.
+
+## 0.35.2
 
 ### Changed
 

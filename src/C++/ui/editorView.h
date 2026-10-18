@@ -73,4 +73,5 @@
 - (void)setPluginPanels:(NSArray<NSDictionary<NSString*, id>*>*)panels;
 - (void)setCatalogPlugins:(NSArray<NSDictionary<NSString*, id>*>*)plugins status:(NSString*)status;
 - (void)setAppPackageStatus:(NSString*)status;
+- (void)showSettingsInView:(NSView*)host;
 @end

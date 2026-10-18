@@ -120,6 +120,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     BOOL _completionPending;
     KineticSettingsPanel* _settingsPanel;
     KineticUtilityPanel* _utilityPanel;
+    __weak NSView* _utilityPanelHost;
     BOOL _motionEnabled;
     CGFloat _motionDuration;
     BOOL _smoothCaret;
@@ -582,7 +583,8 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
                         !NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion
                duration:_motionDuration / 1000.0];
     _utilityPanel = nil;
-    [self.window makeFirstResponder:self];
+    [(_utilityPanelHost.window ?: self.window) makeFirstResponder:_utilityPanelHost ?: self];
+    _utilityPanelHost = nil;
     self.needsDisplay = YES;
 }
 
@@ -593,6 +595,10 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     return YES;
 }
 
+- (void)showSettingsInView:(NSView*)host {
+    [self presentUtilitySection:KineticActivitySectionSettings inView:host animated:YES];
+}
+
 - (void)setActivitySection:(KineticActivitySection)section animated:(BOOL)animated {
     if (section != KineticActivitySectionSettings && section != KineticActivitySectionPlugins) {
         if (_utilityPanel)
@@ -600,21 +606,28 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         [_activityBar activateSection:section animated:animated];
         return;
     }
+    [self presentUtilitySection:section inView:self animated:animated];
+}
+
+- (void)presentUtilitySection:(KineticActivitySection)section
+                      inView:(NSView*)host
+                    animated:(BOOL)animated {
     [_utilityPanel removeFromSuperview];
+    _utilityPanelHost = host;
     _settingsVisible = section == KineticActivitySectionSettings;
     _pluginsVisible = !_settingsVisible;
     [self closeCompletions];
     NSView* content = _pluginsVisible ? (NSView*)_pluginBrowser : (NSView*)_settingsPanel;
     _pluginBrowser.hidden = NO;
     _utilityPanel =
-        [[KineticUtilityPanel alloc] initWithFrame:NSMakeRect(0, kTabBarY, NSWidth(self.bounds),
-                                                              NSHeight(self.bounds) - kTabBarY)
+        [[KineticUtilityPanel alloc] initWithFrame:NSMakeRect(0, kTabBarY, NSWidth(host.bounds),
+                                                              NSHeight(host.bounds) - kTabBarY)
                                            content:content];
     __weak KineticEditorView* weakSelf = self;
     _utilityPanel.closeHandler = ^{
       [weakSelf closeUtilityPanel];
     };
-    [self addSubview:_utilityPanel positioned:NSWindowAbove relativeTo:nil];
+    [host addSubview:_utilityPanel positioned:NSWindowAbove relativeTo:nil];
     [_utilityPanel
         presentAnimated:animated && _motionEnabled &&
                         !NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion
@@ -635,7 +648,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     if ([property isEqualToString:@"interface.theme"] && value >= 0 && value <= 2 &&
         floor(value) == value) {
         kineticSetThemeName(@[ @"kinetic-dark", @"midnight", @"graphite" ][(NSUInteger)value]);
-        kineticRefreshThemeInView(self.window.contentView ?: self);
+        kineticRefreshThemeInView(_utilityPanelHost.window.contentView ?: self.window.contentView ?: self);
     } else if ([property isEqualToString:@"editor.text.fontPreset"] && value >= 0 && value <= 3 &&
                floor(value) == value) {
         _fontName = @[ @"", @"Menlo", @"Monaco", @"Courier" ][(NSUInteger)value];

@@ -121,6 +121,15 @@ int main() {
             passed;
         passed =
             check(![editor closeUtilityPanelIfOpen], @"closed panel is not reopened") && passed;
+        NSView* welcomeHost = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 900, 700)];
+        [editor setPluginNumber:0 property:@"interface.motion.enabled"];
+        [editor showSettingsInView:welcomeHost];
+        passed = check(welcomeHost.subviews.count == 1, @"settings opens above welcome host") &&
+                 check(editor.tabTitles.count == 1, @"welcome settings creates no document tab") && passed;
+        [editor showSettingsInView:welcomeHost];
+        passed = check(welcomeHost.subviews.count == 1, @"reopening settings keeps one overlay") && passed;
+        passed = check([editor closeUtilityPanelIfOpen] && welcomeHost.subviews.count == 0,
+                       @"welcome settings dismisses cleanly") && passed;
         passed = check([editor.documentText isEqualToString:@"initial"], @"undo text") &&
                  check(!editor.dirty, @"undo save state") && passed;
         [editor redoEdit];
