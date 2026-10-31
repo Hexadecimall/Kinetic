@@ -2,13 +2,23 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.35.6 - Unreleased
+## 0.36.0
+
+### Added
+
+- Islands Dark theme, available through Appearance settings, the command palette, and the
+  plugin API. Neutral charcoal surfaces separate editor and tool areas with restrained accents.
+
+## 0.35.6
 
 ### Fixed
 
 - Keep matching completion suggestions visible during asynchronous provider refreshes. Retain
   selection and scroll position, anchor the popup to the word start, and rebase cached server
   edit ranges as the prefix changes.
+- Add visible Settings actions to the welcome screen and File menu. Clarify the fullscreen
+  control with matching corner strokes.
+- Inset the File menu hover highlight to fit its label inside the titlebar.
 
 ## 0.35.5
 

@@ -16,7 +16,8 @@ int main(int argc, const char** argv) {
     @autoreleasepool {
         assert(argc == 2);
         NSString* directory = [NSString stringWithUTF8String:argv[1]];
-        for (NSString* name in @[ @"kinetic-midnight", @"kinetic-graphite" ]) {
+        for (NSString* name in
+             @[ @"kinetic-midnight", @"kinetic-graphite", @"kinetic-islands-dark" ]) {
             NSString* path =
                 [directory stringByAppendingPathComponent:[name stringByAppendingString:@".toml"]];
             NSDictionary* palette = kineticReadThemePalette([NSData dataWithContentsOfFile:path]);

@@ -153,6 +153,13 @@ add_custom_target(
     VERBATIM)
 
 enable_testing()
+add_executable(kineticHomeNavigationTests tests/homeNavigationTests.mm
+    src/C++/ui/homeView.mm src/C++/ui/trafficBar.mm src/C++/ui/theme.mm
+    src/C++/ui/contextMenu.mm src/C++/app/githubAccount.mm)
+target_include_directories(kineticHomeNavigationTests PRIVATE src/C++/ui src/C++/app)
+target_compile_options(kineticHomeNavigationTests PRIVATE "-fobjc-arc")
+target_link_libraries(kineticHomeNavigationTests PRIVATE "-framework AppKit" "-framework Security")
+add_test(NAME kineticHomeNavigation COMMAND kineticHomeNavigationTests)
 add_executable(kineticSettingsPanelTests tests/settingsPanelTests.mm
     src/C++/ui/settingsPanel.mm src/C++/ui/utilityPanel.mm src/C++/ui/toolPrompt.mm
     src/C++/ui/theme.mm src/C++/ui/contextMenu.mm)

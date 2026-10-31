@@ -648,9 +648,10 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     if (!std::isfinite(value)) {
         return NO;
     }
-    if ([property isEqualToString:@"interface.theme"] && value >= 0 && value <= 2 &&
+    if ([property isEqualToString:@"interface.theme"] && value >= 0 && value <= 3 &&
         floor(value) == value) {
-        kineticSetThemeName(@[ @"kinetic-dark", @"midnight", @"graphite" ][(NSUInteger)value]);
+        kineticSetThemeName(
+            @[ @"kinetic-dark", @"midnight", @"graphite", @"islands-dark" ][(NSUInteger)value]);
         kineticRefreshThemeInView(_utilityPanelHost.window.contentView ?: self.window.contentView ?: self);
     } else if ([property isEqualToString:@"editor.text.fontPreset"] && value >= 0 && value <= 3 &&
                floor(value) == value) {
@@ -741,8 +742,8 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         return NO;
     }
     if ([property isEqualToString:@"interface.theme"]) {
-        NSUInteger index =
-            [@[ @"kinetic-dark", @"midnight", @"graphite" ] indexOfObject:kineticThemeName()];
+        NSUInteger index = [@[ @"kinetic-dark", @"midnight", @"graphite", @"islands-dark" ]
+            indexOfObject:kineticThemeName()];
         *value = index == NSNotFound ? 0 : index;
     } else if ([property isEqualToString:@"editor.text.fontPreset"]) {
         NSUInteger index =

@@ -212,7 +212,8 @@ void loadTheme() {
                                                      error:nil];
       NSRegularExpression* pattern = [NSRegularExpression
           regularExpressionWithPattern:
-              @"(?m)^name[ \\t]*=[ \\t]*\\\"(kinetic-dark|midnight|graphite)\\\"[ \\t]*(?:#.*)?$"
+              @"(?m)^name[ \\t]*=[ \\t]*\\\"(kinetic-dark|midnight|graphite|islands-dark)\\\"[ "
+              @"\\t]*(?:#.*)?$"
                                options:0
                                  error:nil];
       NSTextCheckingResult* match = [pattern firstMatchInString:saved ?: @""
@@ -269,7 +270,7 @@ NSString* kineticThemeName(void) {
 void kineticSetThemeName(NSString* name) {
     loadTheme();
     if (![name isEqualToString:@"kinetic-dark"] && ![name isEqualToString:@"midnight"] &&
-        ![name isEqualToString:@"graphite"])
+        ![name isEqualToString:@"graphite"] && ![name isEqualToString:@"islands-dark"])
         return;
     currentTheme = [name copy];
     loadPalette();
