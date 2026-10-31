@@ -244,3 +244,9 @@ target_include_directories(kineticGitHubAccountTests PRIVATE src/C++/app)
 target_compile_options(kineticGitHubAccountTests PRIVATE "-fobjc-arc")
 target_link_libraries(kineticGitHubAccountTests PRIVATE "-framework AppKit" "-framework Security")
 add_test(NAME kineticGitHubAccount COMMAND kineticGitHubAccountTests)
+
+add_test(NAME kineticHomebrewUpdater
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/homebrewUpdaterTests.py"
+            "$<TARGET_FILE:kinetic_cli>")
+set_tests_properties(kineticHomebrewUpdater PROPERTIES
+    ENVIRONMENT "TMPDIR=${CMAKE_BINARY_DIR}")

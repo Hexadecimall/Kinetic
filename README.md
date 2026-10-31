@@ -7,7 +7,7 @@
 </p>
 
 > [!IMPORTANT]
-> Kinetic `0.35.4` is an early functional preview. Editing, retained multi-document tabs, persisted
+> Kinetic `0.35.5` is an early functional preview. Editing, retained multi-document tabs, persisted
 > recent projects, mouse selection, undo/redo, basic syntax highlighting, auto-indentation,
 > matching delimiters, custom context menus, in-file find/replace and project search, the activity bar, GitHub
 > account sign-in, native plugin host, hidden-file browsing, project file and folder creation,
@@ -50,6 +50,8 @@ brew install --formula Hexadecimall/Kinetic/kinetic
 Homebrew builds the app locally using Command Line Tools, CMake, and an existing Rust toolchain.
 Install Rust with rustup first if Cargo is unavailable. LLVM and language servers are not bundled
 or added as formula dependencies. Updates use `brew upgrade --formula Hexadecimall/Kinetic/kinetic`.
+The Settings updater detects Homebrew installations and delegates to that command after refreshing
+Homebrew metadata. Its version check follows the tap rather than GitHub's binary releases.
 Launch with `open "$(brew --prefix kinetic)/Kinetic.app"`.
 
 For an existing cask installation, run `brew uninstall --cask kinetic` before installing the

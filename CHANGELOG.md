@@ -2,6 +2,14 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
+## 0.35.5 - Unreleased
+
+### Fixed
+
+- Detect Homebrew-owned app bundles and delegate updates to Homebrew instead of replacing
+  managed symlinks. Update checks report the tap's available version; uninstall explains
+  the matching Homebrew command.
+
 ## 0.35.4
 
 ### Fixed

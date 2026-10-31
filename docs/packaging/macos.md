@@ -32,7 +32,14 @@ to `Kinetic.app/Contents/Resources/bin/kinetic`, preserving the app/CLI version 
 
 The embedded CLI supports `kinetic app check`, `install`, `update`, and `uninstall`, also exposed
 in the dedicated Settings page. This user-scoped manager targets `$HOME/Applications/Kinetic.app`;
-it does not modify a Homebrew, MacPorts, or system-managed installation. Install and update use a
+it does not directly replace a Homebrew, MacPorts, or system-managed installation. Homebrew
+ownership is detected from the resolved Cellar bundle and its installation receipt, including
+when launched through an application symlink. Checks read the Kinetic formula's version, not
+the GitHub binary release. Updates refresh Homebrew metadata and run
+`brew upgrade --formula hexadecimall/kinetic/kinetic`; Homebrew retains control of building,
+signing, links, and installed files. Automatic cleanup is disabled during this operation.
+Uninstall directs Homebrew installations to `brew uninstall hexadecimall/kinetic/kinetic`.
+Standalone install and update use a
 stable, immutable GitHub release asset named `Kinetic-VERSION-macos-arm64.zip`, verify GitHub's
 SHA-256 digest and asset size, then verify the extracted bundle identifier, version, bundled CLI,
 and code signature before replacing the user installation. The previous app is retained in Trash
