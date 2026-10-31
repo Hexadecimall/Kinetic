@@ -5,7 +5,8 @@
 
 namespace {
 
-NSString* const kDefaultKeychainService = @"top.frameworksdev.kinetic.github";
+NSString* const kDefaultKeychainService = @"org.kinetic.app.github";
+NSString* const kLegacyKeychainService = @"top.frameworksdev.kinetic.github";
 NSString* const kKeychainAccount = @"activeAccount";
 NSString* const kVerificationUrl = @"https://github.com/login/device";
 
@@ -112,18 +113,29 @@ NSNumber* numberValue(id value) {
     NSMutableDictionary* query = [self keychainQuery];
     OSStatus result = SecItemCopyMatching((__bridge CFDictionaryRef)query, nullptr);
     if (result == errSecSuccess) {
-        return SecItemUpdate((__bridge CFDictionaryRef)query,
-                             (__bridge CFDictionaryRef)
-                                 @{(__bridge id)kSecValueData : data}) == errSecSuccess;
+        result = SecItemUpdate((__bridge CFDictionaryRef)query,
+                               (__bridge CFDictionaryRef) @{(__bridge id)kSecValueData : data});
+    } else {
+        query[(__bridge id)kSecValueData] = data;
+        query[(__bridge id)kSecAttrAccessible] =
+            (__bridge id)kSecAttrAccessibleWhenUnlockedThisDeviceOnly;
+        result = SecItemAdd((__bridge CFDictionaryRef)query, nullptr);
     }
-    query[(__bridge id)kSecValueData] = data;
-    query[(__bridge id)kSecAttrAccessible] =
-        (__bridge id)kSecAttrAccessibleWhenUnlockedThisDeviceOnly;
-    return SecItemAdd((__bridge CFDictionaryRef)query, nullptr) == errSecSuccess;
+    if (result == errSecSuccess && [self.keychainService isEqualToString:kDefaultKeychainService]) {
+        NSMutableDictionary* legacy = [self keychainQuery];
+        legacy[(__bridge id)kSecAttrService] = kLegacyKeychainService;
+        SecItemDelete((__bridge CFDictionaryRef)legacy);
+    }
+    return result == errSecSuccess;
 }
 
 - (void)clearSession {
     SecItemDelete((__bridge CFDictionaryRef)[self keychainQuery]);
+    if ([self.keychainService isEqualToString:kDefaultKeychainService]) {
+        NSMutableDictionary* legacy = [self keychainQuery];
+        legacy[(__bridge id)kSecAttrService] = kLegacyKeychainService;
+        SecItemDelete((__bridge CFDictionaryRef)legacy);
+    }
     self.login = nil;
     self.displayName = nil;
     self.avatarImage = nil;
@@ -141,6 +153,12 @@ NSNumber* numberValue(id value) {
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
       CFTypeRef result = nullptr;
       OSStatus status = SecItemCopyMatching((__bridge CFDictionaryRef)query, &result);
+      if (status == errSecItemNotFound &&
+          [self.keychainService isEqualToString:kDefaultKeychainService]) {
+          NSMutableDictionary* legacy = [query mutableCopy];
+          legacy[(__bridge id)kSecAttrService] = kLegacyKeychainService;
+          status = SecItemCopyMatching((__bridge CFDictionaryRef)legacy, &result);
+      }
       NSData* data = result == nullptr ? nil : CFBridgingRelease(result);
       dispatch_async(dispatch_get_main_queue(), ^{
         if (self.flowGeneration != generation || self.phase != KineticGitHubAccountPhaseSignedOut) {

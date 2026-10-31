@@ -18,7 +18,7 @@ class HomebrewTests(unittest.TestCase):
         with zipfile.ZipFile(archive, "w") as bundle:
             bundle.writestr("Kinetic.app/Contents/Info.plist", plistlib.dumps({
                 "CFBundleShortVersionString": version or current,
-                "CFBundleIdentifier": "top.frameworksdev.kinetic",
+                "CFBundleIdentifier": "org.kinetic.app",
             }))
             bundle.writestr("Kinetic.app/Contents/Resources/bin/kinetic", b"fixture")
             if llvm:

@@ -61,14 +61,17 @@ static NSString* mockLastBody;
         [stream close];
         body = streamed;
     }
-    KineticMockGitHubProtocol.lastBody =
-        [[NSString alloc] initWithData:body encoding:NSUTF8StringEncoding];
+    KineticMockGitHubProtocol.lastBody = [[NSString alloc] initWithData:body
+                                                               encoding:NSUTF8StringEncoding];
     NSData* data = [KineticMockGitHubProtocol.responseBody dataUsingEncoding:NSUTF8StringEncoding];
-    NSHTTPURLResponse* response = [[NSHTTPURLResponse alloc] initWithURL:self.request.URL
-                                                              statusCode:200
-                                                             HTTPVersion:@"HTTP/1.1"
-                                                            headerFields:@{ @"Content-Type" : @"application/json" }];
-    [self.client URLProtocol:self didReceiveResponse:response cacheStoragePolicy:NSURLCacheStorageNotAllowed];
+    NSHTTPURLResponse* response =
+        [[NSHTTPURLResponse alloc] initWithURL:self.request.URL
+                                    statusCode:200
+                                   HTTPVersion:@"HTTP/1.1"
+                                  headerFields:@{@"Content-Type" : @"application/json"}];
+    [self.client URLProtocol:self
+          didReceiveResponse:response
+          cacheStoragePolicy:NSURLCacheStorageNotAllowed];
     [self.client URLProtocol:self didLoadData:data];
     [self.client URLProtocolDidFinishLoading:self];
 }
@@ -89,18 +92,19 @@ static void waitForPhase(KineticGitHubAccount* account, KineticGitHubAccountPhas
     NSDate* deadline = [NSDate dateWithTimeIntervalSinceNow:2.0];
     while (account.phase != phase && [deadline timeIntervalSinceNow] > 0) {
         [NSRunLoop.currentRunLoop runMode:NSDefaultRunLoopMode
-                              beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+                               beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
     }
     require(account.phase == phase, @"GitHub account did not reach expected phase");
 }
 
 static KineticGitHubAccount* testAccount(void) {
-    NSURLSessionConfiguration* configuration = NSURLSessionConfiguration.ephemeralSessionConfiguration;
+    NSURLSessionConfiguration* configuration =
+        NSURLSessionConfiguration.ephemeralSessionConfiguration;
     configuration.protocolClasses = @[ KineticMockGitHubProtocol.class ];
     NSURLSession* session = [NSURLSession sessionWithConfiguration:configuration];
     return [[KineticGitHubAccount alloc] initWithClientId:@"Iv1.testClient"
-                                                 session:session
-                                         keychainService:@"top.frameworksdev.kinetic.github.test"];
+                                                  session:session
+                                          keychainService:@"org.kinetic.app.github.test"];
 }
 
 int main(void) {

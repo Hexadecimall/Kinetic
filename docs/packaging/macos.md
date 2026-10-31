@@ -21,7 +21,13 @@ produces a DMG, a compressed archive, and a MacPorts Portfile generated from tha
 version, hashes, and size. Signing and notarization are enabled only when explicit release
 credentials are supplied; developer builds remain ad hoc and local.
 
-Bundle identifier: `top.frameworksdev.kinetic`
+Bundle identifier: `org.kinetic.app`. Installers also recognize the legacy
+`top.frameworksdev.kinetic` identifier for migration. Settings and plugins retain their
+existing `~/.kinetic` locations. GitHub sessions migrate from the legacy Keychain service
+after a successful save to `org.kinetic.app.github`.
+The updater shipped before 0.36.1 recognizes only the legacy identifier. A source installation
+or the 0.36.1 package client performs the one-time transition; subsequent updates accept both
+identifiers while new app bundles use `org.kinetic.app`.
 
 `VERSION` is the release source of truth. Packaging refuses inconsistent version metadata, runs the
 test suite and public-source audit, and names archives with the embedded CLI version.

@@ -23,7 +23,7 @@ class HomebrewUpdaterTests(unittest.TestCase):
         contents = self.bundle / "Contents"
         contents.mkdir(parents=True)
         (contents / "Info.plist").write_bytes(plistlib.dumps({
-            "CFBundleIdentifier": "top.frameworksdev.kinetic",
+            "CFBundleIdentifier": "org.kinetic.app",
             "CFBundleShortVersionString": "0.1.0",
         }))
         self.receipt = self.bundle.parent / "INSTALL_RECEIPT.json"
@@ -75,6 +75,20 @@ esac
 
     def testOtherTapIsNotModified(self):
         self.receipt.write_text(json.dumps({"source": {"tap": "another/tap"}}))
+        self.assertNotEqual(self.runClient("update").returncode, 0)
+        self.assertFalse((self.root / "home/commands").exists())
+
+    def testLegacyIdentifierCanMigrate(self):
+        (self.bundle / "Contents/Info.plist").write_bytes(plistlib.dumps({
+            "CFBundleIdentifier": "top.frameworksdev.kinetic",
+            "CFBundleShortVersionString": "0.1.0",
+        }))
+        self.assertEqual(self.runClient("check").returncode, 0)
+
+    def testUnrelatedBundleIsRejected(self):
+        (self.bundle / "Contents/Info.plist").write_bytes(plistlib.dumps({
+            "CFBundleIdentifier": "example.other.app",
+        }))
         self.assertNotEqual(self.runClient("update").returncode, 0)
         self.assertFalse((self.root / "home/commands").exists())
 

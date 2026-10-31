@@ -2,6 +2,14 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
+## 0.36.1
+
+### Changed
+
+- Use `org.kinetic.app` as the application bundle identifier. Recognize legacy installations
+  during migration and preserve the settings and plugins directory.
+- Use `org.kinetic.app.github` for GitHub sessions with migration from the legacy Keychain service.
+
 ## 0.36.0
 
 ### Added
