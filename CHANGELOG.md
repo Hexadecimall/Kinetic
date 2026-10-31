@@ -2,7 +2,15 @@
 
 All notable Kinetic changes are recorded here. Versions use `main.feature.patch`.
 
-## 0.35.5 - Unreleased
+## 0.35.6 - Unreleased
+
+### Fixed
+
+- Keep matching completion suggestions visible during asynchronous provider refreshes. Retain
+  selection and scroll position, anchor the popup to the word start, and rebase cached server
+  edit ranges as the prefix changes.
+
+## 0.35.5
 
 ### Fixed
 
