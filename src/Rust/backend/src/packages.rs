@@ -50,6 +50,100 @@ fn appRoot() -> Result<PathBuf, String> {
     Ok(homePath()?.join("Applications/Kinetic.app"))
 }
 
+const homebrewFormula: &str = "hexadecimall/kinetic/kinetic";
+
+fn homebrewPrefix(bundle: &Path) -> Option<PathBuf> {
+    let keg = bundle.parent()?;
+    let formula = keg.parent()?;
+    let cellar = formula.parent()?;
+    (bundle.file_name()? == "Kinetic.app"
+        && formula.file_name()? == "kinetic"
+        && cellar.file_name()? == "Cellar")
+        .then(|| cellar.parent().map(Path::to_path_buf))?
+}
+
+fn homebrewForApp() -> Result<Option<PathBuf>, String> {
+    let target = appRoot()?;
+    let executable = env::current_exe().map_err(|error| error.to_string())?;
+    let runningBundle = executable
+        .ancestors()
+        .find(|path| path.file_name().is_some_and(|name| name == "Kinetic.app"));
+    for candidate in runningBundle
+        .into_iter()
+        .chain(std::iter::once(target.as_path()))
+    {
+        let Ok(bundle) = candidate.canonicalize() else {
+            continue;
+        };
+        let Some(prefix) = homebrewPrefix(&bundle) else {
+            continue;
+        };
+        verifyKineticBundle(&bundle)?;
+        let receipt = fs::read(
+            bundle
+                .parent()
+                .ok_or("invalid Homebrew bundle")?
+                .join("INSTALL_RECEIPT.json"),
+        )
+        .map_err(|error| format!("cannot read Homebrew receipt: {error}"))?;
+        let receipt: Value = serde_json::from_slice(&receipt).map_err(|error| error.to_string())?;
+        if receipt["source"]["tap"].as_str() != Some("hexadecimall/kinetic") {
+            return Err(
+                "Kinetic is managed by another Homebrew tap; update it through that tap".into(),
+            );
+        }
+        let brew = prefix.join("bin/brew");
+        if !brew.is_file() {
+            return Err("Homebrew executable is missing".into());
+        }
+        return Ok(Some(brew));
+    }
+    Ok(None)
+}
+
+fn brewCommand(brew: &Path, arguments: &[&str]) -> Result<String, String> {
+    let output = Command::new(brew)
+        .args(arguments)
+        .env("HOMEBREW_NO_AUTO_UPDATE", "1")
+        .env("HOMEBREW_NO_INSTALL_CLEANUP", "1")
+        .output()
+        .map_err(|error| format!("cannot run Homebrew: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "Homebrew failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    String::from_utf8(output.stdout).map_err(|_| "invalid Homebrew output".into())
+}
+
+fn homebrewCheck(brew: &Path) -> Result<(), String> {
+    let metadata = brewCommand(brew, &["info", "--json=v2", "--formula", homebrewFormula])?;
+    let metadata: Value = serde_json::from_str(&metadata).map_err(|error| error.to_string())?;
+    let formula = &metadata["formulae"][0];
+    if formula["full_name"].as_str() != Some(homebrewFormula) {
+        return Err("unexpected Homebrew formula metadata".into());
+    }
+    let version = string(&formula["versions"], "stable")?;
+    if formula["outdated"].as_bool() == Some(true) {
+        println!("Kinetic {version} is available through Homebrew.");
+    } else {
+        println!("Kinetic is current in Homebrew (formula {version}).");
+    }
+    Ok(())
+}
+
+fn homebrewUpdate(brew: &Path) -> Result<(), String> {
+    if !confirm("Update Kinetic through Homebrew? This may build from source")? {
+        return Err("cancelled".into());
+    }
+    brewCommand(brew, &["update"])?;
+    brewCommand(brew, &["upgrade", "--formula", homebrewFormula])?;
+    homebrewCheck(brew)?;
+    println!("Homebrew update finished. Relaunch Kinetic to use the installed version.");
+    Ok(())
+}
+
 fn safeId(id: &str) -> bool {
     id.len() <= 128
         && id.split('.').count() >= 2
@@ -573,6 +667,9 @@ fn verifyKineticBundle(bundle: &Path) -> Result<(), String> {
 }
 
 fn appCheck() -> Result<(), String> {
+    if let Some(brew) = homebrewForApp()? {
+        return homebrewCheck(&brew);
+    }
     if let Some((version, _, _, _)) = appRelease()? {
         let current = installedAppVersion()?;
         if versionParts(&version) > versionParts(&current) {
@@ -601,6 +698,9 @@ fn installedAppVersion() -> Result<String, String> {
     reason = "the app replacement transaction keeps recovery steps together"
 )]
 fn appInstall(updateOnly: bool) -> Result<(), String> {
+    if let Some(brew) = homebrewForApp()? {
+        return homebrewUpdate(&brew);
+    }
     let (version, url, digest, size) =
         appRelease()?.ok_or("no application release is published yet")?;
     let target = appRoot()?;
@@ -724,6 +824,9 @@ fn appInstall(updateOnly: bool) -> Result<(), String> {
 }
 
 fn appUninstall() -> Result<(), String> {
+    if homebrewForApp()?.is_some() {
+        return Err("Kinetic is managed by Homebrew; use brew uninstall hexadecimall/kinetic/kinetic. Settings and plugins will remain".into());
+    }
     let target = appRoot()?;
     if !target
         .symlink_metadata()
@@ -867,6 +970,22 @@ fn installTool(name: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn homebrewOwnershipRequiresExactCellarLayout() {
+        assert_eq!(
+            homebrewPrefix(Path::new("/brew/Cellar/kinetic/0.35.4/Kinetic.app")),
+            Some(PathBuf::from("/brew"))
+        );
+        for path in [
+            "/Applications/Kinetic.app",
+            "/brew/Cellar/other/0.35.4/Kinetic.app",
+            "/brew/opt/kinetic/Kinetic.app",
+            "/brew/Cellar/kinetic/0.35.4/Other.app",
+        ] {
+            assert!(homebrewPrefix(Path::new(path)).is_none());
+        }
+    }
 
     #[test]
     fn idsCannotEscapePluginDirectory() {

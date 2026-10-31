@@ -1057,6 +1057,11 @@
             @{@"id" : @"themeDark", @"title" : @"Theme: Kinetic Dark", @"category" : @"Appearance"},
             @{@"id" : @"themeMidnight", @"title" : @"Theme: Midnight", @"category" : @"Appearance"},
             @{@"id" : @"themeGraphite", @"title" : @"Theme: Graphite", @"category" : @"Appearance"},
+            @{
+                @"id" : @"themeIslands",
+                @"title" : @"Theme: Islands Dark",
+                @"category" : @"Appearance"
+            },
         ]];
     if (self.editor != nil) {
         [commands addObjectsFromArray:@[
@@ -1148,12 +1153,14 @@
     } else if ([commandId hasPrefix:@"theme"]) {
         NSString* name = [commandId isEqualToString:@"themeMidnight"]   ? @"midnight"
                          : [commandId isEqualToString:@"themeGraphite"] ? @"graphite"
+                         : [commandId isEqualToString:@"themeIslands"]  ? @"islands-dark"
                                                                         : @"kinetic-dark";
         kineticSetThemeName(name);
         self.pluginNumberOverrides[@"interface.theme"] =
-            @([name isEqualToString:@"midnight"]   ? 1
-              : [name isEqualToString:@"graphite"] ? 2
-                                                   : 0);
+            @([name isEqualToString:@"midnight"]       ? 1
+              : [name isEqualToString:@"graphite"]     ? 2
+              : [name isEqualToString:@"islands-dark"] ? 3
+                                                       : 0);
         kineticRefreshThemeInView(self.content);
         for (KineticEditorView* editor in self.editors) {
             kineticRefreshThemeInView(editor);

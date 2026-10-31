@@ -2,9 +2,12 @@
 
 ## Themes
 
-Use Command-Shift-P and search for `Theme` to choose Kinetic Dark, Midnight, or Graphite.
+Use Command-Shift-P and search for `Theme` to choose Kinetic Dark, Midnight, Graphite, or Islands Dark.
 Midnight pairs navy surfaces with cyan accents and cool syntax colors. Graphite pairs warm charcoal
 with amber accents, cream text, and muted mineral syntax colors. Existing tabs update immediately.
+Islands Dark uses neutral charcoal surfaces, separated tool areas, warm keywords, and blue accents,
+inspired by JetBrains' Islands theme. Its palette is `assets/themes/kinetic-islands-dark.toml`;
+override it at `~/.kinetic/themes/kinetic-islands-dark.toml` like the other alternate palettes.
 
 The alternate palettes ship as `assets/themes/kinetic-midnight.toml` and
 `assets/themes/kinetic-graphite.toml`. Copy either into `~/.kinetic/themes/` with the same filename

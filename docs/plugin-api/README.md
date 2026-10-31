@@ -81,7 +81,7 @@ Supported numeric property keys and ranges:
 | `editor.currentLine.enabled` | 0 or 1 for the caret-line background |
 | `editor.diagnostics.enabled` | 0 or 1 for diagnostic presentation; language servers stay active |
 | `editor.tabs.preferredWidth` | 100 to 240 points |
-| `interface.theme` | Integer 0 to 2: Kinetic Dark, Midnight, Graphite; persists via the theme store |
+| `interface.theme` | Integer 0 to 3: Kinetic Dark, Midnight, Graphite, Islands Dark; persists via the theme store |
 | `interface.motion.enabled` | 0 or 1 for Settings/Plugins panels and Settings switches |
 | `interface.motion.duration` | 80 to 400 milliseconds; system Reduced Motion takes precedence |
 | `editor.caret.smooth` | 0 or 1; enables visual caret motion, default 0 |

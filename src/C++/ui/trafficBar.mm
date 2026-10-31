@@ -276,9 +276,9 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
         _owner = owner;
         _titles = @[
             @"New File", @"Open File…", @"Open Folder…", @"", @"Save", @"", @"Close Tab", @"",
-            @"Clone Repository…", @"Command Palette…"
+            @"Clone Repository…", @"Command Palette…", @"Settings…"
         ];
-        _shortcuts = @[ @"⌘N", @"⌘O", @"", @"", @"⌘S", @"", @"⌘W", @"", @"", @"⇧⌘P" ];
+        _shortcuts = @[ @"⌘N", @"⌘O", @"", @"", @"⌘S", @"", @"⌘W", @"", @"", @"⇧⌘P", @"⌘," ];
         if (_owner.fileMenuItems.count > 0) {
             NSMutableArray<NSString*>* titles = [_titles mutableCopy];
             NSMutableArray<NSString*>* shortcuts = [_shortcuts mutableCopy];
@@ -457,8 +457,11 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
     } else if (row == 9) {
         [_owner closeMenu];
         [_owner.commandHandler showCommandPalette];
-    } else if (row >= 11 && (NSUInteger)(row - 11) < _owner.fileMenuItems.count) {
-        NSString* commandId = _owner.fileMenuItems[(NSUInteger)(row - 11)][@"id"];
+    } else if (row == 10) {
+        [_owner closeMenu];
+        [_owner.commandHandler showSettings];
+    } else if (row >= 12 && (NSUInteger)(row - 12) < _owner.fileMenuItems.count) {
+        NSString* commandId = _owner.fileMenuItems[(NSUInteger)(row - 12)][@"id"];
         [_owner closeMenu];
         [_owner.commandHandler executePluginCommand:commandId];
     } else if (!NSPointInRect(point, _menuFrame)) {
@@ -492,9 +495,12 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
     } else if (event.keyCode == 36 && _selectedRow == 9) {
         [_owner closeMenu];
         [_owner.commandHandler showCommandPalette];
-    } else if (event.keyCode == 36 && _selectedRow >= 11 &&
-               (NSUInteger)(_selectedRow - 11) < _owner.fileMenuItems.count) {
-        NSString* commandId = _owner.fileMenuItems[(NSUInteger)(_selectedRow - 11)][@"id"];
+    } else if (event.keyCode == 36 && _selectedRow == 10) {
+        [_owner closeMenu];
+        [_owner.commandHandler showSettings];
+    } else if (event.keyCode == 36 && _selectedRow >= 12 &&
+               (NSUInteger)(_selectedRow - 12) < _owner.fileMenuItems.count) {
+        NSString* commandId = _owner.fileMenuItems[(NSUInteger)(_selectedRow - 12)][@"id"];
         [_owner closeMenu];
         [_owner.commandHandler executePluginCommand:commandId];
     } else {
@@ -642,8 +648,16 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
         [icon moveToPoint:NSMakePoint(centerX - 3.25, centerY)];
         [icon lineToPoint:NSMakePoint(centerX + 3.25, centerY)];
     } else {
-        NSRect zoomRect = NSMakeRect(centerX - 3.5, centerY - 3.5, 7.0, 7.0);
-        [icon appendBezierPathWithRoundedRect:zoomRect xRadius:1.25 yRadius:1.25];
+        const CGFloat extent = 3.5;
+        for (NSInteger horizontal = -1; horizontal <= 1; horizontal += 2) {
+            for (NSInteger vertical = -1; vertical <= 1; vertical += 2) {
+                NSPoint corner =
+                    NSMakePoint(centerX + horizontal * extent, centerY + vertical * extent);
+                [icon moveToPoint:NSMakePoint(corner.x - horizontal * 2.5, corner.y)];
+                [icon lineToPoint:corner];
+                [icon lineToPoint:NSMakePoint(corner.x, corner.y - vertical * 2.5)];
+            }
+        }
     }
 
     [glyph setStroke];
@@ -662,7 +676,7 @@ NSColor* color(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0) {
         NSRect rect = _menuRects[index].rectValue;
         if (_menuOpen || _hoveredItem == kMenuHitBase + (NSInteger)index) {
             [color(77, 141, 255, 0.16) setFill];
-            NSRect hoverRect = NSOffsetRect(rect, 0.0, -2.0);
+            NSRect hoverRect = NSInsetRect(rect, 2.0, 3.0);
             [[NSBezierPath bezierPathWithRoundedRect:hoverRect xRadius:3.0 yRadius:3.0] fill];
         }
 

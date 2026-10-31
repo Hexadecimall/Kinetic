@@ -30,7 +30,9 @@ NSColor* homeColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0
 - (instancetype)initWithFrame:(NSRect)frameRect {
     self = [super initWithFrame:frameRect];
     if (self) {
-        _actionTitles = @[ @"New Text File", @"Open File…", @"Open Folder…", @"Clone Repository…" ];
+        _actionTitles = @[
+            @"New Text File", @"Open File…", @"Open Folder…", @"Clone Repository…", @"Settings…"
+        ];
         _actionRects = [[NSMutableArray alloc] init];
         _recentRects = [[NSMutableArray alloc] init];
         _recentProjects = @[];
@@ -64,6 +66,9 @@ NSColor* homeColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0
 
 - (void)resetCursorRects {
     [self addCursorRect:[self settingsButtonRect] cursor:NSCursor.pointingHandCursor];
+    [self rebuildActionRects];
+    for (NSValue* rect in _actionRects)
+        [self addCursorRect:rect.rectValue cursor:NSCursor.pointingHandCursor];
 }
 
 - (CGFloat)contentX {
@@ -124,13 +129,21 @@ NSColor* homeColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0
         [icon lineToPoint:NSMakePoint(x + 13.0, y + 11.0)];
         [icon lineToPoint:NSMakePoint(x, y + 11.0)];
         [icon closePath];
-    } else {
+    } else if (index == 3) {
         [icon moveToPoint:NSMakePoint(x + 2.0, y + 3.0)];
         [icon lineToPoint:NSMakePoint(x + 2.0, y + 9.0)];
         [icon moveToPoint:NSMakePoint(x + 11.0, y + 3.0)];
         [icon lineToPoint:NSMakePoint(x + 11.0, y + 9.0)];
         [icon moveToPoint:NSMakePoint(x + 2.0, y + 6.0)];
         [icon lineToPoint:NSMakePoint(x + 11.0, y + 6.0)];
+    } else {
+        for (NSUInteger row = 0; row < 3; ++row) {
+            CGFloat lineY = y + 2.0 + row * 4.0;
+            CGFloat knobX = x + (row == 1 ? 9.0 : 4.0);
+            [icon moveToPoint:NSMakePoint(x, lineY)];
+            [icon lineToPoint:NSMakePoint(x + 13.0, lineY)];
+            [icon appendBezierPathWithOvalInRect:NSMakeRect(knobX - 1.5, lineY - 1.5, 3.0, 3.0)];
+        }
     }
 
     [color setStroke];
@@ -341,6 +354,8 @@ NSColor* homeColor(CGFloat red, CGFloat green, CGFloat blue, CGFloat alpha = 1.0
             [self.commandHandler openFolder];
         } else if (index == 3) {
             [self.commandHandler cloneRepository];
+        } else if (index == 4) {
+            [self.commandHandler showSettings];
         }
         return;
     }

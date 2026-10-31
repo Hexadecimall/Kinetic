@@ -118,6 +118,9 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     NSTimer* _completionPollTimer;
     NSUInteger _completionPollCount;
     BOOL _completionPending;
+    NSString* _completionPrefixText;
+    NSUInteger _completionCaret;
+    CGFloat _completionPopupWidth;
     KineticSettingsPanel* _settingsPanel;
     KineticUtilityPanel* _utilityPanel;
     __weak NSView* _utilityPanelHost;
@@ -645,9 +648,10 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     if (!std::isfinite(value)) {
         return NO;
     }
-    if ([property isEqualToString:@"interface.theme"] && value >= 0 && value <= 2 &&
+    if ([property isEqualToString:@"interface.theme"] && value >= 0 && value <= 3 &&
         floor(value) == value) {
-        kineticSetThemeName(@[ @"kinetic-dark", @"midnight", @"graphite" ][(NSUInteger)value]);
+        kineticSetThemeName(
+            @[ @"kinetic-dark", @"midnight", @"graphite", @"islands-dark" ][(NSUInteger)value]);
         kineticRefreshThemeInView(_utilityPanelHost.window.contentView ?: self.window.contentView ?: self);
     } else if ([property isEqualToString:@"editor.text.fontPreset"] && value >= 0 && value <= 3 &&
                floor(value) == value) {
@@ -738,8 +742,8 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
         return NO;
     }
     if ([property isEqualToString:@"interface.theme"]) {
-        NSUInteger index =
-            [@[ @"kinetic-dark", @"midnight", @"graphite" ] indexOfObject:kineticThemeName()];
+        NSUInteger index = [@[ @"kinetic-dark", @"midnight", @"graphite", @"islands-dark" ]
+            indexOfObject:kineticThemeName()];
         *value = index == NSNotFound ? 0 : index;
     } else if ([property isEqualToString:@"editor.text.fontPreset"]) {
         NSUInteger index =
@@ -1496,6 +1500,8 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     [_completionPollTimer invalidate];
     _completionPollTimer = nil;
     _completionPending = NO;
+    _completionPrefixText = nil;
+    _completionPopupWidth = 0;
     _completionItems = @[];
     _completionSelectedIndex = 0;
     _completionScrollIndex = 0;
@@ -1541,6 +1547,34 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     NSMutableSet<NSString*>* seen = [NSMutableSet set];
     NSArray* provided = [self.overlayRenderer pluginCompletionItemsForPrefix:prefix
                                                                     fileName:fileName];
+    BOOL waitingForProvider = pluginProvider && provided.count == 0;
+    BOOL continuing =
+        _completionPrefixText != nil && prefixStart == _completionPrefixStart &&
+        ([prefix hasPrefix:_completionPrefixText] || [_completionPrefixText hasPrefix:prefix]);
+    NSDictionary* previousSelection = _completionItems.count > (NSUInteger)_completionSelectedIndex
+                                          ? _completionItems[(NSUInteger)_completionSelectedIndex]
+                                          : nil;
+    if (!continuing) {
+        _completionPopupWidth = 0;
+        previousSelection = nil;
+    }
+    if (pluginProvider && provided.count == 0 && continuing) {
+        NSMutableArray* retained = [NSMutableArray array];
+        NSInteger delta = (NSInteger)_caretIndex - (NSInteger)_completionCaret;
+        for (NSDictionary* item in _completionItems) {
+            NSMutableDictionary* updated = [item mutableCopy];
+            if (([item[@"flags"] unsignedIntValue] & kineticPluginCompletionHasRange) != 0) {
+                NSUInteger start = [item[@"replaceStart"] unsignedIntegerValue];
+                NSUInteger length = [item[@"replaceLength"] unsignedIntegerValue];
+                if (start > _completionCaret || length > NSUIntegerMax - start ||
+                    start + length < _completionCaret || (NSInteger)length + delta < 0)
+                    continue;
+                updated[@"replaceLength"] = @((NSUInteger)((NSInteger)length + delta));
+            }
+            [retained addObject:updated];
+        }
+        provided = retained;
+    }
     for (NSDictionary<NSString*, NSString*>* item in provided) {
         NSString* insertText = item[@"insertText"];
         if (insertText.length == 0 || [insertText isEqualToString:prefix] ||
@@ -1590,7 +1624,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
           return [leftSort compare:rightSort];
       return NSOrderedSame;
     }];
-    if (pluginProvider && provided.count == 0 && _completionPollTimer == nil) {
+    if (waitingForProvider && _completionPollTimer == nil) {
         _completionPending = YES;
         _completionPollCount = 0;
         _completionPollTimer = [NSTimer scheduledTimerWithTimeInterval:0.1
@@ -1598,18 +1632,31 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
                                                               selector:@selector(pollCompletions:)
                                                               userInfo:nil
                                                                repeats:YES];
-    } else if (provided.count > 0 && _completionPollTimer != nil) {
+    } else if (!waitingForProvider && _completionPollTimer != nil) {
         _completionPending = NO;
         [_completionPollTimer invalidate];
         _completionPollTimer = nil;
-    } else if (provided.count > 0) {
+    } else if (!waitingForProvider) {
         _completionPending = NO;
     }
     _completionPrefixStart = (NSUInteger)prefixStart;
+    _completionPrefixText = prefix;
+    _completionCaret = _caretIndex;
     _completionItems =
         [result subarrayWithRange:NSMakeRange(0, MIN(result.count, _autocompleteMaxResults))];
     _completionSelectedIndex = 0;
-    _completionScrollIndex = 0;
+    if (previousSelection != nil) {
+        NSUInteger retainedIndex = [_completionItems
+            indexOfObjectPassingTest:^BOOL(NSDictionary* item, NSUInteger index, BOOL* stop) {
+              return [item[@"label"] isEqual:previousSelection[@"label"]] &&
+                     [item[@"insertText"] isEqual:previousSelection[@"insertText"]];
+            }];
+        if (retainedIndex != NSNotFound)
+            _completionSelectedIndex = (NSInteger)retainedIndex;
+    }
+    _completionScrollIndex = MIN(_completionScrollIndex, (NSUInteger)_completionSelectedIndex);
+    if ((NSUInteger)_completionSelectedIndex >= _completionScrollIndex + kCompletionVisibleRows)
+        _completionScrollIndex = (NSUInteger)_completionSelectedIndex - kCompletionVisibleRows + 1;
     self.needsDisplay = YES;
 }
 
@@ -1636,7 +1683,7 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     if (_completionItems.count == 0) {
         return NSZeroRect;
     }
-    NSString* beforeCaret = [_text substringToIndex:_caretIndex];
+    NSString* beforeCaret = [_text substringToIndex:MIN(_completionPrefixStart, _caretIndex)];
     NSArray<NSString*>* lines = [beforeCaret componentsSeparatedByString:@"\n"];
     NSString* line = lines.lastObject ?: @"";
     CGFloat textX = [self editorTextOriginX];
@@ -1660,6 +1707,8 @@ NSColor* syntaxColor(KineticSyntaxKind kind) {
     }
     CGFloat width =
         MIN(MAX(180.0, contentWidth + 26.0), MIN(420.0, NSWidth(self.bounds) - textX - 12.0));
+    _completionPopupWidth = MAX(_completionPopupWidth, width);
+    width = MIN(_completionPopupWidth, MAX(0.0, NSWidth(self.bounds) - textX - 12.0));
     CGFloat x = MIN(MAX(textX, caretX), NSWidth(self.bounds) - width - 10.0);
     CGFloat y = caretY + _lineHeight + 3.0;
     if (y + height > NSHeight(self.bounds) - 8.0) {

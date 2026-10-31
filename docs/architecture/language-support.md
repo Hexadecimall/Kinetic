@@ -25,6 +25,10 @@ Superseded completion requests are cancelled. Definition replies are accepted on
 requesting document version, and older diagnostic versions cannot replace current analysis.
 The C/C++ plugin notifies the active editor as soon as clangd returns completions. A timer remains
 for older completion providers that do not send readiness notifications.
+While a provider refresh is pending, the popup filters its existing candidates against the
+current prefix and adjusts their replacement ranges. Selection is retained when the same
+candidate remains available. The popup stays anchored to the word start and keeps its width
+within the completion session; leaving the context or dismissing it clears the retained state.
 Member access and C-family include/import paths continue requesting suggestions while the prefix
 is shorter than the general autocomplete minimum. Rust parses these contexts at UTF-16 boundaries;
 the C++ view retains only provider selection and popup presentation.

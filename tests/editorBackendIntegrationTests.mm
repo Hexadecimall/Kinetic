@@ -16,6 +16,7 @@
 
 @interface CompletionRenderer : NSObject <KineticEditorOverlayRenderer>
 @property(nonatomic, copy) NSString* requestedPrefix;
+@property(nonatomic) BOOL pending;
 @end
 
 @implementation CompletionRenderer
@@ -30,6 +31,8 @@
 - (NSArray*)pluginCompletionItemsForPrefix:(NSString*)prefix fileName:(NSString*)fileName {
     (void)fileName;
     self.requestedPrefix = prefix;
+    if (self.pending)
+        return @[];
     return @[
         @{@"label" : @"xyz", @"insertText" : @"xyz", @"filterText" : @"xyz"},
         @{@"label" : @"vector", @"insertText" : @"vector", @"filterText" : @"vector"}
@@ -203,6 +206,40 @@ int main() {
                            [[memberEditor valueForKey:@"completionItems"] count] > 0,
                        @"member completion continues below minimum prefix") &&
                  passed;
+        NSRect beforeRefresh = [memberEditor completionPopupRect];
+        [memberEditor setValue:@[ @{
+                          @"label" : @"xyz",
+                          @"insertText" : @"xyz",
+                          @"filterText" : @"xyz",
+                          @"flags" : @1,
+                          @"replaceStart" : @7,
+                          @"replaceLength" : @1
+                      } ]
+                        forKey:@"completionItems"];
+        completionRenderer.pending = YES;
+        NSEvent* extendPrefix = [NSEvent keyEventWithType:NSEventTypeKeyDown
+                                                 location:NSZeroPoint
+                                            modifierFlags:0
+                                                timestamp:0
+                                             windowNumber:0
+                                                  context:nil
+                                               characters:@"y"
+                              charactersIgnoringModifiers:@"y"
+                                                isARepeat:NO
+                                                  keyCode:16];
+        [memberEditor keyDown:extendPrefix];
+        NSRect duringRefresh = [memberEditor completionPopupRect];
+        passed = check([[memberEditor valueForKey:@"completionItems"] count] > 0 &&
+                           NSMinX(beforeRefresh) == NSMinX(duringRefresh) &&
+                           NSWidth(beforeRefresh) == NSWidth(duringRefresh),
+                       @"pending completion preserves matching rows and popup anchor") &&
+                 passed;
+        [memberEditor acceptCompletionAtIndex:0];
+        passed = check([memberEditor.documentText isEqualToString:@"object.xyz"],
+                       @"retained server edit range includes newly typed characters") &&
+                 passed;
+        completionRenderer.pending = NO;
+        [memberEditor refreshCompletionsWithMinimum:2];
         for (NSString* source in @[ @"std::x", @"pointer->x" ]) {
             KineticEditorView* scopedEditor =
                 [[KineticEditorView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)

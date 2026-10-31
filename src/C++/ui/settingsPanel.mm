@@ -41,8 +41,8 @@ NSArray* groups() {
 
 NSArray<NSDictionary*>* kineticSettingsRows(void) {
     return @[
-        row(@"Appearance", @"Theme", @"interface.theme", 0, 2, 1,
-            @[ @"Kinetic Dark", @"Midnight", @"Graphite" ]),
+        row(@"Appearance", @"Theme", @"interface.theme", 0, 3, 1,
+            @[ @"Kinetic Dark", @"Midnight", @"Graphite", @"Islands Dark" ]),
         row(@"Appearance", @"Font", @"editor.text.fontPreset", 0, 3, 1,
             @[ @"System Mono", @"Menlo", @"Monaco", @"Courier" ]),
         row(@"Appearance", @"Font size", @"editor.text.fontSize", 8, 28),

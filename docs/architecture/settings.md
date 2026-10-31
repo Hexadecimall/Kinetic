@@ -1,7 +1,7 @@
 # Settings surface
 
 The Settings activity and Command-Comma open a rounded, Kinetic-drawn overlay above the workspace.
-Command-Comma and the welcome screen's lower-left Settings icon open the same panel without
+Command-Comma, File → Settings, and the welcome screen's labeled Settings action and lower-left icon open the same panel without
 creating a document or tab.
 Settings and Plugins preserve the underlying document tabs and Explorer. Both animate open and
 closed; Escape, Command-W, the close button, or a backdrop click dismiss the panel.
@@ -18,7 +18,7 @@ Supported controls:
 - Font: system monospace, Menlo, Monaco, or Courier.
 - Line Height: 14 through 40 points.
 - Letter Spacing: -2 through 8 points, in quarter-point increments.
-- Theme: Kinetic Dark, Midnight, or Graphite.
+- Theme: Kinetic Dark, Midnight, Graphite, or Islands Dark.
 - Current Line: optional subtle highlight behind the caret's line.
 - Diagnostics: show or hide diagnostic underlines and hover details without stopping clangd.
 - Line Numbers: visible or hidden.
