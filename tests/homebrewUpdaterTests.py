@@ -10,7 +10,10 @@ import sys
 import tempfile
 import unittest
 
+client = (str(Path(sys.argv.pop(1)).resolve()) if __name__ == "__main__"
+          else os.environ.get("KINETIC_TEST_CLIENT"))
 
+@unittest.skipIf(client is None, "requires a built Kinetic CLI")
 class HomebrewUpdaterTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="kinetic-updater-")
@@ -83,5 +86,4 @@ esac
 
 
 if __name__ == "__main__":
-    client = str(Path(sys.argv.pop(1)).resolve())
     unittest.main()
