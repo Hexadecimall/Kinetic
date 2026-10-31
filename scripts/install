@@ -34,7 +34,10 @@ if [ -e "$targetCli" ] && [ ! -L "$targetCli" ]; then
 fi
 
 bundleId=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$sourceApp/Contents/Info.plist")
-[ "$bundleId" = top.frameworksdev.kinetic ] || kinetic_die "expected a Kinetic app bundle"
+case "$bundleId" in
+    org.kinetic.app | top.frameworksdev.kinetic) ;;
+    *) kinetic_die "expected a Kinetic app bundle" ;;
+esac
 codesign --verify --deep --strict "$sourceApp"
 
 mkdir -p "$appDir" "$binDir"

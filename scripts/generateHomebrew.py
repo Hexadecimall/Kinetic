@@ -19,7 +19,7 @@ def renderCask(root, archive, unnotarized=False):
         info = plistlib.loads(bundle.read("Kinetic.app/Contents/Info.plist"))
         if info.get("CFBundleShortVersionString") != version:
             raise ValueError("App and cask versions differ")
-        if info.get("CFBundleIdentifier") != "top.frameworksdev.kinetic":
+        if info.get("CFBundleIdentifier") != "org.kinetic.app":
             raise ValueError("Unexpected bundle identifier")
         if "Kinetic.app/Contents/Resources/bin/kinetic" not in bundle.namelist():
             raise ValueError("Archive has no embedded CLI")

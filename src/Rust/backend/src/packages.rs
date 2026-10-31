@@ -660,7 +660,10 @@ fn bundleField(bundle: &Path, field: &str) -> Result<String, String> {
 }
 
 fn verifyKineticBundle(bundle: &Path) -> Result<(), String> {
-    if bundleField(bundle, "CFBundleIdentifier")? != "top.frameworksdev.kinetic" {
+    if !matches!(
+        bundleField(bundle, "CFBundleIdentifier")?.as_str(),
+        "org.kinetic.app" | "top.frameworksdev.kinetic"
+    ) {
         return Err("application target is not a Kinetic bundle".into());
     }
     Ok(())
